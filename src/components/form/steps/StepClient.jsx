@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Inp, Sel, TA, SHdr, FileUpload } from '../../ui/index.jsx';
 import { SEGMENTS, SALES_TEAMS, LEAD_TYPES, LEAD_CATS, SALE_TYPES,
          COUNTRIES, SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES } from '../../../constants/formOptions.js';
@@ -12,12 +13,19 @@ export default function StepClient({ form, set, ro }) {
   const needsRef = SOW_REFERENCE_TYPES.has(form.sale_type);
 
   const handleRepSelect = email => {
-    const rep = SALES_REPS.find(r => r.email === email);
-    if (!rep) return;
-    u('sales_rep_name', rep.name);
-    u('sales_rep_email', rep.email);
-    u('slack_id', rep.slack);
-  };
+  const rep = SALES_REPS.find(r => r.email === email);
+  if (!rep) return;
+  u('sales_rep_name', rep.name);
+  u('sales_rep_email', rep.email);
+  u('slack_id', rep.slack);
+};
+
+// Auto-fill rep details when Sales Rep logs in
+useEffect(() => {
+  if (!ro && user?.role === 'sales' && !user?.isUniversal && user?.email && !form.sales_rep_email) {
+    handleRepSelect(user.email);
+  }
+}, [user?.email]);
 
   return (
     <div>
