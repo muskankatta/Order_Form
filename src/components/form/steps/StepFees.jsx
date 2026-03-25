@@ -1,23 +1,29 @@
 import { useEffect } from 'react';
 import { Lbl, SHdr, Btn } from '../../ui/index.jsx';
 import { SERVICES, FEE_TYPES, FEE_RULES, UNIT_METRICS, PAY_TRIGGERS,
-         GRADUATED_ELIGIBLE, STEP_UP_ELIGIBLE } from '../../../constants/formOptions.js';
+         GRADUATED_ELIGIBLE, STEP_UP_ELIGIBLE, SLAB_RATE_UNITS } from '../../../constants/formOptions.js';
 import { uid } from '../../../utils/dates.js';
-import { cyclesInTerm } from '../../../utils/formatting.js';
+import { cyclesInTerm, getSym } from '../../../utils/formatting.js';
 import { calcMetrics, calcOFValue } from '../../../utils/calculations.js';
 import { newFee } from '../../../hooks/useFormWizard.js';
 
 const T = '#00C3B5'; const NAVY = '#1B2B4B';
 
 // ── FEE ROW ────────────────────────────────────────────────────────────────
-function FeeRow({ fee, onChange, onRemove, idx, termMonths }) {
+function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
   const u = (k,v) => onChange({ ...fee, [k]:v });
+  const sym = getSym(currency || 'INR');
   const rules = FEE_RULES[fee.feeType] || {};
   const cycleOpts = rules.locked ? [] : (rules.opts || ['Monthly','Quarterly','Bi-Annually','Annually','One Time']);
   const isOT   = fee.billingCycle === 'One Time';
   const canGrad= GRADUATED_ELIGIBLE.includes(fee.feeType);
   const canStep= STEP_UP_ELIGIBLE.includes(fee.feeType) && !isOT;
   const cycles = termMonths && fee.billingCycle && !isOT ? cyclesInTerm(fee.billingCycle, termMonths) : null;
+
+  // Build dynamic slab rate options with currency symbol
+  const slabRateOpts = SLAB_RATE_UNITS.map(u =>
+    u.startsWith('%') ? u : `${sym} ${u}`
+  );
 
   const handleFeeType = ft => {
     const r = FEE_RULES[ft] || {};
@@ -101,7 +107,7 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths }) {
               <input value={sl.to} onChange={e=>updSlab(si,'to',e.target.value)} placeholder="∞" className={`${inp} font-mono`} style={s6}/>
               <input value={sl.rate} onChange={e=>updSlab(si,'rate',e.target.value)} placeholder="0.00" className={`${inp} font-mono`} style={s6}/>
               <select value={sl.rateType} onChange={e=>updSlab(si,'rateType',e.target.value)} className={`${inp}`} style={s6}>
-                <option>₹ per unit</option><option>% of BCA</option><option>% of VOG</option>
+                {slabRateOpts.map(o => <option key={o}>{o}</option>)}
               </select>
               <button type="button" onClick={()=>{ if((fee.slabs||[]).length>1) u('slabs',(fee.slabs||[]).filter((_,i)=>i!==si)); }} className="text-xs text-red-500">✕</button>
             </div>
@@ -149,6 +155,25 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths }) {
         </div>
       )}
 
+      {/* Usage cycle — visible for all non-one-time fees */}
+      {!isOT && !fee.isLogistics && (
+        <div className="mb-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
+          <div className="text-[10px] font-bold uppercase tracking-wider mb-2 text-blue-700">Usage cycle</div>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-xs cursor-pointer text-slate-600">
+              <input type="checkbox" checked={fee.usageCycleDiffers||false} onChange={e=>u('usageCycleDiffers',e.target.checked)}/>
+              Usage cycle differs from billing cycle
+            </label>
+            {fee.usageCycleDiffers && (
+              <select value={fee.usageCycle||''} onChange={e=>u('usageCycle',e.target.value)} className="text-xs px-2 py-1 rounded border bg-white" style={{borderColor:'#e2e8f0'}}>
+                <option value="">Select…</option>
+                {['Monthly','Quarterly','Bi-Annually','Annually'].map(o=><option key={o}>{o}</option>)}
+              </select>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Bottom meta row */}
       <div className="grid grid-cols-3 gap-3">
         {[
@@ -172,7 +197,7 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths }) {
 }
 
 // ── SERVICE BLOCK ──────────────────────────────────────────────────────────
-function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro }) {
+function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency }) {
   const letter = String.fromCharCode(97 + idx);
   const addFee    = () => onChange({ ...svc, fees:[...(svc.fees||[]), newFee()] });
   const updFee    = (fi,u) => onChange({ ...svc, fees:svc.fees.map((f,i)=>i===fi?u:f) });
@@ -201,7 +226,7 @@ function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro }) {
                 <span className="font-semibold text-navy">{fee.feeType}</span> · {fee.billingCycle} · {fee.isLogistics?'As per rate card':fee.pricingModel==='graduated'?'Variable':fee.commercialValue||'—'}
                 {fee.inclusions && <span className="text-brand-muted"> · Inclusions: {fee.inclusions}</span>}
               </div>
-            : <FeeRow key={fee.id} fee={fee} idx={fi} onChange={u=>updFee(fi,u)} onRemove={()=>remFee(fi)} termMonths={termMonths}/>
+            : <FeeRow key={fee.id} fee={fee} idx={fi} onChange={u=>updFee(fi,u)} onRemove={()=>remFee(fi)} termMonths={termMonths} currency={currency}/>
         ))}
         {!ro && (
           <button type="button" onClick={addFee}
@@ -249,7 +274,7 @@ export default function StepFees({ form, set, ro }) {
       </div>
 
       {services.map((svc,i) => (
-        <SvcBlock key={svc.id} svc={svc} idx={i} termMonths={termMonths} ro={ro}
+        <SvcBlock key={svc.id} svc={svc} idx={i} termMonths={termMonths} ro={ro} currency={form.committed_currency||'INR'}
           onChange={s=>!ro&&updSvc(i,s)} onRemove={()=>!ro&&remSvc(i)}/>
       ))}
 
