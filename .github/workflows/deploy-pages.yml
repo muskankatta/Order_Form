@@ -26,10 +26,16 @@ jobs:
       - run: npm ci
       - name: Build
         env:
-          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
-          VITE_SLACK_WEBHOOK_URL: ${{ secrets.VITE_SLACK_WEBHOOK_URL }}
-          VITE_SHEETS_ID: ${{ secrets.VITE_SHEETS_ID }}
-          VITE_BASE_PATH: ${{ secrets.VITE_BASE_PATH }}
+          VITE_GOOGLE_CLIENT_ID:              ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_SLACK_WEBHOOK_URL:             ${{ secrets.VITE_SLACK_WEBHOOK_URL }}
+          VITE_SHEETS_ID:                     ${{ secrets.VITE_SHEETS_ID }}
+          VITE_BASE_PATH:                     ${{ secrets.VITE_BASE_PATH || '/Order_Form/' }}
+          VITE_FIREBASE_API_KEY:              ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN:          ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID:           ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET:       ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID:  ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID:               ${{ secrets.VITE_FIREBASE_APP_ID }}
         run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
