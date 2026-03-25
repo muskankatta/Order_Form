@@ -9,6 +9,7 @@ import FormWizard from './components/form/FormWizard.jsx';
 import FormDetail from './components/approval/FormDetail.jsx';
 import { SignedOFs, ChurnVoidRequest } from './components/views/SignedChurnVoid.jsx';
 import AdminUsers from './components/views/AdminUsers.jsx';
+import Settings from './components/views/Settings.jsx';
 import { useForms } from './context/FormsContext.jsx';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getFY } from './utils/dates.js';
@@ -17,7 +18,12 @@ function FormDetailRoute() {
   const { id }    = useParams();
   const { forms } = useForms();
   const form      = forms.find(f => f.id === id);
-  if (!form) return <div className="p-8 text-brand-faint">Order Form not found.</div>;
+  if (!form) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3">
+      <div className="text-4xl">🔍</div>
+      <p className="text-brand-muted">Order Form not found.</p>
+    </div>
+  );
   return <FormDetail form={form}/>;
 }
 
@@ -43,14 +49,15 @@ function ProtectedApp() {
     <FormsProvider>
       <AppShell>
         <Routes>
-          <Route path="/dashboard"    element={<Dashboard/>}/>
-          <Route path="/repository"   element={<Repository/>}/>
-          <Route path="/form/new"     element={<NewFormPage/>}/>
-          <Route path="/form/:id"     element={<FormDetailRoute/>}/>
-          <Route path="/signed"       element={<SignedOFs/>}/>
-          <Route path="/churn-void"   element={<ChurnVoidRequest/>}/>
-          <Route path="/admin-users"  element={<AdminUsers/>}/>
-          <Route path="*"             element={<Navigate to="/dashboard" replace/>}/>
+          <Route path="/dashboard"   element={<Dashboard/>}/>
+          <Route path="/repository"  element={<Repository/>}/>
+          <Route path="/form/new"    element={<NewFormPage/>}/>
+          <Route path="/form/:id"    element={<FormDetailRoute/>}/>
+          <Route path="/signed"      element={<SignedOFs/>}/>
+          <Route path="/churn-void"  element={<ChurnVoidRequest/>}/>
+          <Route path="/admin-users" element={<AdminUsers/>}/>
+          <Route path="/settings"    element={<Settings/>}/>
+          <Route path="*"            element={<Navigate to="/dashboard" replace/>}/>
         </Routes>
       </AppShell>
     </FormsProvider>
