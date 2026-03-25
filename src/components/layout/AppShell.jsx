@@ -27,12 +27,12 @@ export default function AppShell({ children }) {
         {/* Logo */}
         <div className="p-5 pb-4">
           <div className="flex items-center gap-2">
-            <svg width="28" height="28" viewBox="0 0 100 100" fill="none">
-              <path d="M50 8C28 8 12 26 12 48C12 70 33 87 50 96C67 87 88 70 88 48C88 26 72 8 50 8Z"
-                    stroke="white" strokeWidth="6" fill="none"/>
-              <path d="M37 48L50 33L63 48L54.5 57L54.5 72L45.5 72L45.5 57Z" fill="white"/>
-            </svg>
-            <div className="text-white font-black text-xl tracking-tight">Fynd</div>
+            <img
+  src={`${import.meta.env.BASE_URL}Fynd_Horizontal_Dark.svg`}
+  alt="Fynd"
+  className="h-7"
+  style={{ filter:'brightness(0) invert(1)' }}
+/>
           </div>
           <div className="text-[11px] mt-1" style={{ color:'rgba(255,255,255,0.35)' }}>OF Platform</div>
         </div>
