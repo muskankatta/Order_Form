@@ -8,7 +8,12 @@ export const SERVICES = [
 export const SEGMENTS    = ['AI/SaaS','AI Commerce','Commerce'];
 export const SALES_TEAMS = ['India','Global','AI/SaaS'];
 export const LEAD_TYPES  = ['Direct','Indirect'];
-export const LEAD_CATS   = { Direct:['Event','NA'], Indirect:['Pre Sales','Partner'] };
+// Direct: Event, Inside Sales/Pre-Sales | Indirect: Partner only
+export const LEAD_CATS   = {
+  Direct:   ['Event','Inside Sales/Pre-Sales'],
+  Indirect: ['Partner'],
+};
+// Indirect also needs a partner name field (handled in StepClient)
 export const SALE_TYPES  = ['New Business','Renewal','Upsell','Cross-Sell','Shift from SoW','Revision in Commercials'];
 export const COUNTRIES   = ['India','UAE','USA','UK','Singapore','Australia','Malaysia','Indonesia','Saudi Arabia','South Africa','Other'];
 
@@ -38,6 +43,14 @@ export const FEE_RULES = {
 
 export const GRADUATED_ELIGIBLE = ['Transaction Fee','Licensing Fee','Usage Fee','Add-on Fee'];
 export const STEP_UP_ELIGIBLE   = ['Subscription Fee','Platform Fee','Licensing Fee'];
+
+// Slab rate unit options for graduated pricing
+export const SLAB_RATE_UNITS = [
+  'per Item','per Bag','per Shipment','per Order','per SKU',
+  'per Store','per Warehouse','per Rider','per User',
+  'per AI Video','per Image','per Tech Pack',
+  '% of BCA','% of VOG',
+];
 
 export const UNIT_METRICS = [
   '','Placed (bag)','Placed (shipment)','Placed (order)','Placed (item)',
