@@ -1,153 +1,154 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import {
+  collection, doc, setDoc, deleteDoc, onSnapshot,
+  query, orderBy, serverTimestamp, writeBatch,
+} from 'firebase/firestore';
+import { db, isConfigured } from '../firebase.js';
 import { storage } from '../utils/storage.js';
 import { uid } from '../utils/dates.js';
-import { syncToSheets } from '../utils/sheets.js';
-import { notifySubmitted, notifyRevOpsApproved, notifyFinanceApproved,
-         notifyRejected, notifyChurnVoidRequest } from '../utils/slack.js';
+import {
+  notifySubmitted, notifyRevOpsApproved, notifyFinanceApproved,
+  notifyRejected, notifyChurnVoidRequest,
+} from '../utils/slack.js';
 import { useAuth } from './AuthContext.jsx';
 
 const FormsContext = createContext(null);
+const COLLECTION   = 'order_forms';
+
+const toFirestore   = form => ({ ...form, _updatedAt: serverTimestamp() });
+const fromFirestore = snap => {
+  const d = snap.data();
+  if (d._updatedAt?.toDate) d._updatedAt = d._updatedAt.toDate().toISOString();
+  return d;
+};
 
 export function FormsProvider({ children }) {
-  const { user } = useAuth();
-  const [forms, setForms] = useState(() => storage.get());
+  const { user }  = useAuth();
+  const [forms,   setForms]  = useState(() => storage.get());
+  const [synced,  setSynced] = useState(!isConfigured);
+  const unsubRef = useRef(null);
 
-  const persist = useCallback(async updated => {
-    setForms(updated);
-    storage.set(updated);
-    if (user?.accessToken) syncToSheets(updated, user.accessToken).catch(console.error);
-  }, [user]);
-
-  // Reminder check on mount
+  // Real-time Firestore listener
   useEffect(() => {
-    const approved = forms.filter(f => f.status === 'approved' && !f.signed_date);
-    approved.forEach(f => {
-      if (!f.end_date) return;
-      const days = Math.ceil((new Date(f.end_date) - new Date()) / 86400000);
-      if (days <= 30 && days > 0 && !f._reminderSent) {
-        // notifyRenewalReminder({ form: f, daysLeft: days }); // uncomment when webhook is live
-        persist(forms.map(x => x.id === f.id ? { ...x, _reminderSent: true } : x));
-      }
+    if (!isConfigured || !db) { setSynced(true); return; }
+    const q = query(collection(db, COLLECTION), orderBy('of_number'));
+    unsubRef.current = onSnapshot(q, snap => {
+      const docs = snap.docs.map(fromFirestore);
+      setForms(docs);
+      storage.set(docs);
+      setSynced(true);
+    }, err => {
+      console.error('[Firestore] listener error:', err);
+      setForms(storage.get());
+      setSynced(true);
     });
-  }, []); // eslint-disable-line
+    return () => unsubRef.current?.();
+  }, []);
 
-  // ── CRUD ────────────────────────────────────────────────────────────────
-  const saveDraft = useCallback(async formData => {
+  const persistOne = useCallback(async (form) => {
+    if (isConfigured && db) {
+      await setDoc(doc(db, COLLECTION, form.id), toFirestore(form));
+    } else {
+      setForms(prev => {
+        const exists = prev.find(f => f.id === form.id);
+        const updated = exists ? prev.map(f => f.id === form.id ? form : f) : [...prev, form];
+        storage.set(updated);
+        return updated;
+      });
+    }
+  }, []);
+
+  const deleteOne = useCallback(async (id) => {
+    if (isConfigured && db) {
+      await deleteDoc(doc(db, COLLECTION, id));
+    } else {
+      setForms(prev => { const u = prev.filter(f => f.id !== id); storage.set(u); return u; });
+    }
+  }, []);
+
+  const saveDraft = useCallback(async (formData) => {
     const f = { ...formData, id: uid(), status:'draft', created_at: new Date().toISOString() };
-    await persist([...forms, f]);
-    return f;
-  }, [forms, persist]);
+    await persistOne(f); return f;
+  }, [persistOne]);
 
   const updateDraft = useCallback(async (id, patch) => {
-    const updated = forms.map(f => f.id === id ? { ...f, ...patch } : f);
-    await persist(updated);
-  }, [forms, persist]);
+    const f = forms.find(x => x.id === id);
+    if (f) await persistOne({ ...f, ...patch });
+  }, [forms, persistOne]);
 
-  const deleteDraft = useCallback(async id => {
-    await persist(forms.filter(f => f.id !== id));
-  }, [forms, persist]);
+  const deleteDraft = useCallback(async (id) => {
+    await deleteOne(id);
+  }, [deleteOne]);
 
   const submitForm = useCallback(async (formData, revopsApprovers) => {
-    const f = {
-      ...formData,
-      id: uid(),
-      status: 'submitted',
-      submitted_at: new Date().toISOString(),
-      revops_approvers: revopsApprovers,
-    };
-    await persist([...forms, f]);
+    const f = { ...formData, id: formData.id||uid(), status:'submitted',
+      submitted_at: new Date().toISOString(), revops_approvers: revopsApprovers };
+    await persistOne(f);
     await notifySubmitted({ form: f, repName: user?.name });
     return f;
-  }, [forms, persist, user]);
+  }, [persistOne, user]);
 
   const revopsApprove = useCallback(async (id, { editedForm, comment, financeApprovers }) => {
-    const now = new Date().toISOString();
-    const updated = forms.map(f => f.id === id ? {
-      ...f, ...editedForm, status:'revops_approved',
-      revops_reviewed_at: now, revops_comment: comment,
-      revops_reviewer: user?.name, finance_approvers: financeApprovers,
-    } : f);
-    await persist(updated);
-    const form = updated.find(f => f.id === id);
-    await notifyRevOpsApproved({ form, revopsName: user?.name });
-  }, [forms, persist, user]);
+    const base = forms.find(f => f.id === id) || {};
+    const f = { ...base, ...editedForm, status:'revops_approved',
+      revops_reviewed_at: new Date().toISOString(), revops_comment: comment,
+      revops_reviewer: user?.name, finance_approvers: financeApprovers };
+    await persistOne(f);
+    await notifyRevOpsApproved({ form: f, revopsName: user?.name });
+  }, [forms, persistOne, user]);
 
   const revopsReject = useCallback(async (id, { comment }) => {
-    const now = new Date().toISOString();
-    const updated = forms.map(f => f.id === id ? {
-      ...f, status:'revops_rejected', revops_reviewed_at: now,
-      revops_comment: comment, revops_reviewer: user?.name,
-    } : f);
-    await persist(updated);
-    const form = updated.find(f => f.id === id);
-    await notifyRejected({ form, comment, reviewerName: user?.name });
-  }, [forms, persist, user]);
+    const base = forms.find(f => f.id === id) || {};
+    const f = { ...base, status:'revops_rejected', revops_reviewed_at: new Date().toISOString(),
+      revops_comment: comment, revops_reviewer: user?.name };
+    await persistOne(f);
+    await notifyRejected({ form: f, comment, reviewerName: user?.name });
+  }, [forms, persistOne, user]);
 
   const financeApprove = useCallback(async (id, { ofNumber, comment, editedForm }) => {
-    const now = new Date().toISOString();
-    const updated = forms.map(f => f.id === id ? {
-      ...f, ...editedForm, status:'approved',
-      of_number: ofNumber, approved_at: now,
-      finance_comment: comment, finance_approver: user?.name,
-    } : f);
-    await persist(updated);
-    const form = updated.find(f => f.id === id);
-    await notifyFinanceApproved({ form });
-  }, [forms, persist, user]);
+    const base = forms.find(f => f.id === id) || {};
+    const f = { ...base, ...editedForm, status:'approved', of_number: ofNumber,
+      approved_at: new Date().toISOString(), finance_comment: comment, finance_approver: user?.name };
+    await persistOne(f);
+    await notifyFinanceApproved({ form: f });
+  }, [forms, persistOne, user]);
 
   const financeReject = useCallback(async (id, { comment }) => {
-    const updated = forms.map(f => f.id === id ? {
-      ...f, status:'submitted', finance_comment: comment,
-    } : f);
-    await persist(updated);
-    const form = updated.find(f => f.id === id);
-    await notifyRejected({ form, comment, reviewerName: user?.name });
-  }, [forms, persist, user]);
+    const base = forms.find(f => f.id === id) || {};
+    const f = { ...base, status:'submitted', finance_comment: comment };
+    await persistOne(f);
+    await notifyRejected({ form: f, comment, reviewerName: user?.name });
+  }, [forms, persistOne, user]);
 
-  const markSigned = useCallback(async (id, signingDate, signedLink = '') => {
-    const updated = forms.map(f => f.id === id
-      ? { ...f, status:'signed', signed_date: signingDate, signed_by: user?.name,
-          signed_at: new Date().toISOString(), signed_of_link: signedLink }
-      : f);
-    await persist(updated);
-  }, [forms, persist, user]);
+  const markSigned = useCallback(async (id, signingDate, signedLink='') => {
+    const base = forms.find(f => f.id === id) || {};
+    await persistOne({ ...base, status:'signed', signed_date: signingDate,
+      signed_by: user?.name, signed_at: new Date().toISOString(), signed_of_link: signedLink });
+  }, [forms, persistOne, user]);
 
   const applyDealStatus = useCallback(async (id, patch) => {
-    const updated = forms.map(f => f.id === id ? { ...f, ...patch } : f);
-    await persist(updated);
-  }, [forms, persist]);
+    const base = forms.find(f => f.id === id) || {};
+    await persistOne({ ...base, ...patch });
+  }, [forms, persistOne]);
 
-  const submitChurnVoidRequest = useCallback(async payload => {
+  const submitChurnVoidRequest = useCallback(async (payload) => {
     await notifyChurnVoidRequest({ ...payload, requesterName: user?.name });
   }, [user]);
 
-  const cloneForm = useCallback(async formData => {
-    const clone = {
-      ...formData,
-      id: uid(),
-      status: 'draft',
-      of_number: '',
-      submitted_at: null,
-      revops_reviewed_at: null,
-      approved_at: null,
-      signed_date: null,
-      signed_at: null,
-      revops_comment: '',
-      finance_comment: '',
-      revops_approvers: [],
-      finance_approvers: [],
-      sow_document: null,
-      sow_reference_document: null,
-      clone_of: formData.id,
-      created_at: new Date().toISOString(),
-    };
-    await persist([...forms, clone]);
-    return clone;
-  }, [forms, persist]);
+  const cloneForm = useCallback(async (formData) => {
+    const clone = { ...formData, id: uid(), status:'draft', of_number:'',
+      submitted_at:null, revops_reviewed_at:null, approved_at:null,
+      signed_date:null, signed_at:null, revops_comment:'', finance_comment:'',
+      revops_approvers:[], finance_approvers:[],
+      sow_document:null, sow_reference_document:null,
+      clone_of: formData.id, created_at: new Date().toISOString() };
+    await persistOne(clone); return clone;
+  }, [persistOne]);
 
   return (
     <FormsContext.Provider value={{
-      forms, saveDraft, updateDraft, deleteDraft, submitForm,
+      forms, synced, isFirestore: isConfigured,
+      saveDraft, updateDraft, deleteDraft, submitForm,
       revopsApprove, revopsReject, financeApprove, financeReject,
       markSigned, applyDealStatus, submitChurnVoidRequest, cloneForm,
     }}>
