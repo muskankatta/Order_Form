@@ -104,9 +104,10 @@ export function FormsProvider({ children }) {
     await notifyRejected({ form, comment, reviewerName: user?.name });
   }, [forms, persist, user]);
 
-  const markSigned = useCallback(async (id, signingDate) => {
+  const markSigned = useCallback(async (id, signingDate, signedLink = '') => {
     const updated = forms.map(f => f.id === id
-      ? { ...f, status:'signed', signed_date: signingDate, signed_by: user?.name, signed_at: new Date().toISOString() }
+      ? { ...f, status:'signed', signed_date: signingDate, signed_by: user?.name,
+          signed_at: new Date().toISOString(), signed_of_link: signedLink }
       : f);
     await persist(updated);
   }, [forms, persist, user]);
