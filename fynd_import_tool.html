@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Fynd OF — Data Import Tool</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 700px; margin: 60px auto; padding: 0 24px; background: #f7f8fc; color: #1a1a2e; }
+  h1   { color: #1B2B4B; font-size: 24px; margin-bottom: 4px; }
+  p    { color: #64748b; font-size: 14px; }
+  .card { background: #fff; border: 1px solid #e8edf3; border-radius: 16px; padding: 28px; margin: 24px 0; }
+  .btn  { display: inline-block; padding: 12px 28px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: opacity .2s; }
+  .btn:hover { opacity: .85; }
+  .btn-primary { background: #00C3B5; color: #fff; }
+  .btn-navy    { background: #1B2B4B; color: #fff; }
+  .btn-danger  { background: #ef4444; color: #fff; }
+  .status { padding: 12px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; margin-top: 16px; display: none; }
+  .success { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+  .error   { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+  .step    { font-size: 13px; color: #64748b; margin: 8px 0; display: flex; align-items: flex-start; gap: 10px; }
+  .step-num{ background: #1B2B4B; color: #fff; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+  code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px; color: #1B2B4B; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+  .stat  { background: #f8fafc; border: 1px solid #e8edf3; border-radius: 10px; padding: 14px; text-align: center; }
+  .stat-val { font-size: 28px; font-weight: 800; color: #1B2B4B; }
+  .stat-lbl { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<h1>Fynd OF Platform</h1>
+<p>Data import tool — loads your existing Order Forms into the platform</p>
+
+<div class="card">
+  <h2 style="font-size:16px;color:#1B2B4B;margin-bottom:16px">How to use this tool</h2>
+  <div class="step"><div class="step-num">1</div><div>Download <code>fynd_of_forms.json</code> from Claude and keep it on your Desktop</div></div>
+  <div class="step"><div class="step-num">2</div><div>Click "Load JSON file" below and select the <code>fynd_of_forms.json</code> file</div></div>
+  <div class="step"><div class="step-num">3</div><div>Click "Import to platform" — this writes the data to your browser's localStorage</div></div>
+  <div class="step"><div class="step-num">4</div><div>Open <a href="https://muskankatta.github.io/Order_Form/" target="_blank" style="color:#00C3B5">muskankatta.github.io/Order_Form/</a> — your data will be there</div></div>
+</div>
+
+<div class="card">
+  <div style="margin-bottom:16px">
+    <input type="file" id="fileInput" accept=".json" style="display:none" onchange="handleFile(this)"/>
+    <button class="btn btn-navy" onclick="document.getElementById('fileInput').click()">📂 Load JSON file</button>
+    <span id="fileName" style="margin-left:12px;font-size:13px;color:#64748b"></span>
+  </div>
+
+  <div id="preview" style="display:none">
+    <div class="stats" id="statsGrid"></div>
+    <div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="importData()">✓ Import to platform</button>
+      <button class="btn btn-danger" onclick="clearData()">🗑 Clear existing data first, then import</button>
+    </div>
+  </div>
+
+  <div class="status success" id="successMsg"></div>
+  <div class="status error"   id="errorMsg"></div>
+</div>
+
+<div class="card" style="background:#fffbeb;border-color:#fcd34d">
+  <h3 style="font-size:14px;color:#92400e;margin:0 0 8px">⚠️ Important note</h3>
+  <p style="color:#92400e;margin:0;font-size:13px">
+    This tool writes to <strong>localStorage in your current browser</strong>.
+    The platform at the GitHub Pages URL must be opened in this same browser for the data to appear.
+    Data does not sync across browsers or devices — that requires a backend (Phase 2).
+  </p>
+</div>
+
+<script>
+let loadedData = null;
+
+function handleFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('fileName').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      loadedData = JSON.parse(e.target.result);
+      showPreview(loadedData);
+    } catch(err) {
+      showError('Invalid JSON file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function showPreview(data) {
+  const counts = { signed:0, approved:0, draft:0, dropped:0, churn:0, other:0 };
+  data.forEach(of => {
+    if (counts[of.status] !== undefined) counts[of.status]++;
+    else counts.other++;
+  });
+  const grid = document.getElementById('statsGrid');
+  grid.innerHTML = `
+    <div class="stat"><div class="stat-val">${data.length}</div><div class="stat-lbl">Total OFs</div></div>
+    <div class="stat"><div class="stat-val" style="color:#059669">${counts.signed}</div><div class="stat-lbl">Signed</div></div>
+    <div class="stat"><div class="stat-val" style="color:#2563eb">${counts.approved}</div><div class="stat-lbl">Approved (unsigned)</div></div>
+    <div class="stat"><div class="stat-val" style="color:#d97706">${counts.draft}</div><div class="stat-lbl">Draft</div></div>
+    <div class="stat"><div class="stat-val" style="color:#f97316">${counts.churn}</div><div class="stat-lbl">Churn</div></div>
+    <div class="stat"><div class="stat-val" style="color:#9ca3af">${counts.dropped}</div><div class="stat-lbl">Dropped</div></div>
+  `;
+  document.getElementById('preview').style.display = 'block';
+}
+
+function importData() {
+  if (!loadedData) return;
+  try {
+    // Merge with existing data (don't overwrite)
+    const existing = JSON.parse(localStorage.getItem('fynd_of_forms') || '[]');
+    const existingIds = new Set(existing.map(f => f.of_number));
+    const toAdd = loadedData.filter(f => !existingIds.has(f.of_number));
+    const merged = [...existing, ...toAdd];
+    localStorage.setItem('fynd_of_forms', JSON.stringify(merged));
+    showSuccess(`✓ Imported ${toAdd.length} Order Forms (${loadedData.length - toAdd.length} already existed and were skipped). Open the platform to see your data.`);
+  } catch(err) {
+    showError('Import failed: ' + err.message);
+  }
+}
+
+function clearData() {
+  if (!confirm('This will DELETE all existing data in this browser and replace with the new file. Are you sure?')) return;
+  if (!loadedData) return;
+  try {
+    localStorage.setItem('fynd_of_forms', JSON.stringify(loadedData));
+    showSuccess(`✓ Replaced all data with ${loadedData.length} Order Forms. Open the platform to see your data.`);
+  } catch(err) {
+    showError('Import failed: ' + err.message);
+  }
+}
+
+function showSuccess(msg) {
+  const el = document.getElementById('successMsg');
+  el.textContent = msg; el.style.display = 'block';
+  document.getElementById('errorMsg').style.display = 'none';
+}
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg; el.style.display = 'block';
+  document.getElementById('successMsg').style.display = 'none';
+}
+</script>
+</body>
+</html>
