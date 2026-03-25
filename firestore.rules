@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: check if signed-in user has an allowed domain
+    function allowedDomain() {
+      return request.auth != null &&
+        (request.auth.token.email.matches('.*@gofynd\\.com') ||
+         request.auth.token.email.matches('.*@fynd\\.team'));
+    }
+
+    // Order Forms collection
+    match /order_forms/{formId} {
+      allow read:   if allowedDomain();
+      allow create: if allowedDomain();
+      allow update: if allowedDomain();
+      allow delete: if allowedDomain() &&
+                       request.auth.token.email == 'muskankatta2@gofynd.com';
+    }
+
+    // Settings collection (universal only can write)
+    match /platform_settings/{docId} {
+      allow read:  if allowedDomain();
+      allow write: if allowedDomain() &&
+                      request.auth.token.email == 'muskankatta2@gofynd.com';
+    }
+  }
+}
