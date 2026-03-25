@@ -1,9 +1,9 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { Btn } from '../ui/index.jsx';
 
 const NAVY = '#1B2B4B';
 const T    = '#00C3B5';
-
 const ROLE_COLOR = { sales:NAVY, revops:'#7c3aed', finance:T, universal:'#ef4444' };
 
 export default function AppShell({ children }) {
@@ -14,8 +14,9 @@ export default function AppShell({ children }) {
   const navItems = [
     { to:'/dashboard',   lbl:'Dashboard' },
     { to:'/repository',  lbl:'Repository' },
-    ...(user?.role === 'finance' || user?.isUniversal ? [{ to:'/signed', lbl:'Signed OFs' }] : []),
-    ...(user?.role === 'revops'  || user?.isUniversal ? [{ to:'/churn-void', lbl:'Churn / Void Request' }] : []),
+    ...(user?.role==='finance'||user?.isUniversal ? [{ to:'/signed',     lbl:'Signed OFs' }] : []),
+    ...(user?.role==='revops' ||user?.isUniversal ? [{ to:'/churn-void', lbl:'Churn / Void' }] : []),
+    ...(user?.isUniversal                          ? [{ to:'/admin-users',lbl:'👤 User Management' }] : []),
   ];
 
   const handleLogout = () => { logout(); navigate('/'); };
@@ -26,15 +27,24 @@ export default function AppShell({ children }) {
       <aside className="w-52 shrink-0 flex flex-col" style={{ background:NAVY }}>
         {/* Logo */}
         <div className="p-5 pb-4">
-          <div className="flex items-center gap-2">
-            <img
-  src={`${import.meta.env.BASE_URL}Fynd_Horizontal_Dark.svg`}
-  alt="Fynd"
-  className="h-7"
-  style={{ filter:'brightness(0) invert(1)' }}
-/>
-          </div>
-          <div className="text-[11px] mt-1" style={{ color:'rgba(255,255,255,0.35)' }}>OF Platform</div>
+          <img
+            src={`${import.meta.env.BASE_URL}Fynd_Horizontal_Dark.svg`}
+            alt="Fynd"
+            className="h-7"
+            style={{ filter:'brightness(0) invert(1)' }}
+          />
+          <div className="text-[11px] mt-2" style={{ color:'rgba(255,255,255,0.35)' }}>OF Platform</div>
+        </div>
+
+        {/* New OF button — visible to all roles */}
+        <div className="px-3 pb-2">
+          <button onClick={() => navigate('/form/new')}
+            className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2"
+            style={pathname==='/form/new'
+              ? { background:'rgba(255,255,255,0.18)', color:'#fff' }
+              : { background:T, color:'#fff' }}>
+            + New Order Form
+          </button>
         </div>
 
         {/* Nav */}
@@ -48,15 +58,6 @@ export default function AppShell({ children }) {
               {it.lbl}
             </Link>
           ))}
-          {(user?.role === 'sales' || user?.isUniversal) && (
-            <Link to="/form/new"
-              className="block w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
-              style={pathname === '/form/new'
-                ? { background:'rgba(255,255,255,0.12)', color:'#fff' }
-                : { color:'rgba(255,255,255,0.45)' }}>
-              + New Order Form
-            </Link>
-          )}
         </nav>
 
         {/* User block */}
