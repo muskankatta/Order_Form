@@ -36,6 +36,7 @@ export const SALES_REPS = [
   { id:'1953', name:'Shweta Lamba',     slack:'U03PXBAHU68', email:'shwetalamba@gofynd.com' },
   { id:'2866', name:'Manish Upadhyay',  slack:'U089C7U3DAN', email:'manishupadhyay@gofynd.com' },
   { id:'2804', name:'Samiksha Mane',    slack:'U07PSSKJG48', email:'samikshamane@gofynd.com' },
+  { id:'2926', name:'Ninad Mandavkar',    slack:'U0764AWNYKX', email:'ninadmandavkar@gofynd.com' },
 ];
 
 export const REVOPS_USERS = [
