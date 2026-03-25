@@ -49,18 +49,15 @@ export default function LoginPage() {
          style={{ background:`linear-gradient(135deg,${NAVY} 0%,#0d1a2e 100%)` }}>
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8">
 
-        {/* Logo */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-1">
-            <svg width="38" height="38" viewBox="0 0 100 100" fill="none">
-              <path d="M50 8C28 8 12 26 12 48C12 70 33 87 50 96C67 87 88 70 88 48C88 26 72 8 50 8Z"
-                    stroke={NAVY} strokeWidth="5.5" fill="none"/>
-              <path d="M37 48L50 33L63 48L54.5 57L54.5 72L45.5 72L45.5 57Z" fill={NAVY}/>
-            </svg>
-            <div className="text-3xl font-black tracking-tight" style={{ color:NAVY }}>Fynd</div>
-          </div>
-          <div className="text-sm mt-1 text-brand-faint">Order Form Management Platform</div>
-        </div>
+       {/* Logo */}
+<div className="mb-8">
+  <img
+    src={`${import.meta.env.BASE_URL}Fynd_Horizontal_Dark.svg`}
+    alt="Fynd"
+    className="h-10 mb-2"
+  />
+  <div className="text-sm mt-1 text-brand-faint">Order Form Management Platform</div>
+</div>
 
         {/* Role selector */}
         <p className="text-xs font-bold uppercase tracking-widest mb-3 text-brand-faint">Select your role</p>
