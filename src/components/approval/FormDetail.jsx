@@ -7,7 +7,7 @@ import StepFees from '../form/steps/StepFees.jsx';
 import { StepTerms, StepSignatory } from '../form/steps/StepTermsSignatory.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { FINANCE_USERS } from '../../constants/users.js';
+import { FINANCE_USERS, REVOPS_USERS } from '../../constants/users.js';
 import { fmtDate, fmtShort } from '../../utils/dates.js';
 import { openPDF } from '../../utils/pdf.js';
 import { useToast } from '../../hooks/useToast.js';
@@ -131,6 +131,35 @@ export default function FormDetail({ form: initial }) {
                 📎 Ref: {form.sow_reference_document.name}
               </a>
             )}
+          </div>
+        </Card>
+      )}
+
+      {/* Universal — submit draft on behalf of Sales Rep */}
+      {user?.isUniversal && form.status==='draft' && (
+        <Card className="mt-4 p-6">
+          <h3 className="font-bold mb-2" style={{ color:NAVY }}>🚀 Submit draft (Universal)</h3>
+          <p className="text-sm text-brand-muted mb-4">You can finalise this draft and submit it for RevOps review on behalf of the Sales Rep.</p>
+          {edit && <div className="mb-4 p-3 rounded-xl text-sm bg-blue-50 border border-blue-200 text-blue-700">ℹ️ Save edits first, then submit.</div>}
+          <MultiSelect
+            label="Select RevOps reviewer(s)"
+            req
+            options={REVOPS_USERS.map(u => ({ value:u.email, label:u.name }))}
+            value={finDRIs}
+            onChange={setFinDRIs}
+          />
+          <div className="flex gap-3 flex-wrap mt-2">
+            {edit && <Btn variant="navy" onClick={async () => { await revopsApprove(form.id,{editedForm:ef,comment:'',financeApprovers:[]}); setEdit(false); show('Edits saved!'); }}>💾 Save edits</Btn>}
+            <Btn onClick={async () => {
+              if (!finDRIs.length) { alert('Select at least one RevOps reviewer.'); return; }
+              const now = new Date().toISOString();
+              await revopsApprove(form.id, {
+                editedForm: { ...form, status:'submitted', submitted_at: now, revops_approvers: finDRIs },
+                comment: 'Submitted by Universal user',
+                financeApprovers: [],
+              });
+              show('Draft submitted for RevOps review!');
+            }}>Submit for RevOps review →</Btn>
           </div>
         </Card>
       )}
