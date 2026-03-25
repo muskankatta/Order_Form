@@ -5,7 +5,8 @@ import { useForms } from '../../context/FormsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { STATUS } from '../../constants/status.js';
 import { SALES_TEAMS } from '../../constants/formOptions.js';
-import { fmtShort, fmtMoney } from '../../utils/dates.js';
+import { fmtShort } from '../../utils/dates.js';
+import { fmtMoney } from '../../utils/formatting.js';
 import { exportOFIndex, exportServiceIndex } from '../../utils/csv.js';
 
 const NAVY='#1B2B4B'; const T='#00C3B5';
