@@ -13,7 +13,7 @@ export const openPDF = form => {
     else if (fee.pricingModel === 'graduated')
       cv = (fee.slabs || []).map(s =>
         // Fix: currency sym before the number, dynamic rate type label
-        `${s.from||0}–${s.to||'∞'}: ${s.rateType?.startsWith('%') ? s.rate+''+s.rateType : sym+s.rate+' '+s.rateType}`
+        `${s.from||0}–${s.to||'∞'}: ${s.rateType?.startsWith('%') ? s.rate+' '+s.rateType : sym+s.rate+' '+(s.rateType||'per unit').replace(/^[₹$£€\s]+/,'').trim()}`
       ).join('<br/>');
     else if (fee.stepUpPricing && fee.stepUpValues?.length)
       cv = (fee.stepUpValues).map(sv =>
@@ -98,7 +98,7 @@ td{padding:5px 10px;border:1px solid #e0e0e0;vertical-align:top}
 <tr><td>Billing Address</td><td>${(form.billing_address||'—').replace(/\n/g,'<br/>')}</td><td>OF Value</td><td><strong>${sym}${parseFloat(form.of_value||0).toLocaleString('en-IN')}</strong></td></tr>
 <tr><td>Tax Details</td><td>GST: ${form.gstin||'—'} · PAN: ${form.pan||'—'}</td><td>Sales Channel</td><td>${form.lead_type||'—'}</td></tr>
 <tr><td>Billing Email</td><td>${form.billing_email||'—'}</td><td>Start Date</td><td>${fmtDate(form.start_date)}</td></tr>
-<tr><td>OF Term</td><td>${form.of_term||'—'}</td><td>End Date</td><td>${fmtDate(form.end_date)}</td></tr>
+<tr><td>OF Term</td><td>${form.of_term || (form.of_term_months ? form.of_term_months+' Months' : '—')}</td><td>End Date</td><td>${fmtDate(form.end_date)}</td></tr>
 <tr><td>PO Required</td><td>${form.po_required||'No'}</td><td>Auto Renewal</td><td>${form.auto_renewal||'No'} (${form.renewal_term||'NA'})</td></tr>
 <tr><td>Payment Terms</td><td colspan="3">${form.payment_terms||'—'}</td></tr>
 <tr><td>Client Rep</td><td>${form.client_rep_name||'—'} · ${form.client_rep_mobile||'—'} · ${form.client_rep_email||'—'}</td><td>Sales Rep</td><td>${form.sales_rep_name||'—'} · ${form.sales_rep_email||'—'}</td></tr>
