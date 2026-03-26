@@ -19,6 +19,14 @@ const toFirestore   = form => ({ ...form, _updatedAt: serverTimestamp() });
 const fromFirestore = snap => {
   const d = snap.data();
   if (d._updatedAt?.toDate) d._updatedAt = d._updatedAt.toDate().toISOString();
+  // Parse JSON strings back into arrays/objects
+  const ARRAY_FIELDS = ['services_fees','revops_approvers','finance_approvers','stepUpValues','slabs'];
+  const OBJ_FIELDS   = ['sow_document','sow_reference_document'];
+  [...ARRAY_FIELDS, ...OBJ_FIELDS].forEach(key => {
+    if (typeof d[key] === 'string') {
+      try { d[key] = JSON.parse(d[key]); } catch { d[key] = ARRAY_FIELDS.includes(key) ? [] : null; }
+    }
+  });
   return d;
 };
 
