@@ -15,7 +15,18 @@ import { useAuth } from './AuthContext.jsx';
 const FormsContext = createContext(null);
 const COLLECTION   = 'order_forms';
 
-const toFirestore   = form => ({ ...form, _updatedAt: serverTimestamp() });
+const toFirestore = form => {
+  // Strip large binary fields — store in localStorage only
+  const { sow_document, sow_reference_document, ...rest } = form;
+  // Keep sow metadata (name, size) but not the base64 data
+  return {
+    ...rest,
+    _updatedAt: serverTimestamp(),
+    sow_document_name: sow_document?.name || null,
+    sow_document_size: sow_document?.size || null,
+    sow_reference_document_name: sow_reference_document?.name || null,
+  };
+};
 const ARRAY_FIELDS = new Set(['services_fees','revops_approvers','finance_approvers','stepUpValues','slabs','fees']);
 const OBJ_FIELDS   = new Set(['sow_document','sow_reference_document']);
 
@@ -60,9 +71,18 @@ export function FormsProvider({ children }) {
   }, []);
 
   const persistOne = useCallback(async (form) => {
-    if (isConfigured && db) {
-      await setDoc(doc(db, COLLECTION, form.id), toFirestore(form));
-    } else {
+  // Always save full form (including SoW base64) to localStorage
+  setForms(prev => {
+    const exists = prev.find(f => f.id === form.id);
+    const updated = exists ? prev.map(f => f.id === form.id ? form : f) : [...prev, form];
+    storage.set(updated);
+    return updated;
+  });
+  if (isConfigured && db) {
+    // Save to Firestore without large binary fields
+    await setDoc(doc(db, COLLECTION, form.id), toFirestore(form));
+  }
+}, []);
       setForms(prev => {
         const exists = prev.find(f => f.id === form.id);
         const updated = exists ? prev.map(f => f.id === form.id ? form : f) : [...prev, form];
