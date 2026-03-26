@@ -74,12 +74,13 @@ export function FormsProvider({ children }) {
   // Always save full form (including SoW base64) to localStorage
   setForms(prev => {
     const exists = prev.find(f => f.id === form.id);
-    const updated = exists ? prev.map(f => f.id === form.id ? form : f) : [...prev, form];
+    const updated = exists
+      ? prev.map(f => f.id === form.id ? form : f)
+      : [...prev, form];
     storage.set(updated);
     return updated;
   });
   if (isConfigured && db) {
-    // Save to Firestore without large binary fields
     await setDoc(doc(db, COLLECTION, form.id), toFirestore(form));
   }
 }, []);
