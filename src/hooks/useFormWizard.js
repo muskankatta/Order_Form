@@ -48,6 +48,7 @@ export function useFormWizard(initial = null) {
   const validate = useCallback(() => {
     const e = [];
     if (!form.customer_name)   e.push('Customer name is required');
+    if (!form.pan)             e.push('Customer PAN is required');
     if (!form.sales_rep_email) e.push('Sales rep is required');
     if (!form.start_date)      e.push('Start date is required');
     if (!form.signatory_name)  e.push('Signatory name is required');
