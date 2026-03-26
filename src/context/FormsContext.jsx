@@ -91,7 +91,7 @@ export function FormsProvider({ children }) {
         return updated;
       });
     }
-  , []);
+   []);
 
   const deleteOne = useCallback(async (id) => {
     if (isConfigured && db) {
