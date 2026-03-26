@@ -41,7 +41,7 @@ export default function StepClient({ form, set, ro }) {
         <Inp label="Brand / trade name" req value={form.brand_name} onChange={v=>u('brand_name',v)} disabled={ro}/>
         <div className="col-span-2"><TA label="Customer billing address" req value={form.billing_address} onChange={v=>u('billing_address',v)} disabled={ro} rows={2}/></div>
         <Inp label="Customer GSTIN" value={form.gstin} onChange={v=>u('gstin',v)} disabled={ro} placeholder="27AADCB2230M1ZT" mono/>
-        <Inp label="Customer PAN" value={form.pan} onChange={v=>u('pan',v)} disabled={ro} placeholder="AADCB2230M" mono/>
+        <Inp label="Customer PAN" req value={form.pan} onChange={v=>u('pan',v)} disabled={ro} placeholder="AADCB2230M" mono/>
         <Sel label="Country" req value={form.country} onChange={v=>u('country',v)} options={COUNTRIES} disabled={ro}/>
       </div>
 
