@@ -84,14 +84,6 @@ export function FormsProvider({ children }) {
     await setDoc(doc(db, COLLECTION, form.id), toFirestore(form));
   }
 }, []);
-      setForms(prev => {
-        const exists = prev.find(f => f.id === form.id);
-        const updated = exists ? prev.map(f => f.id === form.id ? form : f) : [...prev, form];
-        storage.set(updated);
-        return updated;
-      });
-    }
-   []);
 
   const deleteOne = useCallback(async (id) => {
     if (isConfigured && db) {
