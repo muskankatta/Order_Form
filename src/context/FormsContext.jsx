@@ -39,7 +39,7 @@ export function FormsProvider({ children }) {
   // Real-time Firestore listener
   useEffect(() => {
     if (!isConfigured || !db) { setSynced(true); return; }
-    const q = query(collection(db, COLLECTION), orderBy('of_number'));
+    const q = collection(db, COLLECTION);
     unsubRef.current = onSnapshot(q, snap => {
       const docs = snap.docs.map(fromFirestore);
       setForms(docs);
