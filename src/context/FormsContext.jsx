@@ -16,15 +16,21 @@ const FormsContext = createContext(null);
 const COLLECTION   = 'order_forms';
 
 const toFirestore   = form => ({ ...form, _updatedAt: serverTimestamp() });
+const ARRAY_FIELDS = new Set(['services_fees','revops_approvers','finance_approvers','stepUpValues','slabs','fees']);
+const OBJ_FIELDS   = new Set(['sow_document','sow_reference_document']);
+
 const fromFirestore = snap => {
   const d = snap.data();
   if (d._updatedAt?.toDate) d._updatedAt = d._updatedAt.toDate().toISOString();
-  // Parse JSON strings back into arrays/objects
-  const ARRAY_FIELDS = ['services_fees','revops_approvers','finance_approvers','stepUpValues','slabs'];
-  const OBJ_FIELDS   = ['sow_document','sow_reference_document'];
-  [...ARRAY_FIELDS, ...OBJ_FIELDS].forEach(key => {
-    if (typeof d[key] === 'string') {
-      try { d[key] = JSON.parse(d[key]); } catch { d[key] = ARRAY_FIELDS.includes(key) ? [] : null; }
+  // Handle both string-encoded and native Firestore types
+  Object.keys(d).forEach(key => {
+    const val = d[key];
+    if (typeof val === 'string' && (ARRAY_FIELDS.has(key) || OBJ_FIELDS.has(key))) {
+      try { d[key] = JSON.parse(val); }
+      catch { d[key] = ARRAY_FIELDS.has(key) ? [] : null; }
+    }
+    if (ARRAY_FIELDS.has(key) && !Array.isArray(d[key])) {
+      d[key] = [];
     }
   });
   return d;
