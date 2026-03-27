@@ -46,11 +46,11 @@ export const REVOPS_USERS = [
   { id:'1327', name:'Nayan Lathiya',  slack:'U018REY8UA2', email:'nayanlathiya@gofynd.com' },
   { id:'1392', name:'Atharva Shetye', slack:'U01T138DQAF', email:'atharvashetye@gofynd.com' },
   { id:'2526', name:'Omkar Pawar',    slack:'U05PRTA46CT', email:'omkarsp@gofynd.com' },
+  { id:'1363', name:'Rahul Mandowara',   slack:'U01J8GPUFND', email:'rahulmandowara@gofynd.com' },
 ];
 
 export const FINANCE_USERS = [
   { id:'2914', name:'Muskan Katta',      slack:'U08AB8PBFPC', email:'muskankatta2@gofynd.com', universal:true },
-  { id:'1363', name:'Rahul Mandowara',   slack:'U01J8GPUFND', email:'rahulmandowara@gofynd.com' },
   { id:'1045', name:'Abhimanyu Mallik',  slack:'U29S6QR7F',   email:'abhimanyumallik@gofynd.com' },
   { id:'1156', name:'Rasika Jadhav',     slack:'UE1UUAHLK',   email:'rasikajadhav@gofynd.com' },
   { id:'2751', name:'Somay Dugar',       slack:'U07H3FK41U0', email:'somaydugar@gofynd.com' },
