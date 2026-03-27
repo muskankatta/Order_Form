@@ -392,4 +392,3 @@ export function ChurnVoidRequest() {
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={hide} />}
     </div>
   );
-}
