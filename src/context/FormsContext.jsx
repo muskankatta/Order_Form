@@ -159,8 +159,24 @@ export function FormsProvider({ children }) {
   }, [forms, persistOne]);
 
   const submitChurnVoidRequest = useCallback(async (payload) => {
-    await notifyChurnVoidRequest({ ...payload, requesterName: user?.name });
-  }, [user]);
+  // Save request to Firestore so Finance can see it
+  if (isConfigured && db) {
+    const reqId = uid();
+    await setDoc(doc(db, 'churn_void_requests', reqId), {
+      id: reqId,
+      form_id: payload.form?.id || '',
+      of_number: payload.form?.of_number || '',
+      customer_name: payload.form?.customer_name || '',
+      status_requested: payload.statusRequested,
+      churn_value: payload.churnValue || '',
+      reason: payload.reason || '',
+      requested_by: user?.name,
+      requested_at: new Date().toISOString(),
+      actioned: false,
+    });
+  }
+  await notifyChurnVoidRequest({ ...payload, requesterName: user?.name });
+}, [user, db]);
 
   const cloneForm = useCallback(async (formData) => {
     const clone = { ...formData, id: uid(), status:'draft', of_number:'',
