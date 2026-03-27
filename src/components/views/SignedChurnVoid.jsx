@@ -99,8 +99,8 @@ export function ChurnVoidRequest() {
     .filter(Boolean).sort((a,b)=>a.localeCompare(b));
   // Only show OF numbers for the selected customer
   const relevantOFs = approvedForms
-    .filter(f => !req.customer || f.customer_name===req.customer)
-    .sort((a,b)=>a.of_number?.localeCompare(b.of_number));
+  .filter(f => !req.customer || f.customer_name?.trim()===req.customer?.trim())
+  .sort((a,b)=>(a.of_number||'').localeCompare(b.of_number||''));
 
   const handleSubmit = async () => {
     if (!req.customer || !req.status_requested || !req.finance_dris.length) {
