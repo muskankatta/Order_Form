@@ -40,8 +40,51 @@ export default function StepClient({ form, set, ro }) {
         <Inp label="Customer name (legal entity)" req value={form.customer_name} onChange={v=>u('customer_name',v)} disabled={ro}/>
         <Inp label="Brand / trade name" req value={form.brand_name} onChange={v=>u('brand_name',v)} disabled={ro}/>
         <div className="col-span-2"><TA label="Customer billing address" req value={form.billing_address} onChange={v=>u('billing_address',v)} disabled={ro} rows={2}/></div>
-        <Inp label="Customer GSTIN" value={form.gstin} onChange={v=>u('gstin',v)} disabled={ro} placeholder="27AADCB2230M1ZT" mono/>
-        <Inp label="Customer PAN" req value={form.pan} onChange={v=>u('pan',v)} disabled={ro} placeholder="AADCB2230M" mono/>
+       {/* GSTIN */}
+<div className="mb-4">
+  <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">Customer GSTIN</label>
+  <input
+    value={form.gstin||''}
+    onChange={e => {
+      const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,15);
+      u('gstin', val);
+    }}
+    placeholder="27AADCB2230M1ZT"
+    className={`field-input font-mono ${form.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) ? 'border-red-300' : form.gstin ? 'border-green-400' : ''}`}
+    style={{ borderColor: form.gstin ? (/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) ? '#4ade80' : '#fca5a5') : '#e2e8f0' }}
+    maxLength={15}
+    disabled={ro}
+  />
+  {form.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) && (
+    <p className="text-xs mt-1 text-red-500">Format: 2 digits + 5 letters + 4 digits + 1 letter + 1 digit + Z + 1 alphanumeric (e.g. 27AADCB2230M1ZT)</p>
+  )}
+  {form.gstin && /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) && (
+    <p className="text-xs mt-1 text-green-600">✓ Valid GSTIN format</p>
+  )}
+</div>
+
+{/* PAN */}
+<div className="mb-4">
+  <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">Customer PAN <span className="text-red-400">*</span></label>
+  <input
+    value={form.pan||''}
+    onChange={e => {
+      const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,10);
+      u('pan', val);
+    }}
+    placeholder="AADCB2230M"
+    className="field-input font-mono"
+    style={{ borderColor: form.pan ? (/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) ? '#4ade80' : '#fca5a5') : '#e2e8f0' }}
+    maxLength={10}
+    disabled={ro}
+  />
+  {form.pan && !/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) && (
+    <p className="text-xs mt-1 text-red-500">Format: 5 letters + 4 digits + 1 letter (e.g. AADCB2230M)</p>
+  )}
+  {form.pan && /^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) && (
+    <p className="text-xs mt-1 text-green-600">✓ Valid PAN format</p>
+  )}
+</div>
         <Sel label="Country" req value={form.country} onChange={v=>u('country',v)} options={COUNTRIES} disabled={ro}/>
       </div>
 
