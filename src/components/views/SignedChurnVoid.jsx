@@ -230,7 +230,9 @@ export function ChurnVoidRequest() {
   });
   const u = (k,v) => setReq(r => ({...r,[k]:v}));
 
-  const approvedForms = forms.filter(f => ['approved','signed'].includes(f.status));
+ const approvedForms = forms.filter(
+  f => f.status === 'approved' || f.status === 'signed' || f.signed_date
+);
   const customerNames = [...new Set(approvedForms.map(f=>f.customer_name?.trim()))]
     .filter(Boolean).sort((a,b)=>a.localeCompare(b));
   const relevantOFs = approvedForms
@@ -247,6 +249,20 @@ export function ChurnVoidRequest() {
     );
     if (isConfigured && db) {
       const reqId = uid();
+      const handleSubmit = async () => {
+  try {
+    if (!req.customer || !req.of_number || !req.status_requested || !req.reason || !req.finance_dris.length) {
+      alert('Please fill all required fields, including reason, and select at least one Finance DRI.');
+      return;
+    }
+
+    const form = forms.find(
+      f => f.customer_name?.trim() === req.customer?.trim() && f.of_number === req.of_number
+    );
+
+    const reqId = uid();
+
+    if (isConfigured && db) {
       await setDoc(doc(db, 'churn_void_requests', reqId), {
         id: reqId,
         form_id: form?.id || '',
@@ -254,19 +270,37 @@ export function ChurnVoidRequest() {
         customer_name: req.customer,
         status_requested: req.status_requested,
         churn_value: req.churn_value || '',
-        reason: req.reason || '',
+        reason: req.reason,
+        finance_dris: req.finance_dris,
         requested_by: user?.name || '',
         requested_at: new Date().toISOString(),
         actioned: false,
       });
     }
+
     await submitChurnVoidRequest({
-      form: form || {customer_name:req.customer,of_number:req.of_number},
+      form: form || { customer_name: req.customer, of_number: req.of_number },
       statusRequested: req.status_requested,
       churnValue: req.churn_value,
       reason: req.reason,
+      financeDris: req.finance_dris,
     });
-    show('Request submitted \u2014 Finance will be notified via Slack \u2713');
+
+    show('Request submitted — Finance will be notified via Slack ✓');
+
+    setReq({
+      customer: '',
+      of_number: '',
+      status_requested: 'Churn',
+      churn_value: '',
+      reason: '',
+      finance_dris: [],
+    });
+  } catch (err) {
+    console.error('Churn/Void submit failed:', err);
+    alert(err?.message || 'Failed to submit request.');
+  }
+};
     setReq({customer:'',of_number:'',status_requested:'Churn',churn_value:'',reason:'',finance_dris:[]});
   };
 
@@ -318,7 +352,7 @@ export function ChurnVoidRequest() {
         <p className="text-xs text-brand-faint mb-4">
           Selected Finance DRIs will receive a Slack message and see the request in their Signed OFs page.
         </p>
-        <Btn onClick={handleSubmit}>Submit request → </Btn>
+        <Btn onClick={handleSubmit}>Submit Request → </Btn>
       </Card>
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={hide}/>}
     </div>
