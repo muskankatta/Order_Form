@@ -114,9 +114,29 @@ export default function FormDetail({ form: initial }) {
 
       <Card className="p-6">{tabContent[tab]}</Card>
 
-      {/* SoW downloads */}
-      {(form.sow_document || form.sow_reference_document) && 
-      (form.attachments||[]).length > 0 && (
+     {/* SoW downloads */}
+{(form.sow_document || form.sow_reference_document) && (
+  <Card className="mt-4 p-5">
+    <p className="text-xs font-bold uppercase tracking-widest mb-3 text-brand-faint">Scope of Work Documents</p>
+    <div className="flex gap-3 flex-wrap">
+      {form.sow_document && (
+        <a href={form.sow_document.data} download={form.sow_document.name}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors">
+          📎 {form.sow_document.name}
+        </a>
+      )}
+      {form.sow_reference_document && (
+        <a href={form.sow_reference_document.data} download={form.sow_reference_document.name}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium hover:bg-amber-100 transition-colors">
+          📎 Ref: {form.sow_reference_document.name}
+        </a>
+      )}
+    </div>
+  </Card>
+)}
+
+{/* Additional attachments */}
+{(form.attachments||[]).length > 0 && (
   <Card className="mt-4 p-5">
     <p className="text-xs font-bold uppercase tracking-widest mb-3 text-brand-faint">Additional Attachments</p>
     <div className="flex gap-3 flex-wrap">
@@ -129,24 +149,6 @@ export default function FormDetail({ form: initial }) {
     </div>
   </Card>
 )}
-        <Card className="mt-4 p-5">
-          <p className="text-xs font-bold uppercase tracking-widest mb-3 text-brand-faint">Scope of Work Documents</p>
-          <div className="flex gap-3 flex-wrap">
-            {form.sow_document && (
-              <a href={form.sow_document.data} download={form.sow_document.name}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors">
-                📎 {form.sow_document.name}
-              </a>
-            )}
-            {form.sow_reference_document && (
-              <a href={form.sow_reference_document.data} download={form.sow_reference_document.name}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium hover:bg-amber-100 transition-colors">
-                📎 Ref: {form.sow_reference_document.name}
-              </a>
-            )}
-          </div>
-        </Card>
-      )}
 
       {/* Universal — submit draft on behalf of Sales Rep */}
       {user?.isUniversal && form.status==='draft' && (
