@@ -116,6 +116,19 @@ export default function FormDetail({ form: initial }) {
 
       {/* SoW downloads */}
       {(form.sow_document || form.sow_reference_document) && (
+      {(form.attachments||[]).length > 0 && (
+  <Card className="mt-4 p-5">
+    <p className="text-xs font-bold uppercase tracking-widest mb-3 text-brand-faint">Additional Attachments</p>
+    <div className="flex gap-3 flex-wrap">
+      {(form.attachments||[]).map((f,i) => (
+        <a key={i} href={f.data} download={f.name}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-100 transition-colors">
+          📎 {f.name}
+        </a>
+      ))}
+    </div>
+  </Card>
+)}
         <Card className="mt-4 p-5">
           <p className="text-xs font-bold uppercase tracking-widest mb-3 text-brand-faint">Scope of Work Documents</p>
           <div className="flex gap-3 flex-wrap">
