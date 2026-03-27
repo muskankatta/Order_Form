@@ -118,7 +118,7 @@ export const openPDF = form => {
     '<div style="margin-top:18px;font-size:11px;font-weight:700;margin-bottom:6px">Authorization:</div>' +
     '<div class="sign-grid">' +
     '<div class="sign-box"><h4>For: ' + custName + '</h4><div class="sign-line"></div><div><strong>' + sigName + '</strong></div><div style="color:#555;margin-top:3px">' + sigDesig + '</div><div style="color:#aaa;font-size:9.5px;margin-top:2px">' + sigEmail + '</div><div style="margin-top:10px;color:#999;font-size:9.5px">Date: _______________</div></div>' +
-    '<div class="sign-box"><h4>For: Shopsense Retail Technologies Limited</h4><div class="sign-line"></div><div><strong>Sreeraman Mohan Girija</strong></div><div style="color:#555;margin-top:3px">Whole-time Director</div><div style="color:#aaa;font-size:9.5px;margin-top:2px">legal@gofynd.com</div><div style="margin-top:10px;color:#999;font-size:9.5px">Date: _______________</div></div>' +
+    '<div class="sign-box"><h4>For: Shopsense Retail Technologies Limited</h4><div class="sign-line"></div><div><strong>Sreeraman Mohan Girija</strong></div><div style="color:#555;margin-top:3px">Whole-time Director</div><div style="margin-top:10px;color:#999;font-size:9.5px">Date: _______________</div></div>' +
     '</div>' +
     '<div class="footer">OF#: ' + ofNum + ' \u00b7 Generated: ' + new Date().toLocaleString('en-IN') + ' \u00b7 Shopsense Retail Technologies Limited</div>' +
     '</div>' + // close of-content
