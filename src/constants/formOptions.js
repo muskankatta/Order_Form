@@ -9,9 +9,17 @@ export const SEGMENTS    = ['AI/SaaS','AI Commerce','Commerce'];
 export const SALES_TEAMS = ['India','Global','AI/SaaS'];
 export const LEAD_TYPES  = ['Direct','Indirect'];
 // Direct: Event, Inside Sales/Pre-Sales | Indirect: Partner only
-export const LEAD_CATS   = {
-  Direct:   ['Event','Inside Sales/Pre-Sales'],
+export const LEAD_CATS = {
+  Direct:   ['Event','Inside Sales/Pre-Sales','NA'],
   Indirect: ['Partner'],
+};
+
+// Label for the lead name field based on category
+export const LEAD_NAME_LABEL = {
+  'Event':                  'Event name',
+  'Inside Sales/Pre-Sales': "Person's name",
+  'NA':                     null, // hide field
+  'Partner':                'Partner name',
 };
 // Indirect also needs a partner name field (handled in StepClient)
 export const SALE_TYPES  = ['New Business','Renewal','Upsell','Cross-Sell','Shift from SoW','Revision in Commercials'];
