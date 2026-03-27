@@ -56,6 +56,10 @@ export function useFormWizard(initial = null) {
     if (!form.signatory_email) e.push('Signatory email is required');
     if (!(form.services_fees||[]).length) e.push('At least one service is required');
     if (!form.sow_document)    e.push('Signed SoW document is required');
+    if (form.pan && !/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan))
+  e.push('PAN format is invalid (e.g. AADCB2230M)');
+if (form.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin))
+  e.push('GSTIN format is invalid (e.g. 27AADCB2230M1ZT)');
     setErrors(e);
     return e.length === 0;
   }, [form]);
