@@ -210,3 +210,43 @@ export const ErrorBanner = ({ errors }) => {
     </div>
   );
 };
+export const MultiFileUpload = ({ label, value=[], onChange, disabled, hint }) => {
+  const handleFile = e => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf') { alert('Only PDF files are accepted.'); return; }
+    if (file.size > 10 * 1024 * 1024) { alert('File must be under 10 MB.'); return; }
+    const reader = new FileReader();
+    reader.onload = ev => onChange?.([...value, { name:file.name, size:file.size, data:ev.target.result }]);
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+  const remove = idx => onChange?.(value.filter((_,i) => i !== idx));
+  return (
+    <div className="mb-4">
+      {label && <Lbl c={label}/>}
+      {value.length > 0 && (
+        <div className="space-y-2 mb-3">
+          {value.map((f,i) => (
+            <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
+              <span className="text-slate-600 font-medium text-sm flex-1">📎 {f.name}</span>
+              <span className="text-xs text-brand-faint">{(f.size/1024).toFixed(0)} KB</span>
+              {!disabled && <button type="button" onClick={()=>remove(i)} className="text-xs text-red-500 font-medium">Remove</button>}
+            </div>
+          ))}
+        </div>
+      )}
+      {!disabled && (
+        <label className="flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed border-slate-200 cursor-pointer hover:border-teal hover:bg-teal-light/20 transition-all">
+          <span className="text-lg">📄</span>
+          <div>
+            <span className="text-sm font-medium text-brand-muted">Click to attach a PDF</span>
+            <span className="text-xs text-brand-faint ml-2">PDF only · Max 10 MB each</span>
+          </div>
+          <input type="file" accept="application/pdf" className="hidden" onChange={handleFile}/>
+        </label>
+      )}
+      {hint && <p className="text-xs mt-1 text-brand-faint">{hint}</p>}
+    </div>
+  );
+};
