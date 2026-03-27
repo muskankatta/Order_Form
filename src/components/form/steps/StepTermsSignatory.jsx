@@ -1,4 +1,5 @@
 import { TA, SHdr } from '../../ui/index.jsx';
+import { MultiFileUpload } from '../../ui/index.jsx';
 
 export function StepTerms({ form, set, ro }) {
   const u = (k,v) => !ro && set(k,v);
@@ -9,6 +10,18 @@ export function StepTerms({ form, set, ro }) {
         <strong>Note:</strong> Appears in the PDF between Section B (Service Details) and Terms &amp; Conditions.
       </div>
       <TA label="Special terms" value={form.special_terms} onChange={v=>u('special_terms',v)} disabled={ro} rows={8}/>
+
+      <SHdr c="Additional attachments (optional)"/>
+      <div className="mb-4 p-4 rounded-xl text-sm bg-slate-50 border border-slate-200 text-slate-600">
+        Attach any supporting documents — proposed SoW, rate cards, proposals, etc. PDF only, max 10 MB each.
+      </div>
+      <MultiFileUpload
+        label="Attachments"
+        value={form.attachments || []}
+        onChange={v => u('attachments', v)}
+        disabled={ro}
+        hint="These are stored with the Order Form for reference. Not included in the PDF."
+      />
     </div>
   );
 }
