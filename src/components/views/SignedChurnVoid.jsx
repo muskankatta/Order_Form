@@ -275,7 +275,7 @@ export function ChurnVoidRequest() {
       <h2 className="text-xl font-bold mb-2" style={{color:NAVY}}>Churn / Void Request</h2>
       <p className="text-sm text-brand-muted mb-6">
         File a request to Finance to mark a deal as Churn or Void.
-        Finance will review it in <strong>Signed OFs \u2192 Churn/Void Requests</strong>.
+        Finance will review it in <strong>Signed OFs → Churn/Void Requests</strong>.
       </p>
       <Card className="p-6 max-w-2xl">
         <div className="grid grid-cols-2 gap-x-4">
@@ -318,7 +318,7 @@ export function ChurnVoidRequest() {
         <p className="text-xs text-brand-faint mb-4">
           Selected Finance DRIs will receive a Slack message and see the request in their Signed OFs page.
         </p>
-        <Btn onClick={handleSubmit}>Submit request \u2192</Btn>
+        <Btn onClick={handleSubmit}>Submit request → </Btn>
       </Card>
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={hide}/>}
     </div>
