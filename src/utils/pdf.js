@@ -139,11 +139,24 @@ ${form.special_terms ? `<h2>C. Special Terms</h2><div class="st-block">${form.sp
 </div>
 <div class="footer">OF#: ${form.of_number||'PENDING'} · Generated: ${new Date().toLocaleString('en-IN')} · Shopsense Retail Technologies Limited</div>
 <div style="text-align:center;margin-top:16px">
-  <button onclick="window.print()" style="background:#1B2B4B;color:#fff;border:none;padding:10px 28px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">🖨 Print / Save as PDF</button>
+  <button onclick="window.print()" style="background:#1B2B4B;color:#fff;border:none;padding:10px 28px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">
+  🖨 Print / Save as combined PDF ${form.attachments?.length ? `(OF + ${form.attachments.length} attachment${form.attachments.length>1?'s':''})` : ''}
+</button>
 </div>
 </body></html>`;
 
-  const w = window.open('', '_blank');
-  w.document.write(html);
-  w.document.close();
+  // Build attachment embeds
+const attachmentPages = (form.attachments||[]).map(att => `
+  <div style="page-break-before:always;width:100%;height:100vh;margin:0;padding:0">
+    <embed src="${att.data}" type="application/pdf" width="100%" height="100%"
+      style="display:block;border:none;"/>
+  </div>
+`).join('');
+
+// Append to html before closing body
+const mergedHtml = html.replace('</body></html>', `${attachmentPages}</body></html>`);
+
+const w = window.open('', '_blank');
+w.document.write(mergedHtml);
+w.document.close();
 };
