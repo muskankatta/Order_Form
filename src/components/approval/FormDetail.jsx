@@ -206,11 +206,27 @@ export default function FormDetail({ form: initial }) {
           <h3 className="font-bold mb-4" style={{ color:NAVY }}>💼 Finance approval</h3>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <Lbl c="OF Number" req/>
-              <input value={ofNum} onChange={e=>setOfNum(e.target.value)} placeholder="OF-FY-0XXX"
-                className="w-full text-base border-2 rounded-lg px-3 py-2 font-mono font-bold focus:outline-none"
-                style={{ borderColor:T, color:NAVY }}/>
-            </div>
+  <Lbl c="OF Number" req/>
+  <div className="flex items-center border-2 rounded-lg overflow-hidden font-mono font-bold text-base"
+    style={{ borderColor:T }}>
+    <span className="px-3 py-2 text-slate-400 bg-slate-50 border-r border-slate-200 select-none whitespace-nowrap">
+      OF-FY-
+    </span>
+    <input
+      value={ofNum.replace(/^OF-FY-/,'')}
+      onChange={e => {
+        const val = e.target.value.replace(/[^0-9]/g,'');
+        setOfNum(val ? `OF-FY-${val}` : '');
+      }}
+      placeholder="0001"
+      maxLength={6}
+      className="flex-1 px-3 py-2 focus:outline-none font-mono font-bold"
+      style={{ color:NAVY }}
+    />
+  </div>
+  <p className="text-xs mt-1 text-brand-faint">Enter only the number — prefix OF-FY- is added automatically</p>
+</div>
+
           </div>
           <TA label="Finance comment (optional)" value={cmt} onChange={setCmt}/>
           <div className="flex gap-3">
