@@ -116,7 +116,7 @@ export default function FormDetail({ form: initial }) {
 
       {/* SoW downloads */}
       {(form.sow_document || form.sow_reference_document) && 
-      {(form.attachments||[]).length > 0 && (
+      (form.attachments||[]).length > 0 && (
   <Card className="mt-4 p-5">
     <p className="text-xs font-bold uppercase tracking-widest mb-3 text-brand-faint">Additional Attachments</p>
     <div className="flex gap-3 flex-wrap">
