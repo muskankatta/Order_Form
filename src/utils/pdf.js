@@ -213,7 +213,7 @@ const mergedHtml = html.replace(
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'OF-${(form.of_number||'DRAFT').replace(/[^a-zA-Z0-9-]/g,'_')}_Combined.pdf';
+      a.download = 'Combined_OF.pdf';
       a.click();
       URL.revokeObjectURL(url);
 
