@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Inp, Sel, TA, SHdr, FileUpload } from '../../ui/index.jsx';
-import { SEGMENTS, SALES_TEAMS, LEAD_TYPES, LEAD_CATS, SALE_TYPES,
-         COUNTRIES, SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES } from '../../../constants/formOptions.js';
+import { SEGMENTS, SALES_TEAMS, LEAD_TYPES, LEAD_CATS, LEAD_NAME_LABEL,
+         SALE_TYPES, COUNTRIES, SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES } from '../../../constants/formOptions.js';
 import { SALES_REPS } from '../../../constants/users.js';
 import { useAuth } from '../../../context/AuthContext.jsx';
 
@@ -63,29 +63,55 @@ export default function StepClient({ form, set, ro }) {
       </div>
 
       <SHdr c="Lead & sale classification"/>
-      <div className="grid grid-cols-2 gap-x-6">
-        <Sel label="Sale type" req value={form.sale_type} onChange={v=>u('sale_type',v)} options={SALE_TYPES} disabled={ro}/>
-        <Sel label="Sales channel" req value={form.lead_type} onChange={v=>handleLeadTypeChange(v)} options={LEAD_TYPES} disabled={ro}/>
+<div className="grid grid-cols-2 gap-x-6">
+  <Sel label="Sale type" req value={form.sale_type} onChange={v=>u('sale_type',v)} options={SALE_TYPES} disabled={ro}/>
+  <Sel label="Sales channel" req value={form.lead_type} onChange={v=>handleLeadTypeChange(v)} options={LEAD_TYPES} disabled={ro}/>
 
-        {form.lead_type === 'Direct' && (
-          <div className="mb-4">
-            <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
-              Lead category <span className="text-red-400">*</span>
-            </label>
-            <select value={form.lead_category||''} onChange={e=>u('lead_category',e.target.value)}
-              disabled={ro} className="field-input cursor-pointer">
-              <option value="">Select…</option>
-              {cats.map(c => <option key={c}>{c}</option>)}
-            </select>
-          </div>
-        )}
-
-        {form.lead_type === 'Indirect' && (
-          <Inp label="Partner name" req value={form.lead_name} onChange={v=>u('lead_name',v)}
-            disabled={ro} placeholder="e.g. Shweta Lamba / Prince Consulting"
-            hint="Name of the partner who referred this deal"/>
-        )}
+  {/* Direct — category dropdown + conditional name field */}
+  {form.lead_type === 'Direct' && (
+    <>
+      <div className="mb-4">
+        <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
+          Lead category <span className="text-red-400">*</span>
+        </label>
+        <select value={form.lead_category||''} onChange={e=>{ u('lead_category',e.target.value); u('lead_name',''); }}
+          disabled={ro} className="field-input cursor-pointer">
+          <option value="">Select…</option>
+          {LEAD_CATS['Direct'].map(c => <option key={c}>{c}</option>)}
+        </select>
       </div>
+
+      {/* Show name field only for Event and Inside Sales/Pre-Sales */}
+      {form.lead_category && LEAD_NAME_LABEL[form.lead_category] && (
+        <Inp
+          label={LEAD_NAME_LABEL[form.lead_category]}
+          req
+          value={form.lead_name}
+          onChange={v=>u('lead_name',v)}
+          disabled={ro}
+          placeholder={
+            form.lead_category === 'Event'
+              ? 'e.g. Retail Tech Summit 2025'
+              : 'e.g. Rahul Sharma'
+          }
+        />
+      )}
+    </>
+  )}
+
+  {/* Indirect — partner name only */}
+  {form.lead_type === 'Indirect' && (
+    <Inp
+      label="Partner name"
+      req
+      value={form.lead_name}
+      onChange={v=>u('lead_name',v)}
+      disabled={ro}
+      placeholder="e.g. Prince Consulting"
+      hint="Name of the partner who referred this deal"
+    />
+  )}
+</div>
 
       {form.sale_type && (
         <>
