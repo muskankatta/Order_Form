@@ -45,7 +45,7 @@ export const openPDF = form => {
       '</div>'
     : '';
 
-  const ofNum   = form.of_number || 'PENDING';
+  const ofNum   = form.of_number || 'DRAFT';
   const custName = form.customer_name || '\u2014';
   const sigName  = form.signatory_name || '________________________';
   const sigDesig = form.signatory_designation || 'Authorised Signatory';
