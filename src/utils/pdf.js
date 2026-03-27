@@ -145,18 +145,82 @@ ${form.special_terms ? `<h2>C. Special Terms</h2><div class="st-block">${form.sp
 </div>
 </body></html>`;
 
-  // Build attachment embeds
-const attachmentPages = (form.attachments||[]).map(att => `
-  <div style="page-break-before:always;width:100%;height:100vh;margin:0;padding:0">
-    <embed src="${att.data}" type="application/pdf" width="100%" height="100%"
-      style="display:block;border:none;"/>
-  </div>
-`).join('');
+  const hasAttachments = (form.attachments||[]).length > 0;
 
-// Append to html before closing body
-const mergedHtml = html.replace('</body></html>', `${attachmentPages}</body></html>`);
+const mergedHtml = html.replace(
+  '</body></html>',
+  `
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script>
+  async function printCombined() {
+    const btn = document.getElementById('printBtn');
+    btn.textContent = 'Preparing combined PDF…';
+    btn.disabled = true;
+    try {
+      const { PDFDocument } = PDFLib;
+      const merged = await PDFDocument.create();
+
+      // Step 1: Print OF to PDF via blob (Chrome only)
+      // We'll use a workaround: open print for OF, then separately merge attachments
+      // Merge attachment PDFs only
+      const attachments = ${JSON.stringify((form.attachments||[]).map(a=>({name:a.name,data:a.data})))};
+      
+      if(attachments.length === 0) { window.print(); return; }
+
+      // Convert OF HTML to PDF first using print, then merge
+      // Since we can't programmatically capture print output,
+      // we merge the attachment PDFs and offer a separate download
+      for(const att of attachments) {
+        try {
+          const base64 = att.data.split(',')[1];
+          const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+          const pdf = await PDFDocument.load(bytes, { ignoreEncryption: true });
+          const pages = await merged.copyPages(pdf, pdf.getPageIndices());
+          pages.forEach(p => merged.addPage(p));
+        } catch(e) { console.warn('Could not merge', att.name, e); }
+      }
+
+      const mergedBytes = await merged.save();
+      const blob = new Blob([mergedBytes], { type:'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      
+      // Show instructions
+      document.getElementById('mergeInfo').style.display = 'block';
+      document.getElementById('attachLink').href = url;
+      document.getElementById('attachLink').download = 'Attachments_${(form.of_number||'OF').replace(/[^a-zA-Z0-9-]/g,'_')}.pdf';
+      
+      btn.textContent = '🖨 Print Order Form (Step 1 of 2)';
+      btn.disabled = false;
+      btn.onclick = () => window.print();
+    } catch(e) {
+      console.error(e);
+      btn.textContent = '🖨 Print / Save as PDF';
+      btn.disabled = false;
+      window.print();
+    }
+  }
+  </script>
+  <div id="mergeInfo" style="display:none;margin:16px auto;max-width:700px;padding:16px;background:#e0f7f5;border-radius:12px;border:1px solid #00C3B5;font-family:Arial,sans-serif">
+    <p style="font-weight:700;color:#1B2B4B;margin:0 0 8px">To create the combined PDF:</p>
+    <p style="color:#444;font-size:13px;margin:0 0 6px">1. Click <strong>"Print Order Form"</strong> below → Save as PDF → name it <code>OF.pdf</code></p>
+    <p style="color:#444;font-size:13px;margin:0 0 10px">2. Download the merged attachments: <a id="attachLink" href="#" style="color:#00897b;font-weight:600">⬇ Download Attachments PDF</a></p>
+    <p style="color:#444;font-size:13px;margin:0">3. Use any free tool like <a href="https://smallpdf.com/merge-pdf" target="_blank" style="color:#00897b">smallpdf.com/merge-pdf</a> to combine both into one file.</p>
+  </div>
+  </body></html>`
+);
+
+// Update print button
+const finalHtml = mergedHtml.replace(
+  `<button onclick="window.print()"`,
+  `<button id="printBtn" onclick="${hasAttachments ? 'printCombined()' : 'window.print()'}"`
+).replace(
+  `🖨 Print / Save as combined PDF ${form.attachments?.length ? `(OF + ${form.attachments.length} attachment${form.attachments.length>1?'s':''})` : ''}`,
+  hasAttachments
+    ? `🖨 Prepare combined PDF (OF + ${form.attachments.length} attachment${form.attachments.length>1?'s':''})`
+    : '🖨 Print / Save as PDF'
+);
 
 const w = window.open('', '_blank');
-w.document.write(mergedHtml);
+w.document.write(finalHtml);
 w.document.close();
 };
