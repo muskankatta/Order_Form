@@ -220,7 +220,7 @@ export function SignedOFs() {
   );
 }
 
-export function ChurnVoidRequest() 
+export function ChurnVoidRequest() {
   const { forms, submitChurnVoidRequest } = useForms();
   const { user }  = useAuth();
   const { toast, show, hide } = useToast();
@@ -240,16 +240,6 @@ export function ChurnVoidRequest()
     .sort((a,b)=>(a.of_number||'').localeCompare(b.of_number||''));
 
   const handleSubmit = async () => {
-    if (!req.customer||!req.of_number||!req.status_requested||!req.finance_dris.length) {
-      alert('Please fill all required fields and select at least one Finance DRI.');
-      return;
-    }
-    const form = forms.find(f =>
-      f.customer_name?.trim()===req.customer?.trim() && f.of_number===req.of_number
-    );
-    if (isConfigured && db) {
-      const reqId = uid();
-      const handleSubmit = async () => {
   try {
     if (!req.customer || !req.of_number || !req.status_requested || !req.reason || !req.finance_dris.length) {
       alert('Please fill all required fields, including reason, and select at least one Finance DRI.');
@@ -296,6 +286,7 @@ export function ChurnVoidRequest()
       reason: '',
       finance_dris: [],
     });
+
   } catch (err) {
     console.error('Churn/Void submit failed:', err);
     alert(err?.message || 'Failed to submit request.');
