@@ -222,82 +222,91 @@ export function SignedOFs() {
 
 export function ChurnVoidRequest() {
   const { forms, submitChurnVoidRequest } = useForms();
-  const { user }  = useAuth();
+  const { user } = useAuth();
   const { toast, show, hide } = useToast();
-  const [req, setReq] = useState({
-    customer:'', of_number:'', status_requested:'Churn',
-    churn_value:'', reason:'', finance_dris:[],
-  });
-  const u = (k,v) => setReq(r => ({...r,[k]:v}));
 
- const approvedForms = forms.filter(
-  f => f.status === 'approved' || f.status === 'signed' || f.signed_date
-);
-  const customerNames = [...new Set(approvedForms.map(f=>f.customer_name?.trim()))]
-    .filter(Boolean).sort((a,b)=>a.localeCompare(b));
+  const [req, setReq] = useState({
+    customer: '',
+    of_number: '',
+    status_requested: 'Churn',
+    churn_value: '',
+    reason: '',
+    finance_dris: [],
+  });
+
+  const u = (k, v) => setReq(r => ({ ...r, [k]: v }));
+
+  const approvedForms = forms.filter(
+    f => f.status === 'approved' || f.status === 'signed' || f.signed_date
+  );
+
+  const customerNames = [...new Set(approvedForms.map(f => f.customer_name?.trim()))]
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+
   const relevantOFs = approvedForms
-    .filter(f => !req.customer || f.customer_name?.trim()===req.customer?.trim())
-    .sort((a,b)=>(a.of_number||'').localeCompare(b.of_number||''));
+    .filter(f => !req.customer || f.customer_name?.trim() === req.customer?.trim())
+    .sort((a, b) => (a.of_number || '').localeCompare(b.of_number || ''));
 
   const handleSubmit = async () => {
-  try {
-    if (!req.customer || !req.of_number || !req.status_requested || !req.reason || !req.finance_dris.length) {
-      alert('Please fill all required fields, including reason, and select at least one Finance DRI.');
-      return;
-    }
+    try {
+      if (!req.customer || !req.of_number || !req.status_requested || !req.reason || !req.finance_dris.length) {
+        alert('Please fill all required fields, including reason, and select at least one Finance DRI.');
+        return;
+      }
 
-    const form = forms.find(
-      f => f.customer_name?.trim() === req.customer?.trim() && f.of_number === req.of_number
-    );
+      const form = forms.find(
+        f => f.customer_name?.trim() === req.customer?.trim() && f.of_number === req.of_number
+      );
 
-    const reqId = uid();
+      const reqId = uid();
 
-    if (isConfigured && db) {
-      await setDoc(doc(db, 'churn_void_requests', reqId), {
-        id: reqId,
-        form_id: form?.id || '',
-        of_number: req.of_number,
-        customer_name: req.customer,
-        status_requested: req.status_requested,
-        churn_value: req.churn_value || '',
+      if (isConfigured && db) {
+        await setDoc(doc(db, 'churn_void_requests', reqId), {
+          id: reqId,
+          form_id: form?.id || '',
+          of_number: req.of_number,
+          customer_name: req.customer,
+          status_requested: req.status_requested,
+          churn_value: req.churn_value || '',
+          reason: req.reason,
+          finance_dris: req.finance_dris,
+          requested_by: user?.name || '',
+          requested_at: new Date().toISOString(),
+          actioned: false,
+        });
+      }
+
+      await submitChurnVoidRequest({
+        form: form || { customer_name: req.customer, of_number: req.of_number },
+        statusRequested: req.status_requested,
+        churnValue: req.churn_value,
         reason: req.reason,
-        finance_dris: req.finance_dris,
-        requested_by: user?.name || '',
-        requested_at: new Date().toISOString(),
-        actioned: false,
+        financeDris: req.finance_dris,
       });
+
+      show('Request submitted — Finance will be notified via Slack ✓');
+
+      setReq({
+        customer: '',
+        of_number: '',
+        status_requested: 'Churn',
+        churn_value: '',
+        reason: '',
+        finance_dris: [],
+      });
+    } catch (err) {
+      console.error('Churn/Void submit failed:', err);
+      alert(err?.message || 'Failed to submit request.');
     }
-
-    await submitChurnVoidRequest({
-      form: form || { customer_name: req.customer, of_number: req.of_number },
-      statusRequested: req.status_requested,
-      churnValue: req.churn_value,
-      reason: req.reason,
-      financeDris: req.finance_dris,
-    });
-
-    show('Request submitted — Finance will be notified via Slack ✓');
-
-    setReq({
-      customer: '',
-      of_number: '',
-      status_requested: 'Churn',
-      churn_value: '',
-      reason: '',
-      finance_dris: [],
-    });
-
-  } catch (err) {
-    console.error('Churn/Void submit failed:', err);
-    alert(err?.message || 'Failed to submit request.');
-  }
-};
-    setReq({customer:'',of_number:'',status_requested:'Churn',churn_value:'',reason:'',finance_dris:[]});
   };
 
-    return (
+  return (
     <div>
-      <h2 className="text-xl font-bold mb-2" style={{color:NAVY}}>Churn / Void Request</h2>
+      <h2 className="text-xl font-bold mb-2" style={{ color: NAVY }}>
+        Churn / Void Request
+      </h2>
+
       <p className="text-sm text-brand-muted mb-6">
         File a request to Finance to mark a deal as Churn or Void.
         Finance will review it in <strong>Signed OFs → Churn/Void Requests</strong>.
@@ -320,7 +329,7 @@ export function ChurnVoidRequest() {
             req
             options={relevantOFs.map(f => ({
               value: f.of_number,
-              label: f.of_number + ' — ' + f.customer_name
+              label: f.of_number + ' — ' + f.customer_name,
             }))}
             value={req.of_number}
             onChange={v => u('of_number', v)}
@@ -339,8 +348,8 @@ export function ChurnVoidRequest() {
                 className="px-5 py-2 text-sm font-semibold rounded-lg border transition-all"
                 style={
                   req.status_requested === opt
-                    ? { background:'#1B2B4B', color:'#fff', borderColor:'#1B2B4B' }
-                    : { background:'#f8fafc', color:'#64748b', borderColor:'#e2e8f0' }
+                    ? { background: '#1B2B4B', color: '#fff', borderColor: '#1B2B4B' }
+                    : { background: '#f8fafc', color: '#64748b', borderColor: '#e2e8f0' }
                 }
               >
                 {opt}
@@ -392,3 +401,4 @@ export function ChurnVoidRequest() {
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={hide} />}
     </div>
   );
+}
