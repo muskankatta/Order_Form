@@ -115,7 +115,7 @@ export default function FormDetail({ form: initial }) {
       <Card className="p-6">{tabContent[tab]}</Card>
 
       {/* SoW downloads */}
-      {(form.sow_document || form.sow_reference_document) && (
+      {(form.sow_document || form.sow_reference_document) && 
       {(form.attachments||[]).length > 0 && (
   <Card className="mt-4 p-5">
     <p className="text-xs font-bold uppercase tracking-widest mb-3 text-brand-faint">Additional Attachments</p>
