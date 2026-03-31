@@ -154,7 +154,8 @@ export default function Repository() {
       </div>
 
       <Card className="overflow-hidden">
-        <table className="w-full text-sm">
+  <div className="overflow-x-auto">
+  <table className="text-sm" style={{ minWidth:'1100px', width:'100%' }}>
           {tab==='of' ? (
             <>
               <thead>
@@ -173,8 +174,8 @@ export default function Repository() {
                     <tr key={f.id} onClick={()=>navigate(`/form/${f.id}`)}
                       className={`cursor-pointer hover:bg-slate-50 border-b border-slate-50 last:border-0 ${overdue?'bg-red-50':''}`}>
                       <td className="px-4 py-3.5 text-xs text-slate-300">{i+1}</td>
-                      <td className="px-4 py-3.5">
-                        <span className="font-mono font-bold text-sm" style={{ color:f.of_number?NAVY:'#cbd5e1' }}>{f.of_number||'—'}</span>
+                      <td className="px-4 py-3.5 whitespace-nowrap">
+  <span className="font-mono font-bold text-sm" style={{ color:f.of_number?NAVY:'#cbd5e1' }}>{f.of_number||'—'}</span>
                         {overdue && <div className="text-[10px] text-red-600 font-bold mt-0.5">{daysSinceSent}d unsigned</div>}
                       </td>
                       <td className="px-4 py-3.5">
@@ -243,7 +244,8 @@ export default function Repository() {
                   <tr key={`${f.id}-${svc.id}`} onClick={()=>navigate(`/form/${f.id}`)}
                     className="cursor-pointer hover:bg-slate-50 border-b border-slate-50 last:border-0">
                     <td className="px-4 py-3.5 text-xs text-slate-300">{i+1}</td>
-                    <td className="px-4 py-3.5 font-mono font-bold text-sm" style={{ color:f.of_number?NAVY:'#cbd5e1' }}>{f.of_number||'—'}</td>
+                    <td className="px-4 py-3.5 whitespace-nowrap">
+  <span className="font-mono font-bold text-sm" style={{ color:f.of_number?NAVY:'#cbd5e1' }}>{f.of_number||'—'}</td>
                     <td className="px-4 py-3.5">
                       <div className="font-semibold text-xs" style={{ color:NAVY }}>{f.customer_name}</div>
                       <div className="text-xs text-brand-faint">{f.brand_name}</div>
@@ -265,6 +267,7 @@ export default function Repository() {
             </>
           )}
         </table>
+        </div>
       </Card>
 
       {statusModal && (
