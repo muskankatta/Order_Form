@@ -231,11 +231,21 @@ export function ChurnVoidRequest() {
   const u = (k,v) => setReq(r => ({...r,[k]:v}));
 
   const approvedForms = forms.filter(f => ['approved','signed'].includes(f.status));
-  const customerNames = [...new Set(approvedForms.map(f=>f.customer_name?.trim()))]
-    .filter(Boolean).sort((a,b)=>a.localeCompare(b));
-  const relevantOFs = approvedForms
-    .filter(f => !req.customer || f.customer_name?.trim()===req.customer?.trim())
-    .sort((a,b)=>(a.of_number||'').localeCompare(b.of_number||''));
+
+// Deduplicate by OF number — bundle deals create multiple entries
+const uniqueOFs = Object.values(
+  approvedForms.reduce((acc, f) => {
+    if (f.of_number && !acc[f.of_number]) acc[f.of_number] = f;
+    return acc;
+  }, {})
+);
+
+const customerNames = [...new Set(uniqueOFs.map(f => f.customer_name?.trim()))]
+  .filter(Boolean).sort((a,b) => a.localeCompare(b));
+
+const relevantOFs = uniqueOFs
+  .filter(f => !req.customer || f.customer_name?.trim() === req.customer?.trim())
+  .sort((a,b) => (a.of_number||'').localeCompare(b.of_number||''));
 
   const handleSubmit = async () => {
     if (!req.customer||!req.of_number||!req.status_requested||!req.finance_dris.length) {
@@ -318,7 +328,7 @@ export function ChurnVoidRequest() {
         <p className="text-xs text-brand-faint mb-4">
           Selected Finance DRIs will receive a Slack message and see the request in their Signed OFs page.
         </p>
-        <Btn onClick={handleSubmit}>Submit Request</Btn>
+        <Btn onClick={handleSubmit}>Submit request →</Btn>
       </Card>
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={hide}/>}
     </div>
