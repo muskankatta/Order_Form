@@ -11,6 +11,7 @@ import { collection, onSnapshot, doc, setDoc, updateDoc } from 'firebase/firesto
 
 const NAVY = '#1B2B4B';
 
+// ── SIGNED OFs ─────────────────────────────────────────────────────────────
 export function SignedOFs() {
   const { forms, markSigned, applyDealStatus } = useForms();
   const { user }   = useAuth();
@@ -42,7 +43,7 @@ export function SignedOFs() {
     const data = signingData[f.id] || {};
     if (!data.date) { alert('Enter signing date first.'); return; }
     await markSigned(f.id, data.date, data.link || '');
-    show(f.of_number + ' marked as signed \u2713');
+    show(f.of_number + ' marked as signed');
   };
 
   const handleApply = async (r) => {
@@ -61,14 +62,15 @@ export function SignedOFs() {
         actioned: true, actioned_by: user?.name, actioned_at: new Date().toISOString(),
       });
     }
-    show('Status applied \u2014 ' + r.status_requested + ' \u2713');
+    show('Status applied: ' + r.status_requested);
   };
 
   const handleDismiss = async (r) => {
     if (!confirm('Dismiss this request without applying?')) return;
     if (isConfigured && db) {
       await updateDoc(doc(db, 'churn_void_requests', r.id), {
-        actioned: true, actioned_by: user?.name, actioned_at: new Date().toISOString(), rejected: true,
+        actioned: true, actioned_by: user?.name,
+        actioned_at: new Date().toISOString(), rejected: true,
       });
     }
     show('Request dismissed');
@@ -98,9 +100,10 @@ export function SignedOFs() {
         ))}
       </div>
 
+      {/* Pending Signing */}
       {cvTab === 'unsigned' && (
         approved.length === 0
-          ? <Card className="p-12 text-center text-slate-300">No OFs pending signing \uD83C\uDF89</Card>
+          ? <Card className="p-12 text-center text-slate-300">No OFs pending signing</Card>
           : <Card className="overflow-hidden">
               <table className="w-full text-sm">
                 <thead><tr>
@@ -112,28 +115,46 @@ export function SignedOFs() {
                   {approved.map(f => {
                     const data = signingData[f.id] || {};
                     const sentDate = f.approved_at || f.submitted_at;
-                    const daysSince = sentDate ? Math.floor((new Date()-new Date(sentDate))/86400000) : null;
+                    const daysSince = sentDate
+                      ? Math.floor((new Date()-new Date(sentDate))/86400000) : null;
                     const overdue = daysSince !== null && daysSince >= 30;
                     return (
                       <tr key={f.id} className={'border-b border-slate-50 last:border-0 ' + (overdue?'bg-red-50':'')}>
                         <td className="px-4 py-3 font-mono font-bold" style={{color:NAVY}}>
                           {f.of_number}
-                          {overdue && <span className="ml-2 text-xs text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full font-bold">{daysSince}d</span>}
+                          {overdue && (
+                            <span className="ml-2 text-xs text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full font-bold">
+                              {daysSince}d
+                            </span>
+                          )}
                         </td>
-                        <td className="px-4 py-3 cursor-pointer hover:underline font-medium" style={{color:NAVY}} onClick={()=>navigate('/form/'+f.id)}>{f.customer_name}</td>
-                        <td className="px-4 py-3 text-xs">{f.committed_currency} {Number(f.committed_revenue||0).toLocaleString('en-IN')}</td>
-                        <td className="px-4 py-3 text-xs text-brand-muted">{fmtDate(f.approved_at?.split('T')[0])}</td>
-                        <td className="px-4 py-3">
-                          <input type="date" value={data.date||''} onChange={e=>updateField(f.id,'date',e.target.value)}
-                            className="field-input text-xs" style={{borderColor:'#e2e8f0',width:'140px'}}/>
+                        <td className="px-4 py-3 cursor-pointer hover:underline font-medium"
+                          style={{color:NAVY}} onClick={()=>navigate('/form/'+f.id)}>
+                          {f.customer_name}
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          {f.committed_currency} {Number(f.committed_revenue||0).toLocaleString('en-IN')}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-brand-muted">
+                          {fmtDate(f.approved_at?.split('T')[0])}
                         </td>
                         <td className="px-4 py-3">
-                          <input type="url" value={data.link||''} onChange={e=>updateField(f.id,'link',e.target.value)}
-                            placeholder="Paste signed PDF link\u2026"
-                            className="field-input text-xs" style={{borderColor:'#e2e8f0',width:'200px'}}/>
+                          <input type="date" value={data.date||''}
+                            onChange={e=>updateField(f.id,'date',e.target.value)}
+                            className="field-input text-xs"
+                            style={{borderColor:'#e2e8f0',width:'140px'}}/>
                         </td>
                         <td className="px-4 py-3">
-                          <Btn size="sm" variant="success" disabled={!data.date} onClick={()=>handleMarkSigned(f)}>
+                          <input type="url" value={data.link||''}
+                            onChange={e=>updateField(f.id,'link',e.target.value)}
+                            placeholder="Paste signed PDF link"
+                            className="field-input text-xs"
+                            style={{borderColor:'#e2e8f0',width:'200px'}}/>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Btn size="sm" variant="success"
+                            disabled={!data.date}
+                            onClick={()=>handleMarkSigned(f)}>
                             Mark signed
                           </Btn>
                         </td>
@@ -145,9 +166,12 @@ export function SignedOFs() {
             </Card>
       )}
 
+      {/* Churn/Void Requests */}
       {cvTab === 'requests' && (
         <div>
-          <p className="text-sm text-brand-muted mb-4">Requests filed by RevOps. Review and apply or dismiss each one.</p>
+          <p className="text-sm text-brand-muted mb-4">
+            Requests filed by RevOps. Review and apply or dismiss each one.
+          </p>
           <Card className="overflow-hidden">
             <table className="w-full text-sm">
               <thead><tr>
@@ -157,25 +181,48 @@ export function SignedOFs() {
               </tr></thead>
               <tbody>
                 {cvRequests.length===0 && (
-                  <tr><td colSpan={8} className="text-center py-12 text-slate-300">No pending Churn/Void requests \uD83C\uDF89</td></tr>
+                  <tr>
+                    <td colSpan={8} className="text-center py-12 text-slate-300">
+                      No pending Churn/Void requests
+                    </td>
+                  </tr>
                 )}
                 {cvRequests.map(r => (
                   <tr key={r.id} className="border-b border-slate-50 last:border-0">
-                    <td className="px-4 py-3 font-mono font-bold text-sm" style={{color:NAVY}}>{r.of_number||'\u2014'}</td>
-                    <td className="px-4 py-3 text-sm font-medium" style={{color:NAVY}}>{r.customer_name}</td>
+                    <td className="px-4 py-3 font-mono font-bold text-sm" style={{color:NAVY}}>
+                      {r.of_number||'--'}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-medium" style={{color:NAVY}}>
+                      {r.customer_name}
+                    </td>
                     <td className="px-4 py-3">
-                      <span className={'text-xs px-2 py-1 rounded-full font-bold ' + (r.status_requested==='Void'?'bg-red-100 text-red-700':'bg-orange-100 text-orange-700')}>
+                      <span className={
+                        'text-xs px-2 py-1 rounded-full font-bold ' +
+                        (r.status_requested==='Void'
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-orange-100 text-orange-700')
+                      }>
                         {r.status_requested}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-brand-muted">{r.churn_value||'\u2014'}</td>
-                    <td className="px-4 py-3 text-xs text-brand-muted" style={{maxWidth:'180px'}}>{r.reason||'\u2014'}</td>
+                    <td className="px-4 py-3 text-xs text-brand-muted">{r.churn_value||'--'}</td>
+                    <td className="px-4 py-3 text-xs text-brand-muted" style={{maxWidth:'180px'}}>
+                      {r.reason||'--'}
+                    </td>
                     <td className="px-4 py-3 text-xs text-brand-muted">{r.requested_by}</td>
-                    <td className="px-4 py-3 text-xs text-brand-muted">{r.requested_at?.split('T')[0]}</td>
+                    <td className="px-4 py-3 text-xs text-brand-muted">
+                      {r.requested_at?.split('T')[0]}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        <button onClick={()=>handleApply(r)} className="text-xs font-medium px-2 py-1 rounded-lg bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 transition-colors">Apply</button>
-                        <button onClick={()=>handleDismiss(r)} className="text-xs font-medium px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors">Dismiss</button>
+                        <button onClick={()=>handleApply(r)}
+                          className="text-xs font-medium px-2 py-1 rounded-lg bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 transition-colors">
+                          Apply
+                        </button>
+                        <button onClick={()=>handleDismiss(r)}
+                          className="text-xs font-medium px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors">
+                          Dismiss
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -186,6 +233,7 @@ export function SignedOFs() {
         </div>
       )}
 
+      {/* Signed */}
       {cvTab === 'signed' && (
         <Card className="overflow-hidden">
           <table className="w-full text-sm">
@@ -195,17 +243,29 @@ export function SignedOFs() {
               ))}
             </tr></thead>
             <tbody>
-              {signed.length===0 && <tr><td colSpan={5} className="text-center py-12 text-slate-300">No signed OFs yet.</td></tr>}
+              {signed.length===0 && (
+                <tr>
+                  <td colSpan={5} className="text-center py-12 text-slate-300">No signed OFs yet.</td>
+                </tr>
+              )}
               {signed.map(f => (
-                <tr key={f.id} className="border-b border-slate-50 last:border-0 cursor-pointer hover:bg-slate-50" onClick={()=>navigate('/form/'+f.id)}>
+                <tr key={f.id}
+                  className="border-b border-slate-50 last:border-0 cursor-pointer hover:bg-slate-50"
+                  onClick={()=>navigate('/form/'+f.id)}>
                   <td className="px-4 py-3 font-mono font-bold" style={{color:NAVY}}>{f.of_number}</td>
                   <td className="px-4 py-3 font-medium" style={{color:NAVY}}>{f.customer_name}</td>
-                  <td className="px-4 py-3 text-xs">{f.committed_currency} {Number(f.committed_revenue||0).toLocaleString('en-IN')}</td>
+                  <td className="px-4 py-3 text-xs">
+                    {f.committed_currency} {Number(f.committed_revenue||0).toLocaleString('en-IN')}
+                  </td>
                   <td className="px-4 py-3 text-xs text-brand-muted">{fmtDate(f.signed_date)}</td>
                   <td className="px-4 py-3 text-xs">
                     {f.signed_of_link
-                      ? <a href={f.signed_of_link} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="font-medium hover:underline" style={{color:'#00C3B5'}}>View signed PDF</a>
-                      : <span className="text-slate-300">\u2014</span>
+                      ? <a href={f.signed_of_link} target="_blank" rel="noreferrer"
+                          onClick={e=>e.stopPropagation()}
+                          className="font-medium hover:underline" style={{color:'#00C3B5'}}>
+                          View signed PDF
+                        </a>
+                      : <span className="text-slate-300">--</span>
                     }
                   </td>
                 </tr>
@@ -220,78 +280,73 @@ export function SignedOFs() {
   );
 }
 
+
+// ── CHURN/VOID REQUEST FORM ────────────────────────────────────────────────
 export function ChurnVoidRequest() {
   const { forms, submitChurnVoidRequest } = useForms();
   const { user }  = useAuth();
   const { toast, show, hide } = useToast();
- const [req, setReq] = useState({
-  customer:'', of_number:'', status_requested:'Churn',
-  churn_value:'', reason:'', finance_dris:[],
-});
-const [validationErrors, setValidationErrors] = useState([]);
-const [submitting, setSubmitting] = useState(false);
+  const [req, setReq] = useState({
+    customer:'', of_number:'', status_requested:'Churn',
+    churn_value:'', reason:'', finance_dris:[],
+  });
+  const [validationErrors, setValidationErrors] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+
   const u = (k,v) => setReq(r => ({...r,[k]:v}));
 
   const approvedForms = forms.filter(f => ['approved','signed'].includes(f.status));
-
-// Deduplicate by OF number — bundle deals create multiple entries
-const uniqueOFs = Object.values(
-  approvedForms.reduce((acc, f) => {
-    if (f.of_number && !acc[f.of_number]) acc[f.of_number] = f;
-    return acc;
-  }, {})
-);
-
-const customerNames = [...new Set(uniqueOFs.map(f => f.customer_name?.trim()))]
-  .filter(Boolean).sort((a,b) => a.localeCompare(b));
-
-const relevantOFs = uniqueOFs
-  .filter(f => !req.customer || f.customer_name?.trim() === req.customer?.trim())
-  .sort((a,b) => (a.of_number||'').localeCompare(b.of_number||''));
+  const customerNames = [...new Set(approvedForms.map(f=>f.customer_name?.trim()))]
+    .filter(Boolean).sort((a,b)=>a.localeCompare(b));
+  const relevantOFs = approvedForms
+    .filter(f => !req.customer || f.customer_name?.trim()===req.customer?.trim())
+    .sort((a,b)=>(a.of_number||'').localeCompare(b.of_number||''));
 
   const handleSubmit = async () => {
-  const errs = [];
-  if (!req.customer)           errs.push('Select a customer');
-  if (!req.of_number)          errs.push('Select an Order Form number');
-  if (!req.reason?.trim())     errs.push('Enter a reason');
-  if (!req.finance_dris.length) errs.push('Select at least one Finance DRI');
-  setValidationErrors(errs);
-  if (errs.length) return;
-  setSubmitting(true);
-  try {
-    const form = forms.find(f =>
-      f.customer_name?.trim()===req.customer?.trim() && f.of_number===req.of_number
-    );
-    if (isConfigured && db) {
-      const reqId = uid();
-      await setDoc(doc(db, 'churn_void_requests', reqId), {
-        id: reqId,
-        form_id: form?.id || '',
-        of_number: req.of_number,
-        customer_name: req.customer,
-        status_requested: req.status_requested,
-        churn_value: req.churn_value || '',
-        reason: req.reason || '',
-        requested_by: user?.name || '',
-        requested_at: new Date().toISOString(),
-        actioned: false,
+    const errs = [];
+    if (!req.customer)            errs.push('Select a customer');
+    if (!req.of_number)           errs.push('Select an Order Form number');
+    if (!req.reason?.trim())      errs.push('Enter a reason / justification');
+    if (!req.finance_dris.length) errs.push('Select at least one Finance DRI');
+    setValidationErrors(errs);
+    if (errs.length) return;
+
+    setSubmitting(true);
+    try {
+      const form = forms.find(f =>
+        f.customer_name?.trim()===req.customer?.trim() && f.of_number===req.of_number
+      );
+      if (isConfigured && db) {
+        const reqId = uid();
+        await setDoc(doc(db, 'churn_void_requests', reqId), {
+          id: reqId,
+          form_id: form?.id || '',
+          of_number: req.of_number,
+          customer_name: req.customer,
+          status_requested: req.status_requested,
+          churn_value: req.churn_value || '',
+          reason: req.reason || '',
+          requested_by: user?.name || '',
+          requested_at: new Date().toISOString(),
+          actioned: false,
+        });
+      }
+      await submitChurnVoidRequest({
+        form: form || { customer_name:req.customer, of_number:req.of_number },
+        statusRequested: req.status_requested,
+        churnValue: req.churn_value,
+        reason: req.reason,
       });
+      show('Request submitted — Finance will be notified via Slack');
+      setReq({customer:'',of_number:'',status_requested:'Churn',churn_value:'',reason:'',finance_dris:[]});
+      setValidationErrors([]);
+    } catch(e) {
+      console.error('Submit error:', e);
+      setValidationErrors(['Error submitting: ' + e.message]);
+    } finally {
+      setSubmitting(false);
     }
-    await submitChurnVoidRequest({
-      form: form || {customer_name:req.customer,of_number:req.of_number},
-      statusRequested: req.status_requested,
-      churnValue: req.churn_value,
-      reason: req.reason,
-    });
-    show('Request submitted — Finance will be notified via Slack ✓');
-    setReq({customer:'',of_number:'',status_requested:'Churn',churn_value:'',reason:'',finance_dris:[]});
-    setValidationErrors([]);
-  } catch(e) {
-    console.error('Submit error:', e);
-    setValidationErrors(['Error: ' + e.message]);
-  } finally {
-    setSubmitting(false);
-  }
+  };
 
   return (
     <div>
@@ -300,16 +355,20 @@ const relevantOFs = uniqueOFs
         File a request to Finance to mark a deal as Churn or Void.
         Finance will review it in <strong>Signed OFs → Churn/Void Requests</strong>.
       </p>
+
       <Card className="p-6 max-w-2xl">
         <div className="grid grid-cols-2 gap-x-4">
           <Sel label="Client / Customer" req
             options={customerNames.map(n=>({value:n,label:n}))}
-            value={req.customer} onChange={v=>{u('customer',v);u('of_number','');}}/>
+            value={req.customer}
+            onChange={v=>{u('customer',v);u('of_number','');}}/>
           <Sel label="Order Form #" req
-            options={relevantOFs.map(f=>({value:f.of_number,label:f.of_number+' \u2014 '+f.customer_name}))}
-            value={req.of_number} onChange={v=>u('of_number',v)}
+            options={relevantOFs.map(f=>({value:f.of_number,label:f.of_number+' — '+f.customer_name}))}
+            value={req.of_number}
+            onChange={v=>u('of_number',v)}
             hint={!req.customer?'Select a customer first':''}/>
         </div>
+
         <div className="mb-4">
           <Lbl c="Status requested" req/>
           <div className="flex gap-3">
@@ -324,34 +383,46 @@ const relevantOFs = uniqueOFs
             ))}
           </div>
         </div>
+
         {req.status_requested==='Churn' && (
-          <Inp label="Churn amount (portion of OF value)" value={req.churn_value}
-            onChange={v=>u('churn_value',v)} placeholder="e.g. 150000" mono
+          <Inp label="Churn amount (portion of OF value)"
+            value={req.churn_value} onChange={v=>u('churn_value',v)}
+            placeholder="e.g. 150000" mono
             hint="Enter the portion of the contracted OF value that should be considered churned."/>
         )}
+
         {req.status_requested==='Void' && (
           <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
             Warning: Marking as Void will set the OF value to zero.
+            This is applied by Finance and cannot be undone without Finance intervention.
           </div>
         )}
-        <TA label="Reason / justification" req value={req.reason} onChange={v=>u('reason',v)} rows={4}/>
+
+        <TA label="Reason / justification" req
+          value={req.reason} onChange={v=>u('reason',v)} rows={4}/>
+
         <MultiSelect label="Notify Finance DRI(s)" req
           options={FINANCE_USERS.map(u=>({value:u.email,label:u.name}))}
-          value={req.finance_dris} onChange={v=>u('finance_dris',v)}/>
+          value={req.finance_dris}
+          onChange={v=>u('finance_dris',v)}/>
+
         <p className="text-xs text-brand-faint mb-4">
-          Selected Finance DRIs will receive a Slack message and see the request in their Signed OFs page.
+          Selected Finance DRIs will receive a Slack message and see the request
+          in their Signed OFs page.
         </p>
+
         {validationErrors.length > 0 && (
-  <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
-    <p className="font-bold mb-1">Please fix the following:</p>
-    {validationErrors.map((e,i) => <p key={i}>• {e}</p>)}
-  </div>
-)}
-<Btn onClick={handleSubmit} disabled={submitting}>
-  {submitting ? 'Submitting…' : 'Submit request →'}
-</Btn>
-        <Btn onClick={handleSubmit}>Submit request →</Btn>
+          <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+            <p className="font-bold mb-1">Please fix the following:</p>
+            {validationErrors.map((e,i) => <p key={i}>• {e}</p>)}
+          </div>
+        )}
+
+        <Btn onClick={handleSubmit} disabled={submitting}>
+          {submitting ? 'Submitting...' : 'Submit request'}
+        </Btn>
       </Card>
+
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={hide}/>}
     </div>
   );
