@@ -105,8 +105,8 @@ export function SignedOFs() {
         approved.length === 0
           ? <Card className="p-12 text-center text-slate-300">No OFs pending signing</Card>
           : <Card className="overflow-hidden">
-  <div className="overflow-x-auto">
-  <table className="text-sm" style={{ minWidth:'900px', width:'100%' }}>
+              <div className="overflow-x-auto">
+              <table style={{ minWidth:'900px', width:'100%' }} className="text-sm">
                 <thead><tr>
                   {['OF#','Customer','Value','Approved On','Signing Date','Signed PDF Link','Action'].map(h => (
                     <th key={h} className={thCls}>{h}</th>
@@ -164,6 +164,7 @@ export function SignedOFs() {
                   })}
                 </tbody>
               </table>
+              </div>
             </Card>
       )}
 
@@ -174,8 +175,8 @@ export function SignedOFs() {
             Requests filed by RevOps. Review and apply or dismiss each one.
           </p>
           <Card className="overflow-hidden">
-  <div className="overflow-x-auto">
-  <table className="text-sm" style={{ minWidth:'900px', width:'100%' }}>
+            <div className="overflow-x-auto">
+            <table style={{ minWidth:'950px', width:'100%' }} className="text-sm">
               <thead><tr>
                 {['OF#','Customer','Request','Churn Amount','Reason','Filed By','Date','Action'].map(h => (
                   <th key={h} className={thCls}>{h}</th>
@@ -231,6 +232,7 @@ export function SignedOFs() {
                 ))}
               </tbody>
             </table>
+            </div>
           </Card>
         </div>
       )}
@@ -238,8 +240,8 @@ export function SignedOFs() {
       {/* Signed */}
       {cvTab === 'signed' && (
         <Card className="overflow-hidden">
-  <div className="overflow-x-auto">
-  <table className="text-sm" style={{ minWidth:'900px', width:'100%' }}>
+          <div className="overflow-x-auto">
+          <table style={{ minWidth:'700px', width:'100%' }} className="text-sm">
             <thead><tr>
               {['OF#','Customer','Value','Signed On','Signed PDF'].map(h => (
                 <th key={h} className={thCls}>{h}</th>
@@ -275,6 +277,7 @@ export function SignedOFs() {
               ))}
             </tbody>
           </table>
+          </div>
         </Card>
       )}
 
