@@ -105,7 +105,8 @@ export function SignedOFs() {
         approved.length === 0
           ? <Card className="p-12 text-center text-slate-300">No OFs pending signing</Card>
           : <Card className="overflow-hidden">
-              <table className="w-full text-sm">
+  <div className="overflow-x-auto">
+  <table className="text-sm" style={{ minWidth:'900px', width:'100%' }}>
                 <thead><tr>
                   {['OF#','Customer','Value','Approved On','Signing Date','Signed PDF Link','Action'].map(h => (
                     <th key={h} className={thCls}>{h}</th>
@@ -173,7 +174,8 @@ export function SignedOFs() {
             Requests filed by RevOps. Review and apply or dismiss each one.
           </p>
           <Card className="overflow-hidden">
-            <table className="w-full text-sm">
+  <div className="overflow-x-auto">
+  <table className="text-sm" style={{ minWidth:'900px', width:'100%' }}>
               <thead><tr>
                 {['OF#','Customer','Request','Churn Amount','Reason','Filed By','Date','Action'].map(h => (
                   <th key={h} className={thCls}>{h}</th>
@@ -236,7 +238,8 @@ export function SignedOFs() {
       {/* Signed */}
       {cvTab === 'signed' && (
         <Card className="overflow-hidden">
-          <table className="w-full text-sm">
+  <div className="overflow-x-auto">
+  <table className="text-sm" style={{ minWidth:'900px', width:'100%' }}>
             <thead><tr>
               {['OF#','Customer','Value','Signed On','Signed PDF'].map(h => (
                 <th key={h} className={thCls}>{h}</th>
