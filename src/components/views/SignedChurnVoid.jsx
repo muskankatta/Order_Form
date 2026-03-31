@@ -305,9 +305,8 @@ export function ChurnVoidRequest() {
   const customerNames = [...new Set(approvedForms.map(f=>f.customer_name?.trim()))]
     .filter(Boolean).sort((a,b)=>a.localeCompare(b));
   const relevantOFs = approvedForms
-    .filter(f => !req.customer || f.customer_name?.trim()===req.customer?.trim())
-    .sort((a,b)=>(a.of_number||'').localeCompare(b.of_number||''));
-
+  .filter(f => !req.customer || f.customer_name?.trim()===req.customer?.trim())
+  .sort((a,b)=>(a.of_number||'').localeCompare(b.of_number||''));
   const handleSubmit = async () => {
     const errs = [];
     if (!req.customer)            errs.push('Select a customer');
