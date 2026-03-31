@@ -224,10 +224,12 @@ export function ChurnVoidRequest() {
   const { forms, submitChurnVoidRequest } = useForms();
   const { user }  = useAuth();
   const { toast, show, hide } = useToast();
-  const [req, setReq] = useState({
-    customer:'', of_number:'', status_requested:'Churn',
-    churn_value:'', reason:'', finance_dris:[],
-  });
+ const [req, setReq] = useState({
+  customer:'', of_number:'', status_requested:'Churn',
+  churn_value:'', reason:'', finance_dris:[],
+});
+const [validationErrors, setValidationErrors] = useState([]);
+const [submitting, setSubmitting] = useState(false);
   const u = (k,v) => setReq(r => ({...r,[k]:v}));
 
   const approvedForms = forms.filter(f => ['approved','signed'].includes(f.status));
@@ -248,10 +250,15 @@ const relevantOFs = uniqueOFs
   .sort((a,b) => (a.of_number||'').localeCompare(b.of_number||''));
 
   const handleSubmit = async () => {
-    if (!req.customer||!req.of_number||!req.status_requested||!req.finance_dris.length) {
-      alert('Please fill all required fields and select at least one Finance DRI.');
-      return;
-    }
+  const errs = [];
+  if (!req.customer)           errs.push('Select a customer');
+  if (!req.of_number)          errs.push('Select an Order Form number');
+  if (!req.reason?.trim())     errs.push('Enter a reason');
+  if (!req.finance_dris.length) errs.push('Select at least one Finance DRI');
+  setValidationErrors(errs);
+  if (errs.length) return;
+  setSubmitting(true);
+  try {
     const form = forms.find(f =>
       f.customer_name?.trim()===req.customer?.trim() && f.of_number===req.of_number
     );
@@ -276,9 +283,15 @@ const relevantOFs = uniqueOFs
       churnValue: req.churn_value,
       reason: req.reason,
     });
-    show('Request submitted \u2014 Finance will be notified via Slack \u2713');
+    show('Request submitted — Finance will be notified via Slack ✓');
     setReq({customer:'',of_number:'',status_requested:'Churn',churn_value:'',reason:'',finance_dris:[]});
-  };
+    setValidationErrors([]);
+  } catch(e) {
+    console.error('Submit error:', e);
+    setValidationErrors(['Error: ' + e.message]);
+  } finally {
+    setSubmitting(false);
+  }
 
   return (
     <div>
@@ -328,6 +341,15 @@ const relevantOFs = uniqueOFs
         <p className="text-xs text-brand-faint mb-4">
           Selected Finance DRIs will receive a Slack message and see the request in their Signed OFs page.
         </p>
+        {validationErrors.length > 0 && (
+  <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+    <p className="font-bold mb-1">Please fix the following:</p>
+    {validationErrors.map((e,i) => <p key={i}>• {e}</p>)}
+  </div>
+)}
+<Btn onClick={handleSubmit} disabled={submitting}>
+  {submitting ? 'Submitting…' : 'Submit request →'}
+</Btn>
         <Btn onClick={handleSubmit}>Submit request →</Btn>
       </Card>
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={hide}/>}
