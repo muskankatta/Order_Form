@@ -306,7 +306,8 @@ export function ChurnVoidRequest() {
     .filter(Boolean).sort((a,b)=>a.localeCompare(b));
   const relevantOFs = approvedForms
   .filter(f => !req.customer || f.customer_name?.trim()===req.customer?.trim())
-  .sort((a,b)=>(a.of_number||'').localeCompare(b.of_number||''));
+  .sort((a,b)=>(a.of_number||'').localeCompare(b.of_number||''))
+  .filter((f,i,arr) => arr.findIndex(x => x.of_number===f.of_number) === i); // deduplicate by OF number
   const handleSubmit = async () => {
     const errs = [];
     if (!req.customer)            errs.push('Select a customer');
