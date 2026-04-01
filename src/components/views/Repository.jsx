@@ -160,7 +160,7 @@ export default function Repository() {
             <>
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {['#','OF Number','Customer','Services','Committed Revenue','Period','Rep','Status',
+                  {['#','OF Number','Customer','Services','Committed Revenue','Period','Active','Rep','Status',
                     ...(user?.isUniversal?['Actions']:[])
                   ].map(h=><th key={h} className={thCls}>{h}</th>)}
                 </tr>
@@ -213,6 +213,17 @@ export default function Repository() {
                       <td className="px-4 py-3.5 text-xs text-brand-muted">
                         {fmtShort(f.start_date)} → {fmtShort(f.end_date)}
                         {f.signed_date && <div className="text-[10px] text-green-600 mt-0.5">✍️ {fmtShort(f.signed_date)}</div>}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {(() => {
+                          const today = new Date(); today.setHours(0,0,0,0);
+                          const start = f.start_date ? new Date(f.start_date) : null;
+                          const end   = f.end_date   ? new Date(f.end_date)   : null;
+                          const isActive = ['signed'].includes(f.status) && start && end && today >= start && today <= end;
+                          return isActive
+                            ? <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-green-100 text-green-700">Active</span>
+                            : <span className="text-xs text-slate-300">—</span>;
+                        })()}
                       </td>
                       <td className="px-4 py-3.5 text-xs text-brand-muted">{f.sales_rep_name}</td>
                       <td className="px-4 py-3.5"><StatusPill status={f.status}/></td>
