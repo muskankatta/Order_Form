@@ -1,6 +1,6 @@
 /**
  * Google Sheets sync — writes to two tabs matching the OF_Data_for_Platform.xlsx format:
- *   Tab 1: "Index"         — one row per Order Form (41 columns)
+ *   Tab 1: "OF Index"         — one row per Order Form (41 columns)
  *   Tab 2: "Service Index" — one row per service within each OF
  *
  * Requires an OAuth2 access token with scope:
@@ -217,7 +217,7 @@ export async function syncAllToSheets(forms, onProgress) {
 
   // Write both tabs
   onProgress?.(`Writing ${indexValues.length - 1} rows to Index tab...`);
-  await writeTab(sheetsId, 'Index', indexValues, token);
+  await writeTab(sheetsId, 'OF Index', indexValues, token);
 
   onProgress?.(`Writing ${serviceValues.length - 1} rows to Service Index tab...`);
   await writeTab(sheetsId, 'Service Index', serviceValues, token);
