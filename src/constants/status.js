@@ -5,6 +5,7 @@ export const STATUS = {
   revops_rejected: { label:'Rejected',        bg:'#fef2f2', text:'#b91c1c', dot:'#ef4444' },
   approved:        { label:'Approved ✓',      bg:'#f0fdf4', text:'#15803d', dot:'#22c55e' },
   signed:          { label:'Signed ✍️',       bg:'#f0fdf4', text:'#065f46', dot:'#059669' },
+  completed:       { label:'Completed',       bg:'#f5f3ff', text:'#6d28d9', dot:'#7c3aed' },
   dropped:         { label:'Dropped',         bg:'#f9fafb', text:'#9ca3af', dot:'#d1d5db' },
   revised:         { label:'Revised',         bg:'#eff6ff', text:'#1d4ed8', dot:'#3b82f6' },
   void:            { label:'Void',            bg:'#fef2f2', text:'#b91c1c', dot:'#ef4444' },
