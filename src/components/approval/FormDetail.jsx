@@ -18,7 +18,7 @@ const TABS = [{id:'client',lbl:'Client'},{id:'commercial',lbl:'Commercial'},{id:
 export default function FormDetail({ form: initial }) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { forms, revopsApprove, revopsReject, financeApprove, financeReject, markSigned, applyDealStatus, cloneForm, deleteDraft } = useForms();
+  const { forms, revopsApprove, revopsReject, financeApprove, financeReject, markSigned, applyDealStatus, cloneForm, deleteDraft, updateDraft } = useForms();
   const { toast, show, hide } = useToast();
 
   const form     = forms.find(f => f.id === initial.id) || initial;
@@ -33,7 +33,10 @@ export default function FormDetail({ form: initial }) {
   const live = edit ? ef : form;
   const set  = (k,v) => setEf(prev => ({...prev,[k]:v}));
 
-  const canEdit   = (user?.isUniversal) || (user?.role==='revops'&&form.status==='submitted') || (user?.role==='finance'&&form.status==='revops_approved');
+  const canEdit = user?.isUniversal
+  || (user?.role==='sales' && ['draft','revops_rejected'].includes(form.status) && form.sales_rep_email===user.email)
+  || (user?.role==='revops' && form.status==='submitted')
+  || (user?.role==='finance' && form.status==='revops_approved');
   const canDelete = (user?.isUniversal) || (user?.role==='sales'&&form.status==='draft') || (user?.role==='revops'&&form.status==='submitted') || (user?.role==='finance'&&form.status==='revops_approved');
 
   const tabContent = {
@@ -100,6 +103,26 @@ export default function FormDetail({ form: initial }) {
           <Btn variant="ghost" size="sm" onClick={() => openPDF(live)}>📄 Preview PDF</Btn>
         </div>
       </div>
+
+      {/* Save bar — shown whenever edit mode is active */}
+      {edit && (
+        <div className="flex items-center justify-between mb-4 px-4 py-3 rounded-xl border"
+          style={{ background:'#fffbeb', borderColor:'#fcd34d' }}>
+          <p className="text-sm font-medium text-amber-700">✏️ You have unsaved changes</p>
+          <div className="flex gap-2">
+            <Btn variant="ghost" size="sm" onClick={() => { setEdit(false); setEf({...form}); }}>
+              Discard
+            </Btn>
+            <Btn size="sm" onClick={async () => {
+              await updateDraft(form.id, ef);
+              show('Changes saved ✓');
+              setEdit(false);
+            }}>
+              💾 Save changes
+            </Btn>
+          </div>
+        </div>
+      )}
 
       {/* Tab nav */}
       <div className="flex gap-1 mb-4 p-1 rounded-xl bg-slate-100">
