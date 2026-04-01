@@ -21,10 +21,21 @@ export default function AppShell({ children }) {
     return d && Math.floor((new Date()-new Date(d))/86400000)>=30;
   }).length;
 
+  // Pending requests badge — role-specific
+  const myPendingCount = user?.isUniversal
+    ? forms.filter(f=>['submitted','revops_approved','revops_rejected','draft'].includes(f.status)).length
+    : user?.role==='sales'
+    ? forms.filter(f=>['draft','revops_rejected'].includes(f.status)&&f.sales_rep_email===user.email).length
+    : user?.role==='revops'
+    ? pendingRevops
+    : user?.role==='finance'
+    ? pendingFinance
+    : 0;
+
   const navItems = [
-    { to:'/dashboard',   lbl:'Dashboard',
-      badge: user?.role==='revops' ? pendingRevops : user?.role==='finance' ? pendingFinance : null },
-    { to:'/repository',  lbl:'Repository' },
+    { to:'/dashboard',  lbl:'Dashboard' },
+    { to:'/pending',    lbl:'Pending Requests', badge: myPendingCount > 0 ? myPendingCount : null, badgeColor:'#ef4444' },
+    { to:'/repository', lbl:'Repository' },
     ...(user?.role==='finance'||user?.isUniversal ? [{
       to:'/signed', lbl:'Signed OFs',
       badge: overdueCount > 0 ? overdueCount : null, badgeColor:'#ef4444'
