@@ -55,6 +55,7 @@ export default function Repository() {
   const [dateTo,     setDateTo]     = useState('');
   const [tab,        setTab]        = useState('of');
   const [statusModal,setStatusModal]= useState(null);
+  const [sortBy, setSortBy] = useState('approved_desc');
 
   const isSales = user?.role === 'sales' && !user?.isUniversal;
   const sortedReps = [...SALES_REPS].sort((a,b)=>a.name.localeCompare(b.name));
@@ -71,9 +72,24 @@ export default function Repository() {
     return m && s && t && r && df && dt;
   });
 
-  const svcRows = [];
-  filtered.forEach(f => (f.services_fees||[]).forEach(svc => svcRows.push({f,svc})));
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortBy === 'approved_desc') {
+      const da = a.approved_at || a.submitted_at || '';
+      const db = b.approved_at || b.submitted_at || '';
+      return db.localeCompare(da);
+    }
+    if (sortBy === 'approved_asc') {
+      const da = a.approved_at || a.submitted_at || '';
+      const db = b.approved_at || b.submitted_at || '';
+      return da.localeCompare(db);
+    }
+    if (sortBy === 'name_asc')  return (a.customer_name||'').localeCompare(b.customer_name||'');
+    if (sortBy === 'name_desc') return (b.customer_name||'').localeCompare(a.customer_name||'');
+    return 0;
+  });
 
+  const svcRows = [];
+  sorted.forEach(f => (f.services_fees||[]).forEach(svc => svcRows.push({f,svc})));
   const thCls = "text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-brand-faint";
 
   const handleStatusSave = async (newStatus, comment) => {
@@ -116,8 +132,23 @@ export default function Repository() {
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-2 gap-3 mb-3">
+     <div className="grid grid-cols-3 gap-3 mb-3">
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="🔍 Search customer, OF#, rep…"
+          className="text-sm border rounded-xl px-4 py-2.5 focus:outline-none border-slate-200"/>
+        <select value={st} onChange={e=>setSt(e.target.value)}
+          className="text-sm border rounded-xl px-3 py-2.5 bg-white border-slate-200">
+          <option value="all">All status</option>
+          {Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+        </select>
+        <select value={sortBy} onChange={e=>setSortBy(e.target.value)}
+          className="text-sm border rounded-xl px-3 py-2.5 bg-white border-slate-200">
+          <option value="approved_desc">↓ Latest approved first</option>
+          <option value="approved_asc">↑ Oldest approved first</option>
+          <option value="name_asc">A → Z (Client name)</option>
+          <option value="name_desc">Z → A (Client name)</option>
+        </select>
+      </div>
+      <div className="grid grid-cols-4 gap-3 mb-4">
           className="text-sm border rounded-xl px-4 py-2.5 focus:outline-none border-slate-200"/>
         <select value={st} onChange={e=>setSt(e.target.value)}
           className="text-sm border rounded-xl px-3 py-2.5 bg-white border-slate-200">
@@ -166,8 +197,8 @@ export default function Repository() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.length===0 && <tr><td colSpan={9} className="text-center py-16 text-slate-300">No order forms found.</td></tr>}
-                {filtered.map((f,i) => {
+               {sorted.length===0 && <tr><td colSpan={9} className="text-center py-16 text-slate-300">No order forms found.</td></tr>}
+                {sorted.map((f,i) => {
                   const daysSinceSent = f.approved_at ? Math.floor((new Date()-new Date(f.approved_at))/86400000) : null;
                   const overdue = f.status==='approved' && !f.signed_date && daysSinceSent>=30;
                   return (
