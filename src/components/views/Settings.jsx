@@ -73,7 +73,7 @@ export default function Settings() {
           <div>
             <h3 className="font-bold" style={{ color:NAVY }}>Google Sheets Sync</h3>
             <p className="text-sm text-brand-muted mt-0.5">
-              Syncs all Order Forms to two tabs — <strong>Index</strong> (one row per OF) and <strong>Service Index</strong> (one row per service), matching your original Excel format exactly.
+              Syncs all Order Forms to two tabs — <strong>OF Index</strong> (one row per OF) and <strong>Service Index</strong> (one row per service), matching your original Excel format exactly.
             </p>
           </div>
         </div>
@@ -82,7 +82,7 @@ export default function Settings() {
           <strong>Setup steps:</strong>
           <ol className="mt-2 space-y-1 list-decimal list-inside text-xs">
             <li>Create a new Google Sheet (or use your existing one)</li>
-            <li>Create two tabs named exactly: <code className="bg-blue-100 px-1 rounded">Index</code> and <code className="bg-blue-100 px-1 rounded">Service Index</code></li>
+            <li>Create two tabs named exactly: <code className="bg-blue-100 px-1 rounded">OF Index</code> and <code className="bg-blue-100 px-1 rounded">Service Index</code></li>
             <li>Copy the Sheet ID from the URL: <code className="bg-blue-100 px-1 rounded">docs.google.com/spreadsheets/d/<strong>THIS_PART</strong>/edit</code></li>
             <li>Paste it below, save settings, then click Sync</li>
             <li>A Google sign-in popup will appear — approve Sheets access</li>
