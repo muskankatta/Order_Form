@@ -10,6 +10,7 @@ import FormDetail from './components/approval/FormDetail.jsx';
 import { SignedOFs, ChurnVoidRequest } from './components/views/SignedChurnVoid.jsx';
 import AdminUsers from './components/views/AdminUsers.jsx';
 import Settings from './components/views/Settings.jsx';
+import PendingRequests from './components/views/PendingRequests.jsx';
 import { useForms } from './context/FormsContext.jsx';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getFY } from './utils/dates.js';
@@ -50,6 +51,7 @@ function ProtectedApp() {
       <AppShell>
         <Routes>
           <Route path="/dashboard"   element={<Dashboard/>}/>
+          <Route path="/pending"     element={<PendingRequests/>}/>
           <Route path="/repository"  element={<Repository/>}/>
           <Route path="/form/new"    element={<NewFormPage/>}/>
           <Route path="/form/:id"    element={<FormDetailRoute/>}/>
