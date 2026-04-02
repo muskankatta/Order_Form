@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, StatusPill } from '../ui/index.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { REVOPS_USERS, FINANCE_USERS } from '../../constants/users.js';
 import { fmtShort } from '../../utils/dates.js';
 
 const NAVY = '#1B2B4B';
@@ -44,6 +45,19 @@ function Section({ title, subtitle, color, forms, onSelect, emptyMsg }) {
                     {' · '}{f.committed_currency||'INR'} {Number(f.committed_revenue||0).toLocaleString('en-IN')||'—'}
                     {' · '}{f.sales_rep_name}
                   </div>
+                  {/* Show primary DRI */}
+                  {f.status==='submitted' && f.revops_approvers?.length > 0 && (
+                    <div className="text-xs mt-1 text-brand-faint">
+                      Primary RevOps: <strong>{(REVOPS_USERS.find(u=>u.email===f.revops_approvers[0])||{}).name || f.revops_approvers[0]}</strong>
+                      {f.revops_approvers.length > 1 && <span className="ml-1 text-slate-300">+{f.revops_approvers.length-1} CC</span>}
+                    </div>
+                  )}
+                  {f.status==='revops_approved' && f.finance_approvers?.length > 0 && (
+                    <div className="text-xs mt-1 text-brand-faint">
+                      Primary Finance: <strong>{(FINANCE_USERS.find(u=>u.email===f.finance_approvers[0])||{}).name || f.finance_approvers[0]}</strong>
+                      {f.finance_approvers.length > 1 && <span className="ml-1 text-slate-300">+{f.finance_approvers.length-1} CC</span>}
+                    </div>
+                  )}
                   {/* Show rejection comment if any */}
                   {(f.revops_comment || f.finance_comment) && (
                     <div className="text-xs mt-1 px-2 py-1 rounded-lg bg-red-50 text-red-600 border border-red-100 inline-block">
