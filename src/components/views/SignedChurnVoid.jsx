@@ -314,6 +314,11 @@ export function ChurnVoidRequest() {
     .filter(f => !req.customer || f.customer_name?.trim()===req.customer?.trim())
     .sort((a,b)=>(a.of_number||'').localeCompare(b.of_number||''));
 
+  // Selected form for preview
+  const selectedForm = req.of_number
+    ? forms.find(f => f.customer_name?.trim()===req.customer?.trim() && f.of_number===req.of_number)
+    : null;
+
   const handleSubmit = async () => {
     const errs = [];
     if (!req.customer)            errs.push('Select a customer');
@@ -380,6 +385,71 @@ export function ChurnVoidRequest() {
             onChange={v=>u('of_number',v)}
             hint={!req.customer?'Select a customer first':''}/>
         </div>
+
+        {/* ── OF Preview ── */}
+        {selectedForm && (
+          <div className="mb-4 rounded-xl border overflow-hidden" style={{borderColor:'#e2e8f0'}}>
+            <div className="px-4 py-2.5 flex items-center justify-between" style={{background:'#f8fafc',borderBottom:'1px solid #e2e8f0'}}>
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-bold text-sm" style={{color:NAVY}}>{selectedForm.of_number}</span>
+                <span className="text-xs text-brand-muted">·</span>
+                <span className="text-xs text-brand-muted">{selectedForm.start_date} → {selectedForm.end_date}</span>
+                <span className="text-xs text-brand-muted">·</span>
+                <span className="text-xs font-semibold" style={{color:'#00C3B5'}}>{selectedForm.committed_currency} {Number(selectedForm.committed_revenue||0).toLocaleString('en-IN')}</span>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+                style={{background: selectedForm.status==='signed'?'#f0fdf4':'#eff6ff',
+                        color:      selectedForm.status==='signed'?'#15803d':'#1d4ed8'}}>
+                {selectedForm.status==='signed'?'Signed':'Approved'}
+              </span>
+            </div>
+            <div className="p-4">
+              <div className="text-[10px] font-bold uppercase tracking-wider mb-2 text-brand-faint">Services & Commercials</div>
+              {(selectedForm.services_fees||[]).map((svc,i) => (
+                <div key={svc.id||i} className="mb-3 last:mb-0">
+                  <div className="text-xs font-bold mb-1" style={{color:NAVY}}>
+                    {String.fromCharCode(97+i)}. {svc.name}
+                  </div>
+                  <div className="space-y-1">
+                    {(svc.fees||[]).map((fee,fi) => (
+                      <div key={fi} className="flex items-start justify-between text-xs py-1 px-2 rounded-lg"
+                        style={{background:'#f8fafc'}}>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-slate-600">{fee.feeType}</span>
+                          <span className="text-slate-400">·</span>
+                          <span className="text-slate-500">{fee.billingCycle}</span>
+                          {fee.inclusions && (
+                            <span className="text-slate-400 text-[10px]">· Incl: {fee.inclusions}</span>
+                          )}
+                        </div>
+                        <span className="font-semibold font-mono shrink-0 ml-2" style={{color:NAVY}}>
+                          {fee.isLogistics
+                            ? 'As per rate card'
+                            : fee.pricingModel==='graduated'
+                            ? 'Variable'
+                            : fee.stepUpPricing && fee.stepUpValues?.length
+                            ? fee.stepUpValues.map(sv=>`${sv.label}: ${selectedForm.committed_currency} ${Number(sv.value||0).toLocaleString('en-IN')}`).join(' / ')
+                            : fee.commercialValue
+                            ? `${selectedForm.committed_currency} ${Number(fee.commercialValue).toLocaleString('en-IN')}`
+                            : '—'
+                          }
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {selectedForm.arr_text && (
+                <div className="mt-3 pt-3 border-t border-slate-100">
+                  <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">ARR Breakdown</div>
+                  <div className="text-xs font-mono text-slate-500 whitespace-pre-line leading-relaxed">
+                    {selectedForm.arr_text}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="mb-4">
           <Lbl c="Status requested" req/>
