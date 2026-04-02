@@ -5,6 +5,7 @@ import { useForms } from '../../context/FormsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { REVOPS_USERS, FINANCE_USERS } from '../../constants/users.js';
 import { fmtShort } from '../../utils/dates.js';
+import { useEffect, useRef, useState } from 'react';
 
 const NAVY = '#1B2B4B';
 
@@ -83,6 +84,7 @@ function Section({ title, subtitle, color, forms, onSelect, emptyMsg, sectionRef
   );
 }
 
+          
 export default function PendingRequests() {
   const { user }  = useAuth();
   const { forms } = useForms();
@@ -109,7 +111,13 @@ export default function PendingRequests() {
     }
   }, [section]);
 
+  const [q, setQ] = useState('');
   const onSelect = f => navigate(`/form/${f.id}`);
+
+  const search = forms => !q ? forms : forms.filter(f =>
+    [f.customer_name, f.of_number, f.brand_name, f.sales_rep_name]
+      .some(v => v?.toLowerCase().includes(q.toLowerCase()))
+  );
 
   const isSales   = user?.role === 'sales'  && !user?.isUniversal;
   const isRevops  = user?.role === 'revops' && !user?.isUniversal;
@@ -138,12 +146,15 @@ export default function PendingRequests() {
 
   return (
     <div>
-      <div className="mb-6">
+     <div className="mb-4">
         <h2 className="text-xl font-bold" style={{ color:NAVY }}>Pending Requests</h2>
         <p className="text-sm text-brand-muted mt-0.5">
           {totalCount} item{totalCount!==1?'s':''} requiring your attention
         </p>
       </div>
+      <input value={q} onChange={e=>setQ(e.target.value)}
+        placeholder="🔍 Search customer, OF#, rep…"
+        className="w-full text-sm border rounded-xl px-4 py-2.5 focus:outline-none border-slate-200 mb-6"/>
 
       {/* ── SALES ── */}
       {(isSales || user?.isUniversal) && (
