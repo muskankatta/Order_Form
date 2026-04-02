@@ -8,28 +8,30 @@ const NAVY='#1B2B4B'; const T='#00C3B5';
 
 function StatCard({ label, value, color, onClick, sub }) {
   return (
-    <Card
-      className={'p-5 transition-all ' + (onClick ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5' : '')}
+    <div
+      className={'bg-white rounded-2xl border p-5 transition-all ' + (onClick ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 active:scale-95' : '')}
+      style={{ borderColor:'#e8edf3', boxShadow:'0 1px 4px rgba(0,0,0,0.04)' }}
       onClick={onClick}
     >
       <div className="text-2xl font-black mb-0.5" style={{ color: color||NAVY }}>{value}</div>
       <div className="text-xs font-semibold uppercase tracking-wide text-brand-faint">{label}</div>
       {sub && <div className="text-[10px] mt-1 text-brand-faint">{sub}</div>}
       {onClick && <div className="text-[10px] mt-1.5 font-medium" style={{ color: color||T }}>View →</div>}
-    </Card>
+    </div>
   );
 }
 
 function BigStatCard({ label, value, color, onClick }) {
   return (
-    <Card
-      className={'p-5 transition-all ' + (onClick ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5' : '')}
+    <div
+      className={'bg-white rounded-2xl border p-5 transition-all ' + (onClick ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 active:scale-95' : '')}
+      style={{ borderColor:'#e8edf3', boxShadow:'0 1px 4px rgba(0,0,0,0.04)' }}
       onClick={onClick}
     >
       <div className="text-xs font-bold uppercase tracking-widest mb-2 text-brand-faint">{label}</div>
       <div className="text-2xl font-black" style={{ color: color||NAVY }}>{value}</div>
       {onClick && <div className="text-[10px] mt-1.5 font-medium" style={{ color: color||T }}>View →</div>}
-    </Card>
+    </div>
   );
 }
 
