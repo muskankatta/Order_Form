@@ -18,7 +18,7 @@ const TABS = [{id:'client',lbl:'Client'},{id:'commercial',lbl:'Commercial'},{id:
 export default function FormDetail({ form: initial }) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { forms, revopsApprove, revopsReject, financeApprove, financeReject, markSigned, applyDealStatus, cloneForm, deleteDraft, updateDraft } = useForms();
+  const { forms, revopsApprove, revopsReject, financeApprove, financeReject, markSigned, applyDealStatus, cloneForm, deleteDraft } = useForms();
   const { toast, show, hide } = useToast();
 
   const form     = forms.find(f => f.id === initial.id) || initial;
@@ -33,10 +33,13 @@ export default function FormDetail({ form: initial }) {
   const live = edit ? ef : form;
   const set  = (k,v) => setEf(prev => ({...prev,[k]:v}));
 
-  const canEdit = user?.isUniversal
-  || (user?.role==='sales' && ['draft','revops_rejected'].includes(form.status) && form.sales_rep_email===user.email)
-  || (user?.role==='revops' && form.status==='submitted')
-  || (user?.role==='finance' && form.status==='revops_approved');
+  // Primary DRI logic — first person in the approvers array is the primary
+  const revopsPrimaryEmail  = (form.revops_approvers||[])[0];
+  const financePrimaryEmail = (form.finance_approvers||[])[0];
+  const isRevopsPrimary  = user?.email === revopsPrimaryEmail || user?.isUniversal;
+  const isFinancePrimary = user?.email === financePrimaryEmail || user?.isUniversal;
+
+  const canEdit   = (user?.isUniversal) || (user?.role==='revops'&&form.status==='submitted') || (user?.role==='finance'&&form.status==='revops_approved');
   const canDelete = (user?.isUniversal) || (user?.role==='sales'&&form.status==='draft') || (user?.role==='revops'&&form.status==='submitted') || (user?.role==='finance'&&form.status==='revops_approved');
 
   const tabContent = {
@@ -104,26 +107,6 @@ export default function FormDetail({ form: initial }) {
         </div>
       </div>
 
-      {/* Save bar — shown whenever edit mode is active */}
-      {edit && (
-        <div className="flex items-center justify-between mb-4 px-4 py-3 rounded-xl border"
-          style={{ background:'#fffbeb', borderColor:'#fcd34d' }}>
-          <p className="text-sm font-medium text-amber-700">✏️ You have unsaved changes</p>
-          <div className="flex gap-2">
-            <Btn variant="ghost" size="sm" onClick={() => { setEdit(false); setEf({...form}); }}>
-              Discard
-            </Btn>
-            <Btn size="sm" onClick={async () => {
-              await updateDraft(form.id, ef);
-              show('Changes saved ✓');
-              setEdit(false);
-            }}>
-              💾 Save changes
-            </Btn>
-          </div>
-        </div>
-      )}
-
       {/* Tab nav */}
       <div className="flex gap-1 mb-4 p-1 rounded-xl bg-slate-100">
         {TABS.map(t => (
@@ -137,41 +120,26 @@ export default function FormDetail({ form: initial }) {
 
       <Card className="p-6">{tabContent[tab]}</Card>
 
-     {/* SoW downloads */}
-{(form.sow_document || form.sow_reference_document) && (
-  <Card className="mt-4 p-5">
-    <p className="text-xs font-bold uppercase tracking-widest mb-3 text-brand-faint">Scope of Work Documents</p>
-    <div className="flex gap-3 flex-wrap">
-      {form.sow_document && (
-        <a href={form.sow_document.data} download={form.sow_document.name}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors">
-          📎 {form.sow_document.name}
-        </a>
+      {/* SoW downloads */}
+      {(form.sow_document || form.sow_reference_document) && (
+        <Card className="mt-4 p-5">
+          <p className="text-xs font-bold uppercase tracking-widest mb-3 text-brand-faint">Scope of Work Documents</p>
+          <div className="flex gap-3 flex-wrap">
+            {form.sow_document && (
+              <a href={form.sow_document.data} download={form.sow_document.name}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors">
+                📎 {form.sow_document.name}
+              </a>
+            )}
+            {form.sow_reference_document && (
+              <a href={form.sow_reference_document.data} download={form.sow_reference_document.name}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium hover:bg-amber-100 transition-colors">
+                📎 Ref: {form.sow_reference_document.name}
+              </a>
+            )}
+          </div>
+        </Card>
       )}
-      {form.sow_reference_document && (
-        <a href={form.sow_reference_document.data} download={form.sow_reference_document.name}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium hover:bg-amber-100 transition-colors">
-          📎 Ref: {form.sow_reference_document.name}
-        </a>
-      )}
-    </div>
-  </Card>
-)}
-
-{/* Additional attachments */}
-{(form.attachments||[]).length > 0 && (
-  <Card className="mt-4 p-5">
-    <p className="text-xs font-bold uppercase tracking-widest mb-3 text-brand-faint">Additional Attachments</p>
-    <div className="flex gap-3 flex-wrap">
-      {(form.attachments||[]).map((f,i) => (
-        <a key={i} href={f.data} download={f.name}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-100 transition-colors">
-          📎 {f.name}
-        </a>
-      ))}
-    </div>
-  </Card>
-)}
 
       {/* Universal — submit draft on behalf of Sales Rep */}
       {user?.isUniversal && form.status==='draft' && (
@@ -205,57 +173,97 @@ export default function FormDetail({ form: initial }) {
       {/* RevOps review panel */}
       {(user?.role==='revops'||user?.isUniversal) && form.status==='submitted' && (
         <Card className="mt-4 p-6">
-          <h3 className="font-bold mb-4" style={{ color:NAVY }}>🔍 RevOps review</h3>
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <h3 className="font-bold" style={{ color:NAVY }}>🔍 RevOps review</h3>
+            {revopsPrimaryEmail && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-teal-100 text-teal-700">
+                  Primary DRI: {(REVOPS_USERS.find(u=>u.email===revopsPrimaryEmail)||{}).name || revopsPrimaryEmail}
+                </span>
+                {(form.revops_approvers||[]).slice(1).map(email => (
+                  <span key={email} className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                    CC: {(REVOPS_USERS.find(u=>u.email===email)||{}).name || email}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          {!isRevopsPrimary && (
+            <div className="mb-4 p-3 rounded-xl text-sm bg-amber-50 border border-amber-200 text-amber-700">
+              👁 You are CC'd on this review. Only the Primary DRI (<strong>{(REVOPS_USERS.find(u=>u.email===revopsPrimaryEmail)||{}).name || revopsPrimaryEmail}</strong>) can approve or reject.
+            </div>
+          )}
           {edit && <div className="mb-4 p-3 rounded-xl text-sm bg-blue-50 border border-blue-200 text-blue-700">ℹ️ Save edits first, then approve or reject.</div>}
-          <TA label="Review comment (optional)" value={cmt} onChange={setCmt}/>
+          <TA label="Review comment (optional)" value={cmt} onChange={setCmt} disabled={!isRevopsPrimary}/>
           <MultiSelect
-            label="Forward to Finance DRI(s)"
+            label="Forward to Finance DRI(s) — first selected is Primary DRI"
             req
             options={FINANCE_USERS.map(u => ({ value:u.email, label:u.name }))}
             value={finDRIs}
             onChange={setFinDRIs}
           />
-          <div className="flex gap-3 flex-wrap mt-2">
-            {edit && <Btn variant="navy" onClick={() => { revopsApprove(form.id,{editedForm:ef,comment:cmt,financeApprovers:finDRIs}); setEdit(false); show('Edits saved!'); }}>💾 Save edits</Btn>}
-            <Btn variant="success" onClick={handleRevopsApprove}>✓ Approve → Finance</Btn>
-            <Btn variant="danger"  onClick={async () => { await revopsReject(form.id,{comment:cmt}); show('Form rejected.','error'); }}>✕ Reject</Btn>
-          </div>
+          {finDRIs.length > 0 && (
+            <div className="mb-3 p-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
+              Primary Finance DRI: <strong>{(FINANCE_USERS.find(u=>u.email===finDRIs[0])||{}).name || finDRIs[0]}</strong>
+              {finDRIs.length > 1 && <span className="ml-2 text-blue-500">CC: {finDRIs.slice(1).map(e=>(FINANCE_USERS.find(u=>u.email===e)||{}).name||e).join(', ')}</span>}
+            </div>
+          )}
+          {isRevopsPrimary && (
+            <div className="flex gap-3 flex-wrap mt-2">
+              {edit && <Btn variant="navy" onClick={() => { revopsApprove(form.id,{editedForm:ef,comment:cmt,financeApprovers:finDRIs}); setEdit(false); show('Edits saved!'); }}>💾 Save edits</Btn>}
+              <Btn variant="success" onClick={handleRevopsApprove}>✓ Approve → Finance</Btn>
+              <Btn variant="danger"  onClick={async () => { await revopsReject(form.id,{comment:cmt}); show('Form rejected.','error'); }}>✕ Reject</Btn>
+            </div>
+          )}
         </Card>
       )}
 
       {/* Finance panel */}
       {(user?.role==='finance'||user?.isUniversal) && form.status==='revops_approved' && (
         <Card className="mt-4 p-6">
-          <h3 className="font-bold mb-4" style={{ color:NAVY }}>💼 Finance approval</h3>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-  <Lbl c="OF Number" req/>
-  <div className="flex items-center border-2 rounded-lg overflow-hidden font-mono font-bold text-base"
-    style={{ borderColor:T }}>
-    <span className="px-3 py-2 text-slate-400 bg-slate-50 border-r border-slate-200 select-none whitespace-nowrap">
-      OF-FY-
-    </span>
-    <input
-      value={ofNum.replace(/^OF-FY-/,'')}
-      onChange={e => {
-        const val = e.target.value.replace(/[^0-9]/g,'');
-        setOfNum(val ? `OF-FY-${val}` : '');
-      }}
-      placeholder="0001"
-      maxLength={6}
-      className="flex-1 px-3 py-2 focus:outline-none font-mono font-bold"
-      style={{ color:NAVY }}
-    />
-  </div>
-  <p className="text-xs mt-1 text-brand-faint">Enter only the number — prefix OF-FY- is added automatically</p>
-</div>
-
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <h3 className="font-bold" style={{ color:NAVY }}>💼 Finance approval</h3>
+            {financePrimaryEmail && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-teal-100 text-teal-700">
+                  Primary DRI: {(FINANCE_USERS.find(u=>u.email===financePrimaryEmail)||{}).name || financePrimaryEmail}
+                </span>
+                {(form.finance_approvers||[]).slice(1).map(email => (
+                  <span key={email} className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                    CC: {(FINANCE_USERS.find(u=>u.email===email)||{}).name || email}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-          <TA label="Finance comment (optional)" value={cmt} onChange={setCmt}/>
-          <div className="flex gap-3">
-            <Btn onClick={handleFinanceApprove}>✓ Approve &amp; assign OF#</Btn>
-            <Btn variant="danger" onClick={async () => { await financeReject(form.id,{comment:cmt}); show('Sent back to queue.','error'); }}>↩ Send back</Btn>
-          </div>
+          {!isFinancePrimary && (
+            <div className="mb-4 p-3 rounded-xl text-sm bg-amber-50 border border-amber-200 text-amber-700">
+              👁 You are CC'd on this approval. Only the Primary DRI (<strong>{(FINANCE_USERS.find(u=>u.email===financePrimaryEmail)||{}).name || financePrimaryEmail}</strong>) can assign the OF number and approve.
+            </div>
+          )}
+          {isFinancePrimary && (
+            <>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <Lbl c="OF Number" req/>
+                  <div className="flex items-center border-2 rounded-lg overflow-hidden font-mono font-bold text-base" style={{ borderColor:T }}>
+                    <span className="px-3 py-2 text-slate-400 bg-slate-50 border-r border-slate-200 select-none whitespace-nowrap">OF-FY-</span>
+                    <input value={ofNum.replace(/^OF-FY-/,'')}
+                      onChange={e=>{ const val=e.target.value.replace(/[^0-9]/g,''); setOfNum(val?'OF-FY-'+val:''); }}
+                      placeholder="0001" maxLength={6}
+                      className="flex-1 px-3 py-2 focus:outline-none font-mono font-bold"
+                      style={{ color:NAVY }}/>
+                  </div>
+                  <p className="text-xs mt-1 text-brand-faint">Enter only the number — prefix is added automatically</p>
+                </div>
+              </div>
+              <TA label="Finance comment (optional)" value={cmt} onChange={setCmt}/>
+              <div className="flex gap-3">
+                <Btn onClick={handleFinanceApprove}>✓ Approve &amp; assign OF#</Btn>
+                <Btn variant="danger" onClick={async () => { await financeReject(form.id,{comment:cmt}); show('Sent back to queue.','error'); }}>↩ Send back</Btn>
+              </div>
+            </>
+          )}
         </Card>
       )}
 
