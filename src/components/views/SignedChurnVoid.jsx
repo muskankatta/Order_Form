@@ -39,8 +39,14 @@ export function SignedOFs() {
     return () => unsub();
   }, []);
 
-  const approved = forms.filter(f => f.status === 'approved' && !f.signed_date);
-  const signed   = forms.filter(f => f.signed_date || f.status === 'signed');
+  const [q, setQ] = useState('');
+  const searchFn = arr => !q ? arr : arr.filter(f =>
+    [f.customer_name, f.of_number, f.brand_name, f.sales_rep_name]
+      .some(v => v?.toLowerCase().includes(q.toLowerCase()))
+  );
+  const approved = searchFn(forms.filter(f => f.status === 'approved' && !f.signed_date));
+  const signed   = searchFn(forms.filter(f => f.signed_date || f.status === 'signed'));
+  const allCvRequests = cvRequests; // search applied separately below
 
   const updateField = (id, field, val) =>
     setSigningData(d => ({ ...d, [id]: { ...(d[id]||{}), [field]: val } }));
