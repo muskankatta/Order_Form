@@ -1,4 +1,5 @@
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, StatusPill } from '../ui/index.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -7,9 +8,9 @@ import { fmtShort } from '../../utils/dates.js';
 
 const NAVY = '#1B2B4B';
 
-function Section({ title, subtitle, color, forms, onSelect, emptyMsg }) {
+function Section({ title, subtitle, color, forms, onSelect, emptyMsg, sectionRef }) {
   return (
-    <div className="mb-8">
+    <div className="mb-8" ref={sectionRef}>
       <div className="flex items-center gap-3 mb-3">
         <div className="w-1 h-6 rounded-full" style={{ background: color }}/>
         <div>
@@ -86,6 +87,27 @@ export default function PendingRequests() {
   const { user }  = useAuth();
   const { forms } = useForms();
   const navigate  = useNavigate();
+  const [searchParams] = useSearchParams();
+  const section = searchParams.get('section');
+
+  // Refs for each section so we can scroll to them
+  const revopsRef   = useRef(null);
+  const financeRef  = useRef(null);
+  const draftsRef   = useRef(null);
+  const renewalsRef = useRef(null);
+
+  useEffect(() => {
+    const refMap = {
+      revops:   revopsRef,
+      finance:  financeRef,
+      drafts:   draftsRef,
+      renewals: renewalsRef,
+    };
+    const ref = refMap[section];
+    if (ref?.current) {
+      setTimeout(() => ref.current.scrollIntoView({ behavior:'smooth', block:'start' }), 150);
+    }
+  }, [section]);
 
   const onSelect = f => navigate(`/form/${f.id}`);
 
@@ -134,6 +156,7 @@ export default function PendingRequests() {
               forms={salesRenewal}
               onSelect={onSelect}
               emptyMsg="No renewal drafts"
+              sectionRef={renewalsRef}
             />
           )}
           <Section
@@ -151,6 +174,7 @@ export default function PendingRequests() {
             forms={salesDrafts.filter(f => !f.is_renewal)}
             onSelect={onSelect}
             emptyMsg="No drafts in progress"
+            sectionRef={draftsRef}
           />
         </>
       )}
@@ -165,6 +189,7 @@ export default function PendingRequests() {
             forms={revopsPending}
             onSelect={onSelect}
             emptyMsg="No forms pending review ✓"
+            sectionRef={revopsRef}
           />
           {revopsRejected.length > 0 && (
             <Section
@@ -188,6 +213,7 @@ export default function PendingRequests() {
           forms={financePending}
           onSelect={onSelect}
           emptyMsg="No forms pending approval ✓"
+          sectionRef={financeRef}
         />
       )}
     </div>
