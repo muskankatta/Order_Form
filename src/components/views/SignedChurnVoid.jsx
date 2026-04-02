@@ -8,7 +8,7 @@ import { fmtDate, uid } from '../../utils/dates.js';
 import { useToast } from '../../hooks/useToast.js';
 import { db, isConfigured } from '../../firebase.js';
 import { collection, onSnapshot, doc, setDoc, updateDoc } from 'firebase/firestore';
-
+ 
 const NAVY = '#1B2B4B';
 
 // ── SIGNED OFs ─────────────────────────────────────────────────────────────
