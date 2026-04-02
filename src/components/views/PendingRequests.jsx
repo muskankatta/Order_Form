@@ -164,7 +164,7 @@ export default function PendingRequests() {
               title="Renewal drafts to review"
               subtitle="Auto-created when contracts expired — review, update dates/fees, then submit"
               color="#7c3aed"
-              forms={salesRenewal}
+              forms={search(salesRenewal)}
               onSelect={onSelect}
               emptyMsg="No renewal drafts"
               sectionRef={renewalsRef}
@@ -174,7 +174,7 @@ export default function PendingRequests() {
             title="Rejected by RevOps — needs resubmission"
             subtitle="These were reviewed and sent back. Fix the issues then resubmit."
             color="#ef4444"
-            forms={salesRejected}
+            forms={search(salesRejected)}
             onSelect={onSelect}
             emptyMsg="No rejected forms ✓"
           />
@@ -182,7 +182,7 @@ export default function PendingRequests() {
             title="Drafts in progress"
             subtitle="Saved drafts not yet submitted for review"
             color="#94a3b8"
-            forms={salesDrafts.filter(f => !f.is_renewal)}
+            forms={search(salesDrafts.filter(f => !f.is_renewal))}
             onSelect={onSelect}
             emptyMsg="No drafts in progress"
             sectionRef={draftsRef}
@@ -197,7 +197,7 @@ export default function PendingRequests() {
             title="Submitted by Sales — pending your review"
             subtitle="Review these Order Forms and approve to Finance or reject back to Sales"
             color="#f59e0b"
-            forms={revopsPending}
+            forms={search(revopsPending)}
             onSelect={onSelect}
             emptyMsg="No forms pending review ✓"
             sectionRef={revopsRef}
@@ -207,7 +207,7 @@ export default function PendingRequests() {
               title="Sent back by Finance — needs RevOps attention"
               subtitle="Finance has returned these with comments — review and resubmit"
               color="#ef4444"
-              forms={revopsRejected}
+              forms={search(revopsRejected)}
               onSelect={onSelect}
               emptyMsg="None"
             />
@@ -221,7 +221,7 @@ export default function PendingRequests() {
           title="Approved by RevOps — pending Finance approval"
           subtitle="Assign OF number and give final approval"
           color="#3b82f6"
-          forms={financePending}
+          forms={search(financePending)}
           onSelect={onSelect}
           emptyMsg="No forms pending approval ✓"
           sectionRef={financeRef}
