@@ -112,6 +112,10 @@ export function SignedOFs() {
         ))}
       </div>
 
+      <input value={q} onChange={e=>setQ(e.target.value)}
+        placeholder="🔍 Search customer, OF#, rep…"
+        className="w-full text-sm border rounded-xl px-4 py-2.5 focus:outline-none border-slate-200 mb-4"/>
+
       {/* Pending Signing */}
       {cvTab === 'unsigned' && (
         approved.length === 0
