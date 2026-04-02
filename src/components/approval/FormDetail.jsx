@@ -39,7 +39,13 @@ export default function FormDetail({ form: initial }) {
   const isRevopsPrimary  = user?.email === revopsPrimaryEmail || user?.isUniversal;
   const isFinancePrimary = user?.email === financePrimaryEmail || user?.isUniversal;
 
-  const canEdit   = (user?.isUniversal) || (user?.role==='revops'&&form.status==='submitted') || (user?.role==='finance'&&form.status==='revops_approved');
+  const canEdit = user?.isUniversal
+  || (user?.role==='sales' && ['draft','revops_rejected'].includes(form.status) && form.sales_rep_email===user.email)
+  || (user?.role==='revops' && form.status==='submitted')
+  || (user?.role==='finance' && form.status==='revops_approved');
+
+// Universal can always save edits regardless of status
+const universalCanSave = user?.isUniversal;  
   const canDelete = (user?.isUniversal) || (user?.role==='sales'&&form.status==='draft') || (user?.role==='revops'&&form.status==='submitted') || (user?.role==='finance'&&form.status==='revops_approved');
 
   const tabContent = {
@@ -98,7 +104,7 @@ export default function FormDetail({ form: initial }) {
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {canEdit && <Btn variant="ghost" size="sm" onClick={() => { setEdit(e=>!e); setEf({...form}); }}>{edit?'✕ Cancel':'✏️ Edit'}</Btn>}
+          {(canEdit || user?.isUniversal) && <Btn variant="ghost" size="sm" onClick={() => { setEdit(e=>!e); setEf({...form}); }}>{edit?'✕ Cancel':'✏️ Edit'}</Btn>}
           {canDelete && !['approved','signed'].includes(form.status) && <Btn variant="ghost" size="sm" onClick={handleDelete}>🗑 Delete</Btn>}
           {(user?.role==='sales'||user?.role==='revops'||user?.isUniversal) && (
             <Btn variant="ghost" size="sm" onClick={handleClone}>📋 Clone</Btn>
