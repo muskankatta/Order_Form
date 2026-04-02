@@ -28,7 +28,8 @@ export default function FormDetail({ form: initial }) {
   const [ofNum,  setOfNum] = useState(form.of_number||'');
   const [cmt,    setCmt]   = useState('');
   const [finDRIs,setFinDRIs]= useState([]);
-  const [sigDate,setSigDate]= useState('');
+  const [sigDate,    setSigDate]    = useState('');
+  const [signedLink, setSignedLink] = useState(form.signed_of_link||'');
 
   const live = edit ? ef : form;
   const set  = (k,v) => setEf(prev => ({...prev,[k]:v}));
@@ -70,7 +71,7 @@ const universalCanSave = user?.isUniversal;
 
   const handleMarkSigned = async () => {
     if (!sigDate) { alert('Enter signing date.'); return; }
-    await markSigned(form.id, sigDate);
+    await markSigned(form.id, sigDate, signedLink);
     show('Marked as signed ✓');
   };
 
@@ -277,26 +278,71 @@ const universalCanSave = user?.isUniversal;
       {(user?.role==='finance'||user?.isUniversal) && form.status==='approved' && (
         <Card className="mt-4 p-6">
           <h3 className="font-bold mb-4 text-green-800">✅ Mark as signed</h3>
-          <div className="flex items-end gap-4">
-            <div className="flex-1">
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
               <Lbl c="Signing date" req/>
-              <input type="date" value={sigDate} onChange={e=>setSigDate(e.target.value)} className="field-input" style={{ borderColor:'#e2e8f0' }}/>
+              <input type="date" value={sigDate} onChange={e=>setSigDate(e.target.value)}
+                className="field-input" style={{ borderColor:'#e2e8f0' }}/>
             </div>
-            <Btn variant="success" onClick={handleMarkSigned}>Mark Signed ✍️</Btn>
-            <Btn variant="ghost" size="sm" onClick={() => openPDF(form)}>📄 Download PDF</Btn>
+            <div>
+              <Lbl c="Signed PDF link (Google Drive)"/>
+              <input type="url" value={signedLink} onChange={e=>setSignedLink(e.target.value)}
+                placeholder="https://drive.google.com/..."
+                className="field-input" style={{ borderColor:'#e2e8f0' }}/>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Btn variant="success" onClick={handleMarkSigned}>✍️ Mark as signed</Btn>
+            <Btn variant="ghost" size="sm" onClick={() => openPDF(live)}>👁 Preview PDF</Btn>
           </div>
         </Card>
       )}
 
       {/* Signed */}
       {form.status === 'signed' && (
-        <div className="mt-4 rounded-2xl p-5 flex items-center justify-between bg-green-50 border border-green-200">
-          <div>
-            <p className="font-bold text-green-800">✍️ Signed</p>
-            <p className="text-sm mt-0.5 text-green-700">Signed on {fmtDate(form.signed_date)} · OF# <strong className="font-mono">{form.of_number}</strong></p>
+        <Card className="mt-4 p-5">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <p className="font-bold text-green-800">✍️ Signed</p>
+              <p className="text-sm mt-0.5 text-green-700">
+                Signed on {fmtDate(form.signed_date)} · OF# <strong className="font-mono">{form.of_number}</strong>
+              </p>
+            </div>
+            <Btn variant="ghost" size="sm" onClick={() => openPDF(live)}>👁 Preview PDF</Btn>
           </div>
-          <Btn onClick={() => openPDF(form)}>📄 Download PDF</Btn>
-        </div>
+          {/* Signed PDF link — editable by Finance and Universal */}
+          {(user?.role==='finance'||user?.isUniversal) && (
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              <Lbl c="Signed PDF link (Google Drive)"/>
+              <div className="flex gap-3 items-center">
+                <input type="url" value={signedLink} onChange={e=>setSignedLink(e.target.value)}
+                  placeholder="https://drive.google.com/..."
+                  className="field-input flex-1" style={{ borderColor:'#e2e8f0' }}/>
+                <Btn size="sm" onClick={async () => {
+                  await updateDraft(form.id, { signed_of_link: signedLink });
+                  show('Signed PDF link saved ✓');
+                }}>Save link</Btn>
+              </div>
+              {form.signed_of_link && (
+                <a href={form.signed_of_link} target="_blank" rel="noreferrer"
+                  className="text-xs font-medium hover:underline mt-2 inline-block"
+                  style={{ color:'#00C3B5' }}>
+                  📎 Open current signed PDF →
+                </a>
+              )}
+            </div>
+          )}
+          {/* Read-only link for other roles */}
+          {!(user?.role==='finance'||user?.isUniversal) && form.signed_of_link && (
+            <div className="mt-3 pt-3 border-t border-slate-100">
+              <a href={form.signed_of_link} target="_blank" rel="noreferrer"
+                className="text-xs font-medium hover:underline"
+                style={{ color:'#00C3B5' }}>
+                📎 View signed PDF →
+              </a>
+            </div>
+          )}
+        </Card>
       )}
 
       {/* Audit trail */}
