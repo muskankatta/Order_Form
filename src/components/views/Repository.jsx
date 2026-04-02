@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, StatusPill, Btn, Lbl } from '../ui/index.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -47,8 +47,10 @@ export default function Repository() {
   const { user }  = useAuth();
   const { forms, applyDealStatus } = useForms();
   const navigate  = useNavigate();
+  const [searchParams] = useSearchParams();
+
   const [q,          setQ]          = useState('');
-  const [st,         setSt]         = useState('all');
+  const [st,         setSt]         = useState(searchParams.get('status') || 'all');
   const [teamFilter, setTeamFilter] = useState('all');
   const [repFilter,  setRepFilter]  = useState('all');
   const [dateFrom,   setDateFrom]   = useState('');
@@ -56,6 +58,12 @@ export default function Repository() {
   const [tab,        setTab]        = useState('of');
   const [statusModal,setStatusModal]= useState(null);
   const [sortBy,     setSortBy]     = useState('approved_desc');
+
+  // Sync URL param → filter when navigating from Dashboard
+  useEffect(() => {
+    const s = searchParams.get('status');
+    if (s) setSt(s);
+  }, [searchParams]);
 
   const isSales = user?.role === 'sales' && !user?.isUniversal;
   const sortedReps = [...SALES_REPS].sort((a,b)=>a.name.localeCompare(b.name));
