@@ -72,12 +72,22 @@ export default function FormWizard({ initial = null, onSaved }) {
       {step === FORM_STEPS.length - 1 && (
         <Card className="p-5 mt-4">
           <MultiSelect
-            label="Select RevOps reviewer(s) to send for approval"
+            label="Select RevOps reviewer(s) — first selected is Primary DRI"
             req
             options={REVOPS_USERS.map(u => ({ value:u.email, label:u.name }))}
             value={revopsApprovers}
             onChange={setRevopsApprovers}
           />
+          {revopsApprovers.length > 0 && (
+            <div className="mt-2 p-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
+              <strong>Primary DRI:</strong> {(REVOPS_USERS.find(u=>u.email===revopsApprovers[0])||{}).name || revopsApprovers[0]} — will review and approve/reject
+              {revopsApprovers.length > 1 && (
+                <span className="ml-2 text-blue-500">
+                  · CC: {revopsApprovers.slice(1).map(e=>(REVOPS_USERS.find(u=>u.email===e)||{}).name||e).join(', ')} (notified only)
+                </span>
+              )}
+            </div>
+          )}
           {!revopsApprovers.length && (
             <p className="text-xs text-amber-600 mt-1">At least one RevOps reviewer is required to submit.</p>
           )}
