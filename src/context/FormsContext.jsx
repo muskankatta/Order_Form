@@ -225,7 +225,11 @@ export function FormsProvider({ children }) {
       submitted_at: new Date().toISOString(), revops_approvers: revopsApprovers,
     };
     await persistOne(f);
-    await notifySubmitted({ form: f, repName: user?.name });
+    // Post first Slack message and store thread ts for future replies
+    const threadInfo = await notifySubmitted({ form: f, repName: user?.name });
+    if (threadInfo) {
+      await persistOne({ ...f, ...threadInfo });
+    }
     return f;
   }, [persistOne, user]);
 
