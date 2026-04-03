@@ -21,6 +21,7 @@ export const SALES_REPS = [
   { id:'1989', name:'Vaibhav Puthalath', slack:'U03RT8TJY74', email:'vaibhavp@gofynd.com',          team:'India' },
   { id:'2635', name:'Yadvendra Singh',   slack:'U072WEB2TGS', email:'yadvendrasingh@gofynd.com',    team:'India' },
   { id:'1889', name:'Yugandhar Hode',    slack:'U03LWJWJXEY', email:'yugandharhode@gofynd.com',     team:'India' },
+  { id:'2927', name:'Ninad Mandavkar',   slack:'U0764AWNYKX', email:'ninadmandavkar@gofynd.com',     team:'India' },
 
   // ── GLOBAL TEAM ────────────────────────────────────────────────────────────
   { id:'S105', name:'Dharmendra Mehta',  slack:'U07KGJ8MTUK', email:'dharmendra@gofynd.com',        team:'Global' },
