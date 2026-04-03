@@ -28,6 +28,7 @@ jobs:
         env:
           VITE_GOOGLE_CLIENT_ID:              ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_SLACK_WEBHOOK_URL:             ${{ secrets.VITE_SLACK_WEBHOOK_URL }}
+          VITE_SLACK_BOT_TOKEN:               ${{ secrets.VITE_SLACK_BOT_TOKEN }}
           VITE_SHEETS_ID:                     ${{ secrets.VITE_SHEETS_ID }}
           VITE_BASE_PATH:                     ${{ secrets.VITE_BASE_PATH || '/Order_Form/' }}
           VITE_FIREBASE_API_KEY:              ${{ secrets.VITE_FIREBASE_API_KEY }}
