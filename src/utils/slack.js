@@ -65,10 +65,11 @@ async function postBot(channel, text, blocks, thread_ts) {
     }
     try {
       await fetch(WEBHOOK, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, ...(blocks ? { blocks } : {}) }),
-      });
+  method: 'POST',
+  mode: 'no-cors',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ text, ...(blocks ? { blocks } : {}) }),
+});
     } catch(e) { console.error('[Slack] webhook failed:', e); }
     return null;
   }
