@@ -56,24 +56,22 @@ const platform = () => window.location.origin + window.location.pathname;
  * Pass thread_ts to reply in a thread.
  */
 async function postBot(channel, text, blocks, thread_ts) {
-  if (!BOT_TOKEN) {
+  if (true || !BOT_TOKEN) {
     // Fallback to webhook (no threading support)
     const WEBHOOK = getWebhook();
     if (!WEBHOOK || WEBHOOK === 'placeholder') {
       console.warn('[Slack] No bot token or webhook configured.');
       return null;
     }
-    try {
-      await fetch(WEBHOOK, {
-  method: 'POST',
-  mode: 'no-cors',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ text, ...(blocks ? { blocks } : {}) }),
-});
-    } catch(e) { console.error('[Slack] webhook failed:', e); }
-    return null;
-  }
-
+   try {
+  await fetch(WEBHOOK, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, ...(blocks ? { blocks } : {}) }),
+  });
+} catch(e) { console.error('[Slack] webhook failed:', e); }
+return null;
   try {
     const payload = {
       channel,
