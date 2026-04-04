@@ -8,33 +8,18 @@ import { syncAllToSheets } from '../../utils/sheets.js';
 const NAVY = '#1B2B4B'; const T = '#00C3B5';
 const LS_KEY = 'fynd_of_settings';
 
-const BOLTIC_URL = import.meta.env.VITE_BOLTIC_WEBHOOK_URL || '';
+const BOT_TOKEN = import.meta.env.VITE_SLACK_BOT_TOKEN || '';
+
+const TEAM_CHANNELS = {
+  'India':   { id: 'C0AQTCE3PNY',  label: '#india-channel' },
+  'Global':  { id: 'C08CBBNRAKZ',  label: '#global-channel' },
+  'AI/SaaS': { id: 'C0978TZNGM8',  label: '#aisaas-channel' },
+};
 
 export function loadSettings() {
   try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { return {}; }
 }
 export function saveSettings(s) { localStorage.setItem(LS_KEY, JSON.stringify(s)); }
-
-/** Trigger Boltic workflow with an optional payload */
-export async function triggerBoltic(payload = {}) {
-  const url = BOLTIC_URL || loadSettings().bolticWebhook;
-  if (!url) { console.warn('[Boltic] No webhook URL configured.'); return null; }
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const text = await res.text();
-    let data;
-    try { data = JSON.parse(text); } catch { data = { raw: text }; }
-    console.log('[Boltic] response:', data);
-    return data;
-  } catch(e) {
-    console.error('[Boltic] failed:', e);
-    return null;
-  }
-}
 
 export default function Settings() {
   const { user }  = useAuth();
@@ -43,6 +28,9 @@ export default function Settings() {
   const [settings, setSettings] = useState(loadSettings);
   const [syncStatus, setSyncStatus] = useState('');
   const [syncing,    setSyncing]    = useState(false);
+  const [channelTestStatus, setChannelTestStatus] = useState('');
+  const [channelTesting,    setChannelTesting]    = useState(false);
+  const [webhookTestStatus, setWebhookTestStatus] = useState('');
 
   if (!user?.isUniversal) {
     return (
@@ -56,43 +44,61 @@ export default function Settings() {
   }
 
   const u = (k, v) => setSettings(s => ({ ...s, [k]: v }));
-  const [bolticStatus, setBolticStatus] = useState('');
-  const [bolticTesting, setBolticTesting] = useState(false);
-
   const handleSave = () => { saveSettings(settings); show('Settings saved ✓'); };
 
-  const testSlack = async () => {
+  // ── Test webhook (fallback path) ─────────────────────────────────────────
+  const testWebhook = async () => {
     if (!settings.slackWebhook) { alert('Enter a webhook URL first.'); return; }
+    setWebhookTestStatus('sending');
     try {
       await fetch(settings.slackWebhook, {
         method: 'POST',
+        mode: 'no-cors',                      // ← fixes CORS error
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: '✅ Fynd OF Platform — Slack webhook test successful!' }),
       });
-      show('Test message sent to Slack ✓');
-    } catch { show('Failed to send — check the webhook URL', 'error'); }
-  };
-
-  const testBoltic = async () => {
-    setBolticTesting(true);
-    setBolticStatus('');
-    const url = BOLTIC_URL || settings.bolticWebhook;
-    if (!url) { setBolticStatus('No webhook URL configured.'); setBolticTesting(false); return; }
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ test: true, source: 'Fynd OF Platform', message: 'Test trigger from Settings' }),
-      });
-      const text = await res.text();
-      setBolticStatus(`✓ Triggered! Status: ${res.status}. Response: ${text.slice(0, 120)}`);
-      show('Boltic workflow triggered ✓');
+      setWebhookTestStatus('sent');
+      show('Test message sent ✓ — check your Slack channel');
     } catch(e) {
-      setBolticStatus('Error: ' + e.message);
-      show('Boltic trigger failed', 'error');
-    } finally { setBolticTesting(false); }
+      setWebhookTestStatus('error');
+      show('Failed to send — check the webhook URL', 'error');
+    }
+    setTimeout(() => setWebhookTestStatus(''), 4000);
   };
 
+  // ── Test all 3 team channels via bot token ───────────────────────────────
+  const testChannels = async () => {
+    if (!BOT_TOKEN) {
+      setChannelTestStatus('❌ VITE_SLACK_BOT_TOKEN is not set in GitHub Secrets.');
+      return;
+    }
+    setChannelTesting(true);
+    setChannelTestStatus('');
+    const results = [];
+    for (const [team, ch] of Object.entries(TEAM_CHANNELS)) {
+      try {
+        const res = await fetch('https://slack.com/api/chat.postMessage', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            Authorization: `Bearer ${BOT_TOKEN}`,
+          },
+          body: JSON.stringify({
+            channel: ch.id,
+            text: `🧪 *Test from Fynd OF Platform* — ${team} channel (${ch.label}) is reachable ✓`,
+          }),
+        });
+        const data = await res.json();
+        results.push(`${team} (${ch.label}): ${data.ok ? '✓ delivered' : '✗ ' + data.error}`);
+      } catch(e) {
+        results.push(`${team} (${ch.label}): ✗ ${e.message}`);
+      }
+    }
+    setChannelTestStatus(results.join('\n'));
+    setChannelTesting(false);
+  };
+
+  // ── Google Sheets sync ───────────────────────────────────────────────────
   const handleSync = async () => {
     if (!settings.sheetsId) { alert('Enter a Google Sheet ID first.'); return; }
     setSyncing(true);
@@ -111,37 +117,26 @@ export default function Settings() {
       <h2 className="text-xl font-bold mb-2" style={{ color:NAVY }}>Platform Settings</h2>
       <p className="text-sm text-brand-muted mb-6">Configure integrations and platform behaviour.</p>
 
-      {/* Boltic / Mogambo Slack */}
+      {/* ── Slack ──────────────────────────────────────────────────────────── */}
       <Card className="p-6 mb-6">
         <div className="flex items-start gap-3 mb-4">
-          <div className="text-2xl">🤖</div>
+          <div className="text-2xl">💬</div>
           <div>
-            <h3 className="font-bold" style={{ color:NAVY }}>Mogambo Slack Bot (via Boltic)</h3>
+            <h3 className="font-bold" style={{ color:NAVY }}>Slack Notifications</h3>
             <p className="text-sm text-brand-muted mt-0.5">
-              Triggers the Boltic workflow that sends Slack notifications via Mogambo.
-              Messages are routed to team-specific channels (India / Global / AI/SaaS).
+              Messages are routed to team-specific channels via the Mogambo bot.
             </p>
           </div>
         </div>
 
-        {BOLTIC_URL
-          ? <div className="mb-4 p-3 rounded-xl bg-green-50 border border-green-200 text-green-700 text-sm">
-              ✓ Boltic webhook URL is configured via GitHub Secrets.
-            </div>
-          : (
-            <div>
-              <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm">
-                ⚠️ <code>VITE_BOLTIC_WEBHOOK_URL</code> secret not found. Add it to GitHub Secrets, or paste the URL below as a fallback.
-              </div>
-              <Inp label="Boltic Webhook URL (fallback)"
-                value={settings.bolticWebhook||''}
-                onChange={v=>u('bolticWebhook',v)}
-                placeholder="https://asia-south1.api.boltic.io/service/webhook/..."
-                hint="Only needed if the GitHub Secret is not set"/>
-            </div>
-          )
-        }
+        {/* Bot token status */}
+        <div className={`mb-4 p-3 rounded-xl text-sm border ${BOT_TOKEN ? 'bg-green-50 border-green-200 text-green-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+          {BOT_TOKEN
+            ? '✓ Bot token is configured via GitHub Secrets (VITE_SLACK_BOT_TOKEN).'
+            : '⚠️ VITE_SLACK_BOT_TOKEN not found. Add it to GitHub Secrets for full threading support.'}
+        </div>
 
+        {/* Channel routing */}
         <div className="mb-4 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
           <strong>Channel routing:</strong>
           <div className="mt-1 space-y-0.5">
@@ -151,20 +146,58 @@ export default function Settings() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Btn onClick={testBoltic} disabled={bolticTesting} variant="ghost">
-            {bolticTesting ? '⏳ Triggering…' : '🚀 Test trigger'}
+        {/* Test all channels */}
+        <div className="mb-5">
+          <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color:'#94a3b8' }}>
+            Test bot → all channels
+          </div>
+          <Btn onClick={testChannels} disabled={channelTesting} variant="ghost">
+            {channelTesting ? '⏳ Sending…' : '🚀 Test all channels'}
           </Btn>
+          {channelTestStatus && (
+            <div className={`mt-3 p-3 rounded-xl text-xs font-mono whitespace-pre-line border ${channelTestStatus.includes('✗') ? 'bg-red-50 border-red-200 text-red-700' : 'bg-green-50 border-green-200 text-green-700'}`}>
+              {channelTestStatus}
+            </div>
+          )}
         </div>
 
-        {bolticStatus && (
-          <div className={`mt-3 p-3 rounded-xl text-sm ${bolticStatus.startsWith('✓') ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
-            {bolticStatus}
+        {/* Webhook fallback */}
+        <div className="pt-4 border-t border-slate-100">
+          <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color:'#94a3b8' }}>
+            Webhook URL (fallback — used if bot token is absent)
           </div>
-        )}
+          <Inp
+            label=""
+            value={settings.slackWebhook || ''}
+            onChange={v => u('slackWebhook', v)}
+            placeholder="https://hooks.slack.com/services/T.../B.../..."
+            hint="Only used when VITE_SLACK_BOT_TOKEN is not set"
+          />
+          <div className="flex items-center gap-3">
+            <Btn onClick={testWebhook} variant="ghost" disabled={webhookTestStatus === 'sending'}>
+              {webhookTestStatus === 'sending' ? '⏳ Sending…' : '🧪 Test webhook'}
+            </Btn>
+            {webhookTestStatus === 'sent' && <span className="text-xs font-semibold text-green-600">✓ Sent — check Slack</span>}
+            {webhookTestStatus === 'error' && <span className="text-xs font-semibold text-red-600">✗ Failed — check URL</span>}
+          </div>
+        </div>
+
+        <div className="mt-5 pt-4 border-t border-slate-100">
+          <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color:'#94a3b8' }}>
+            Notifications fired for
+          </div>
+          <div className="space-y-1 text-xs text-slate-500">
+            <div>📋 <strong>Form submitted</strong> — Sales Rep submits for RevOps review</div>
+            <div>✅ <strong>RevOps approved</strong> — sent to Finance queue</div>
+            <div>🎉 <strong>Finance approved</strong> — OF# assigned</div>
+            <div>❌ <strong>Rejected</strong> — sent back with comment</div>
+            <div>⚠️ <strong>Churn / Void request</strong> — filed by RevOps or Finance</div>
+            <div>🔔 <strong>Renewal reminder</strong> — contract expiring soon</div>
+          </div>
+        </div>
       </Card>
 
-      {/* Google Sheets */}
+      {/* ── Google Sheets ──────────────────────────────────────────────────── */}
       <Card className="p-6 mb-6">
         <div className="flex items-start gap-3 mb-4">
           <div className="text-2xl">📊</div>
@@ -188,8 +221,8 @@ export default function Settings() {
         </div>
 
         <Inp label="Google Sheet ID"
-          value={settings.sheetsId||''}
-          onChange={v=>u('sheetsId',v)}
+          value={settings.sheetsId || ''}
+          onChange={v => u('sheetsId', v)}
           placeholder="e.g. 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
           hint="Found in the Google Sheets URL between /d/ and /edit"/>
 
@@ -203,7 +236,7 @@ export default function Settings() {
         </div>
 
         {syncStatus && (
-          <div className={`mt-3 p-3 rounded-xl text-sm ${syncStatus.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-green-50 border border-green-200 text-green-700'}`}>
+          <div className={`mt-3 p-3 rounded-xl text-sm border ${syncStatus.startsWith('Error') ? 'bg-red-50 border-red-200 text-red-700' : 'bg-green-50 border-green-200 text-green-700'}`}>
             {syncStatus}
           </div>
         )}
@@ -214,36 +247,6 @@ export default function Settings() {
             SrNo · Order_Form_No · QTR · FY_for_Incentive · Customer_Name · Brand Name · Services · Segment · Sales Team · Sales_Representative · Lead_type · Lead_name · Lead_category · Start_date · End_date · Auto_Renewal · Renewal_Term · Order_Form_Term · Sent for Signing · Date_of_Signing · Submitted · Signed · Dropped · Expired · Unsigned Aging · Submitted_Link · Signed_Link · ARR · Committed Revenue · Committed Revenue Currency · Comments · Churn · TAT · Country · Region · Valyx · Slack ID · Authorised Signatory Name · Authorised Signatory Email · Customer CC · Sales Representative Email
           </p>
         </div>
-      </Card>
-
-      {/* Slack */}
-      <Card className="p-6 mb-6">
-        <div className="flex items-start gap-3 mb-4">
-          <div className="text-2xl">💬</div>
-          <div>
-            <h3 className="font-bold" style={{ color:NAVY }}>Slack Notifications</h3>
-            <p className="text-sm text-brand-muted mt-0.5">Sent when OFs are submitted, approved, rejected, or signed.</p>
-          </div>
-        </div>
-        <div className="mb-4 p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-sm">
-          <strong>How to get a Slack Webhook URL:</strong>
-          <ol className="mt-2 space-y-1 list-decimal list-inside text-xs">
-            <li>Go to <a href="https://api.slack.com/apps" target="_blank" rel="noreferrer" className="underline font-medium">api.slack.com/apps</a></li>
-            <li>Create New App → From scratch → name it <strong>Fynd OF Platform</strong></li>
-            <li>Incoming Webhooks → toggle On → Add New Webhook → pick a channel</li>
-            <li>Copy the webhook URL starting with <code className="bg-blue-100 px-1 rounded">https://hooks.slack.com/services/...</code></li>
-          </ol>
-        </div>
-        <Inp label="Slack Incoming Webhook URL"
-          value={settings.slackWebhook||''}
-          onChange={v=>u('slackWebhook',v)}
-          placeholder="https://hooks.slack.com/services/T.../B.../..."
-          hint="Paste the full webhook URL from your Slack app settings"/>
-        <Inp label="Slack channel name (for reference)"
-          value={settings.slackChannel||''}
-          onChange={v=>u('slackChannel',v)}
-          placeholder="#of-notifications"/>
-        <Btn onClick={testSlack} variant="ghost">🧪 Test webhook</Btn>
       </Card>
 
       <Btn onClick={handleSave}>💾 Save settings</Btn>
