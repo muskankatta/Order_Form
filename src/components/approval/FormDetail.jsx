@@ -11,7 +11,6 @@ import { FINANCE_USERS, REVOPS_USERS } from '../../constants/users.js';
 import { fmtDate, fmtShort } from '../../utils/dates.js';
 import { openPDF } from '../../utils/pdf.js';
 import { useToast } from '../../hooks/useToast.js';
-import { sendEmail, svcNames } from '../../utils/email.js';
 
 const NAVY='#1B2B4B'; const T='#00C3B5';
 const TABS = [{id:'client',lbl:'Client'},{id:'commercial',lbl:'Commercial'},{id:'fees',lbl:'Fees'},{id:'terms',lbl:'Terms'},{id:'signatory',lbl:'Signatory'}];
@@ -61,53 +60,17 @@ export default function FormDetail({ form: initial }) {
     if (!finDRIs.length) { alert('Select at least one Finance DRI.'); return; }
     await revopsApprove(form.id, { editedForm: edit?ef:{}, comment:cmt, financeApprovers:finDRIs });
     show('Sent to Finance!'); setEdit(false);
-    const cf = edit ? ef : form;
-    sendEmail(
-      [cf.sales_rep_email, ...finDRIs].filter(Boolean).join(','),
-      '[Fynd OF] Approved by RevOps — ' + cf.customer_name,
-      'The Order Form has been reviewed and approved by RevOps. It is now pending Finance approval.\n\n' +
-      'Customer: ' + cf.customer_name + '\n' +
-      'Brand: ' + cf.brand_name + '\n' +
-      'Sales Rep: ' + cf.sales_rep_name + '\n' +
-      'Service(s): ' + svcNames(cf) + '\n' +
-      'OF Value: ' + (cf.committed_currency || 'INR') + ' ' + Number(cf.of_value || 0).toLocaleString('en-IN') + '\n\n' +
-      'Log in to the platform:\nhttps://muskankatta.github.io/Order_Form/'
-    );
   };
 
   const handleRevopsReject = async () => {
     await revopsReject(form.id, { comment: cmt });
     show('Form rejected.', 'error');
-    sendEmail(
-      form.sales_rep_email,
-      '[Fynd OF] Action Required — ' + form.customer_name,
-      'Your Order Form has been returned and requires your attention.\n\n' +
-      'Customer: ' + form.customer_name + '\n' +
-      'Brand: ' + form.brand_name + '\n' +
-      'Reason: ' + (cmt || 'See platform for details') + '\n\n' +
-      'Please log in to review and resubmit:\nhttps://muskankatta.github.io/Order_Form/'
-    );
   };
 
   const handleFinanceApprove = async () => {
     if (!ofNum) { alert('Enter OF Number first.'); return; }
     await financeApprove(form.id, { ofNumber:ofNum, comment:cmt, editedForm:edit?ef:{} });
     show(`✓ Approved! OF# ${ofNum}`); setEdit(false);
-    const cf = edit ? ef : form;
-    const revopsEmails = form.revops_approvers || [];
-    sendEmail(
-      [cf.sales_rep_email, ...revopsEmails].filter(Boolean).join(','),
-      '[Fynd OF] ✓ Approved — ' + cf.customer_name + ' · ' + ofNum,
-      'The Order Form has been approved by Finance. OF Number has been assigned.\n\n' +
-      'Customer: ' + cf.customer_name + '\n' +
-      'Brand: ' + cf.brand_name + '\n' +
-      'OF Number: ' + ofNum + '\n' +
-      'Service(s): ' + svcNames(cf) + '\n' +
-      'OF Value: ' + (cf.committed_currency || 'INR') + ' ' + Number(cf.of_value || 0).toLocaleString('en-IN') + '\n' +
-      'Start Date: ' + (cf.start_date || '—') + '\n' +
-      'End Date: ' + (cf.end_date || '—') + '\n\n' +
-      'Log in to the platform:\nhttps://muskankatta.github.io/Order_Form/'
-    );
   };
 
   const handleMarkSigned = async () => {
