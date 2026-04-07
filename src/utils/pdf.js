@@ -37,15 +37,20 @@ export const openPDF = form => {
     '<tbody>' + (svc.fees||[]).map(feeRow).join('') + '</tbody></table></div>'
   ).join('');
 
-  // Build attachment list html for print view
-  const attachList = (form.attachments||[]).length > 0
+  // Collect all attachments: sow_document, sow_reference_document, plus any extras
+  const allAttachments = [];
+  if (form.sow_document?.data)           allAttachments.push({ name: form.sow_document.name,           data: form.sow_document.data });
+  if (form.sow_reference_document?.data) allAttachments.push({ name: form.sow_reference_document.name, data: form.sow_reference_document.data });
+  (form.attachments || []).forEach(a => { if (a?.data) allAttachments.push({ name: a.name, data: a.data }); });
+
+  const attachList = allAttachments.length > 0
     ? '<div style="margin-top:16px;padding:12px 14px;border:1px solid #ddd;font-size:10px;color:#555">' +
       '<strong>Attachments:</strong> ' +
-      (form.attachments||[]).map(a => a.name).join(', ') +
+      allAttachments.map(a => a.name).join(', ') +
       '</div>'
     : '';
 
-  const ofNum   = form.of_number || 'DRAFT';
+  const ofNum    = form.of_number || 'DRAFT';
   const custName = form.customer_name || '\u2014';
   const sigName  = form.signatory_name || '________________________';
   const sigDesig = form.signatory_designation || 'Authorised Signatory';
@@ -105,14 +110,14 @@ export const openPDF = form => {
     '<div style="font-size:11px;font-weight:700;margin-top:18px;margin-bottom:6px">Terms &amp; Conditions:</div>' +
     '<div style="font-size:10px;line-height:1.8;color:#333">' +
     '<strong>1. Entire Agreement</strong> \u2014 This Order Form, along with its accompanying schedules, annexures, Standard Operating Procedures (SOPs), Terms of Service (TOS), and Privacy Policy, if any, collectively constitute the entire agreement between the Parties (hereinafter "Agreement") . It supersedes and replaces all prior negotiations, discussions, understandings, writings, and agreements related to the subject matter herein. <a href="https://console.fynd.com/terms-and-conditions" style="color:#00897b">T&amp;C</a> \u00b7 <a href="https://console.fynd.com/privacy-policy" style="color:#00897b">Privacy Policy</a><br/>' +
-    '<strong>2. Term</strong> \u2014 The term of this Order Form (hereinafter referred to as the “Order Form Term”) includes the initial Service Period and all subsequent Renewal Terms (if applicable). The Order Form becomes effective on the commencement date of the Service Period and shall continue until the end of the Order Form Term. Renewal shall be subject to the then-current list price prevailing at the time of renewal.<br/>' +
+    '<strong>2. Term</strong> \u2014 The term of this Order Form (hereinafter referred to as the "Order Form Term") includes the initial Service Period and all subsequent Renewal Terms (if applicable). The Order Form becomes effective on the commencement date of the Service Period and shall continue until the end of the Order Form Term. Renewal shall be subject to the then-current list price prevailing at the time of renewal.<br/>' +
     '<strong>3. Extension Fees</strong> \u2014 If the Client avails any of the Extension Service(s), they shall be charged an Extension Fee for that Service(s) over and above the Fees mentioned above in the Order Form. <a href="https://drive.google.com/file/d/1vIHalH7yX1kUFtCxI8xMlSrIRO0wI7SX/view?usp=sharing" style="color:#00897b">Extension Rate Card</a><br/>' +
     '<strong>4. Fees and Payment Terms</strong> \u2014 <br/>' +
-      'a. The Client agrees to pay the fees outlined in this Order Form upon its execution and subsequently according to the Billing Frequency specified herein. <br/>' +
-      'b. All fees are exclusive of applicable taxes, which will be charged separately as per prevailing laws. <br/>' +
-      'c. Except for one-time fees, all recurring fees will be subject to a minimum increment of 8% on the then-current list price, as notified by Fynd at the time of renewal. <br/>' +
-      'd. In the event that the Client terminates this Order Form before the expiration of the Initial Term or any then-current Renewal Term—except where such termination is due to Fynd’s uncured material breach as defined in the Terms of Service—the Client shall remain liable to pay the remaining fees due for the rest of the respective term, upon termination.	<br/>' +
-    '<strong>5. Publicity Rights</strong> \u2014 By signing this Order Form, the Client grants Fynd the right, for the Term of this Order Form and thereafter, to use the Client’s name, logo, trademark(s), and other brand identifiers for the purposes of publicity, public relations (PR), marketing, promotional, or branding activities, or otherwise disclosing its association with the Client, in any medium or format.<br/>' +
+    'a. The Client agrees to pay the fees outlined in this Order Form upon its execution and subsequently according to the Billing Frequency specified herein. <br/>' +
+    'b. All fees are exclusive of applicable taxes, which will be charged separately as per prevailing laws. <br/>' +
+    'c. Except for one-time fees, all recurring fees will be subject to a minimum increment of 8% on the then-current list price, as notified by Fynd at the time of renewal. <br/>' +
+    'd. In the event that the Client terminates this Order Form before the expiration of the Initial Term or any then-current Renewal Term\u2014except where such termination is due to Fynd\u2019s uncured material breach as defined in the Terms of Service\u2014the Client shall remain liable to pay the remaining fees due for the rest of the respective term, upon termination. <br/>' +
+    '<strong>5. Publicity Rights</strong> \u2014 By signing this Order Form, the Client grants Fynd the right, for the Term of this Order Form and thereafter, to use the Client\u2019s name, logo, trademark(s), and other brand identifiers for the purposes of publicity, public relations (PR), marketing, promotional, or branding activities, or otherwise disclosing its association with the Client, in any medium or format.<br/>' +
     '<strong>6. Validity</strong> \u2014 This Order Form shall remain valid for a period of seven (7) working days from the date of issuance. If not signed and returned within this period, the Order Form shall be deemed null and void unless extended in writing by Fynd.' +
     '</div>' +
     '<div style="margin-top:18px;font-size:11px;font-weight:700;margin-bottom:6px">Authorization:</div>' +
@@ -121,7 +126,7 @@ export const openPDF = form => {
     '<div class="sign-box"><h4>For: Shopsense Retail Technologies Limited</h4><div class="sign-line"></div><div><strong>Sreeraman Mohan Girija</strong></div><div style="color:#555;margin-top:3px">Whole-time Director</div><div style="margin-top:10px;color:#999;font-size:9.5px">Date: _______________</div></div>' +
     '</div>' +
     '<div class="footer">OF#: ' + ofNum + ' \u00b7 Generated: ' + new Date().toLocaleString('en-IN') + ' \u00b7 Shopsense Retail Technologies Limited</div>' +
-    '</div>' + // close of-content
+    '</div>' +
     '<div id="actionBar" style="text-align:center;margin-top:16px"></div>' +
     '</body></html>';
 
@@ -129,29 +134,24 @@ export const openPDF = form => {
   w.document.write(html);
   w.document.close();
 
-  // Pass attachments via window object (no template literal needed)
-  const attachments = (form.attachments || []).map(a => ({ name: a.name, data: a.data }));
+  const attachments = allAttachments;
   const ofNumber    = form.of_number || 'DRAFT';
 
-  // Wait for document to be ready then inject buttons + logic
   const inject = () => {
     const bar = w.document.getElementById('actionBar');
     if (!bar) { setTimeout(inject, 100); return; }
 
     if (attachments.length === 0) {
-      // No attachments — simple print button
       bar.innerHTML = '<button onclick="window.print()" style="background:#1B2B4B;color:#fff;border:none;padding:10px 28px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">\uD83D\uDDB6 Print / Save as PDF</button>';
       return;
     }
 
-    // Has attachments — combined PDF button
     bar.innerHTML =
       '<button id="combineBtn" style="background:#1B2B4B;color:#fff;border:none;padding:10px 28px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">' +
       '\u2B07 Download Combined PDF (OF + ' + attachments.length + ' attachment' + (attachments.length > 1 ? 's' : '') + ')</button>' +
       '<button onclick="window.print()" style="background:#fff;color:#1B2B4B;border:2px solid #1B2B4B;padding:10px 28px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;margin-left:12px">\uD83D\uDDB6 Print OF only</button>' +
       '<div id="pdfStatus" style="margin-top:10px;font-size:13px;color:#64748b;font-family:Arial,sans-serif"></div>';
 
-    // Load pdf-lib and html2canvas, then wire up the button
     const loadScript = (src) => new Promise((res, rej) => {
       const s = w.document.createElement('script');
       s.src = src; s.onload = res; s.onerror = rej;
@@ -173,31 +173,43 @@ export const openPDF = form => {
         const { jsPDF }       = w.jspdf;
         const merged          = await PDFDocument.create();
 
-        // Render OF HTML → PDF
+        // Render OF HTML → PDF with margins
         status.textContent = 'Rendering Order Form\u2026';
         bar.style.display = 'none';
         const content = w.document.getElementById('of-content');
         const canvas  = await w.html2canvas(content, { scale: 2, useCORS: true, logging: false });
         bar.style.display = '';
-        const imgData = canvas.toDataURL('image/jpeg', 0.92);
+
+        const imgData  = canvas.toDataURL('image/jpeg', 0.95);
         const jsPdfDoc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+        // A4 dimensions with 12mm margins on all sides
+        const margin = 12;
         const pW = jsPdfDoc.internal.pageSize.getWidth();
         const pH = jsPdfDoc.internal.pageSize.getHeight();
-        const iH = (canvas.height * pW) / canvas.width;
-        let y = 0, rem = iH;
-        while (rem > 0) {
-          if (y > 0) jsPdfDoc.addPage();
-          jsPdfDoc.addImage(imgData, 'JPEG', 0, -y, pW, iH);
-          y += pH; rem -= pH;
+        const printW = pW - margin * 2;
+        const printH = pH - margin * 2;
+        const imgH   = (canvas.height * printW) / canvas.width;
+
+        let srcY = 0;
+        let remaining = imgH;
+        let firstPage = true;
+        while (remaining > 0) {
+          if (!firstPage) jsPdfDoc.addPage();
+          firstPage = false;
+          jsPdfDoc.addImage(imgData, 'JPEG', margin, margin - srcY, printW, imgH);
+          srcY      += printH;
+          remaining -= printH;
         }
+
         const ofBytes = jsPdfDoc.output('arraybuffer');
         const ofPdf   = await PDFDocument.load(ofBytes);
         const ofPages = await merged.copyPages(ofPdf, ofPdf.getPageIndices());
         ofPages.forEach(p => merged.addPage(p));
 
-        // Merge attachments
+        // Merge SoW and other attachments
         for (let i = 0; i < attachments.length; i++) {
-          status.textContent = 'Adding attachment ' + (i+1) + ' of ' + attachments.length + '\u2026';
+          status.textContent = 'Adding attachment ' + (i+1) + ' of ' + attachments.length + ': ' + attachments[i].name + '\u2026';
           try {
             const b64   = attachments[i].data.split(',')[1];
             const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
@@ -207,7 +219,6 @@ export const openPDF = form => {
           } catch(e) { console.warn('Skipped attachment:', attachments[i].name, e); }
         }
 
-        // Download
         status.textContent = 'Preparing download\u2026';
         const finalBytes = await merged.save();
         const blob = new Blob([finalBytes], { type: 'application/pdf' });
