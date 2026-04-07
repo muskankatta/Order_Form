@@ -11,6 +11,21 @@ import { exportOFIndex, exportServiceIndex } from '../../utils/csv.js';
 
 const NAVY='#1B2B4B'; const T='#00C3B5';
 
+// Quarter based on signing date (Indian FY: Apr–Mar)
+// Q1 = Apr–Jun, Q2 = Jul–Sep, Q3 = Oct–Dec, Q4 = Jan–Mar
+function getSigningQuarter(dateStr) {
+  if (!dateStr) return '—';
+  const d     = new Date(dateStr);
+  const month = d.getMonth() + 1;
+  const year  = d.getFullYear();
+  let q, fy;
+  if      (month >= 4  && month <= 6)  { q = 'Q1'; fy = year + 1; }
+  else if (month >= 7  && month <= 9)  { q = 'Q2'; fy = year + 1; }
+  else if (month >= 10 && month <= 12) { q = 'Q3'; fy = year + 1; }
+  else                                  { q = 'Q4'; fy = year;     }
+  return `${q} FY${String(fy).slice(2)}`;
+}
+
 function StatusChangeModal({ form, onClose, onSave }) {
   const [newStatus, setNewStatus] = useState(form.status);
   const [comment,   setComment]   = useState('');
@@ -59,7 +74,6 @@ export default function Repository() {
   const [statusModal,setStatusModal]= useState(null);
   const [sortBy,     setSortBy]     = useState('approved_desc');
 
-  // Sync URL param → filter when navigating from Dashboard
   useEffect(() => {
     const s = searchParams.get('status');
     if (s) setSt(s);
@@ -179,21 +193,22 @@ export default function Repository() {
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="text-sm" style={{ minWidth:'1100px', width:'100%' }}>
+        <table className="text-sm" style={{ minWidth:'1200px', width:'100%' }}>
           {tab==='of' ? (
             <>
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {['#','OF Number','Customer','Services','Committed Revenue','Period','Active','Rep','Status',
+                  {['#','OF Number','Customer','Services','Committed Revenue','Period','Quarter','Active','Rep','Status',
                     ...(user?.isUniversal?['Actions']:[])
                   ].map(h=><th key={h} className={thCls}>{h}</th>)}
                 </tr>
               </thead>
               <tbody>
-                {sorted.length===0 && <tr><td colSpan={9} className="text-center py-16 text-slate-300">No order forms found.</td></tr>}
+                {sorted.length===0 && <tr><td colSpan={10} className="text-center py-16 text-slate-300">No order forms found.</td></tr>}
                 {sorted.map((f,i) => {
                   const daysSinceSent = f.approved_at ? Math.floor((new Date()-new Date(f.approved_at))/86400000) : null;
                   const overdue = f.status==='approved' && !f.signed_date && daysSinceSent>=30;
+                  const signingQtr = getSigningQuarter(f.signed_date);
                   return (
                     <tr key={f.id} onClick={()=>navigate(`/form/${f.id}`)}
                       className={`cursor-pointer hover:bg-slate-50 border-b border-slate-50 last:border-0 ${overdue?'bg-red-50':''}`}>
@@ -237,6 +252,12 @@ export default function Repository() {
                       <td className="px-4 py-3.5 text-xs text-brand-muted">
                         {fmtShort(f.start_date)} → {fmtShort(f.end_date)}
                         {f.signed_date && <div className="text-[10px] text-green-600 mt-0.5">✍️ {fmtShort(f.signed_date)}</div>}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {f.signed_date
+                          ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 whitespace-nowrap">{signingQtr}</span>
+                          : <span className="text-xs text-slate-300">—</span>
+                        }
                       </td>
                       <td className="px-4 py-3.5">
                         {(() => {
