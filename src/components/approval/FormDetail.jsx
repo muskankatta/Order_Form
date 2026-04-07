@@ -18,7 +18,7 @@ const TABS = [{id:'client',lbl:'Client'},{id:'commercial',lbl:'Commercial'},{id:
 export default function FormDetail({ form: initial }) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { forms, revopsApprove, revopsReject, financeApprove, financeReject, markSigned, applyDealStatus, cloneForm, deleteDraft } = useForms();
+  const { forms, revopsApprove, revopsReject, financeApprove, financeReject, markSigned, applyDealStatus, cloneForm, deleteDraft, submitForm, updateDraft } = useForms();
   const { toast, show, hide } = useToast();
 
   const form     = forms.find(f => f.id === initial.id) || initial;
@@ -30,6 +30,7 @@ export default function FormDetail({ form: initial }) {
   const [finDRIs,setFinDRIs]= useState([]);
   const [sigDate,    setSigDate]    = useState('');
   const [signedLink, setSignedLink] = useState(form.signed_of_link||'');
+  const [salesRevopsApprovers, setSalesRevopsApprovers] = useState([]);
 
   const live = edit ? ef : form;
   const set  = (k,v) => setEf(prev => ({...prev,[k]:v}));
@@ -148,6 +149,59 @@ export default function FormDetail({ form: initial }) {
                 📎 Ref: {form.sow_reference_document.name}
               </a>
             )}
+          </div>
+        </Card>
+      )}
+
+      {/* Sales Rep — save edits + submit draft */}
+      {user?.role==='sales' && ['draft','revops_rejected'].includes(form.status) && form.sales_rep_email===user?.email && (
+        <Card className="mt-4 p-6">
+          <h3 className="font-bold mb-4" style={{ color:NAVY }}>
+            {form.status==='revops_rejected' ? '↩ Resubmit for RevOps review' : '📝 Submit for RevOps review'}
+          </h3>
+          {form.status==='revops_rejected' && form.revops_comment && (
+            <div className="mb-4 p-3 rounded-xl text-sm bg-red-50 border border-red-200 text-red-700">
+              <strong>Rejection reason:</strong> {form.revops_comment}
+            </div>
+          )}
+          {edit && (
+            <div className="mb-4">
+              <Btn variant="navy" onClick={async () => {
+                await updateDraft(form.id, ef);
+                setEdit(false);
+                show('Draft saved!');
+              }}>💾 Save edits</Btn>
+            </div>
+          )}
+          <MultiSelect
+            label="Select RevOps reviewer(s) — first selected is Primary DRI"
+            req
+            options={REVOPS_USERS.map(u => ({ value:u.email, label:u.name }))}
+            value={salesRevopsApprovers}
+            onChange={setSalesRevopsApprovers}
+          />
+          {salesRevopsApprovers.length > 0 && (
+            <div className="mt-2 p-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
+              <strong>Primary DRI:</strong> {(REVOPS_USERS.find(u=>u.email===salesRevopsApprovers[0])||{}).name||salesRevopsApprovers[0]}
+              {salesRevopsApprovers.length > 1 && (
+                <span className="ml-2 text-blue-500">
+                  · CC: {salesRevopsApprovers.slice(1).map(e=>(REVOPS_USERS.find(u=>u.email===e)||{}).name||e).join(', ')}
+                </span>
+              )}
+            </div>
+          )}
+          {!salesRevopsApprovers.length && (
+            <p className="text-xs text-amber-600 mt-1">Select at least one RevOps reviewer to submit.</p>
+          )}
+          <div className="mt-4">
+            <Btn onClick={async () => {
+              if (!salesRevopsApprovers.length) { alert('Please select at least one RevOps reviewer.'); return; }
+              await submitForm(form, salesRevopsApprovers);
+              show('Submitted for RevOps review!');
+              navigate('/dashboard');
+            }}>
+              {form.status==='revops_rejected' ? 'Resubmit for review →' : 'Submit for review →'}
+            </Btn>
           </div>
         </Card>
       )}
