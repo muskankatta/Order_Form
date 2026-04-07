@@ -19,6 +19,8 @@ const toFirestore = form => {
   const { sow_document, sow_reference_document, ...rest } = form;
   return {
     ...rest,
+    // Strip base64 data from attachments — store metadata only in Firestore
+    attachments: (form.attachments || []).map(({ data, ...meta }) => meta),
     _updatedAt: serverTimestamp(),
     sow_document_name: sow_document?.name || null,
     sow_document_size: sow_document?.size || null,
@@ -80,8 +82,24 @@ export function FormsProvider({ children }) {
     const q = collection(db, COLLECTION);
     unsubRef.current = onSnapshot(q, snap => {
       const docs = snap.docs.map(fromFirestore);
-      setForms(docs);
-      storage.set(docs);
+      // Merge with localStorage to preserve binary data (sow, attachments)
+      // that is stripped from Firestore writes due to size limits
+      const localForms = storage.get();
+      const merged = docs.map(d => {
+        const local = localForms.find(f => f.id === d.id);
+        if (!local) return d;
+        return {
+          ...d,
+          sow_document: local.sow_document || d.sow_document,
+          sow_reference_document: local.sow_reference_document || d.sow_reference_document,
+          attachments: (d.attachments || []).map((a, i) => ({
+            ...a,
+            data: local.attachments?.[i]?.data || a.data || null,
+          })),
+        };
+      });
+      setForms(merged);
+      storage.set(merged);
       setSynced(true);
     }, err => {
       console.error('[Firestore] listener error:', err);
