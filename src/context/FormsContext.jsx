@@ -281,8 +281,9 @@ export function FormsProvider({ children }) {
     };
     await persistOne(f);
     const revopsEmails = (f.revops_approvers || []).filter(Boolean);
+    const financeEmails = (f.finance_approvers || []).filter(Boolean);
     sendEmail(
-      [f.sales_rep_email, ...revopsEmails].filter(Boolean).join(','),
+      [f.sales_rep_email, ...revopsEmails, ...financeEmails].filter(Boolean).join(','),
       threadSubject(f.customer_name),
       '🎉 Finance Approved — OF# ' + ofNumber + '\n\n' +
       'Customer: ' + f.customer_name + '\n' +
