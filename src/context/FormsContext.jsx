@@ -5,7 +5,7 @@ import {
 import { db, isConfigured } from '../firebase.js';
 import { storage } from '../utils/storage.js';
 import { uid } from '../utils/dates.js';
-import { sendEmail, svcNames } from '../utils/email.js';
+import { sendEmail, svcNames, threadSubject } from '../utils/email.js';
 import { useAuth } from './AuthContext.jsx';
 
 const FormsContext = createContext(null);
@@ -219,8 +219,8 @@ export function FormsProvider({ children }) {
     await persistOne(f);
     sendEmail(
       [f.sales_rep_email, ...revopsApprovers].filter(Boolean).join(','),
-      '[Fynd OF] New Submission — ' + f.customer_name,
-      'A new Order Form has been submitted and is pending RevOps review.\n\n' +
+      threadSubject(f.customer_name),
+      '📋 New Submission — Pending RevOps Review\n\n' +
       'Customer: ' + f.customer_name + '\n' +
       'Brand: ' + (f.brand_name || '—') + '\n' +
       'Sales Rep: ' + f.sales_rep_name + '\n' +
@@ -242,8 +242,8 @@ export function FormsProvider({ children }) {
     await persistOne(f);
     sendEmail(
       [f.sales_rep_email, ...financeApprovers].filter(Boolean).join(','),
-      '[Fynd OF] Approved by RevOps — ' + f.customer_name,
-      'The Order Form has been reviewed and approved by RevOps. It is now pending Finance approval.\n\n' +
+      threadSubject(f.customer_name),
+      '✅ Approved by RevOps — Pending Finance Approval\n\n' +
       'Customer: ' + f.customer_name + '\n' +
       'Brand: ' + (f.brand_name || '—') + '\n' +
       'Sales Rep: ' + f.sales_rep_name + '\n' +
@@ -263,8 +263,8 @@ export function FormsProvider({ children }) {
     await persistOne(f);
     sendEmail(
       f.sales_rep_email,
-      '[Fynd OF] Action Required — ' + f.customer_name,
-      'Your Order Form has been returned and requires your attention.\n\n' +
+      threadSubject(f.customer_name),
+      '❌ Action Required — Order Form Returned\n\n' +
       'Customer: ' + f.customer_name + '\n' +
       'Brand: ' + (f.brand_name || '—') + '\n' +
       'Reason: ' + (comment || 'See platform for details') + '\n\n' +
@@ -283,8 +283,8 @@ export function FormsProvider({ children }) {
     const revopsEmails = (f.revops_approvers || []).filter(Boolean);
     sendEmail(
       [f.sales_rep_email, ...revopsEmails].filter(Boolean).join(','),
-      '[Fynd OF] ✓ Approved — ' + f.customer_name + ' · ' + ofNumber,
-      'The Order Form has been approved by Finance. OF Number has been assigned.\n\n' +
+      threadSubject(f.customer_name),
+      '🎉 Finance Approved — OF# ' + ofNumber + '\n\n' +
       'Customer: ' + f.customer_name + '\n' +
       'Brand: ' + (f.brand_name || '—') + '\n' +
       'OF Number: ' + ofNumber + '\n' +
@@ -302,8 +302,8 @@ export function FormsProvider({ children }) {
     await persistOne(f);
     sendEmail(
       f.sales_rep_email,
-      '[Fynd OF] Action Required — ' + f.customer_name,
-      'Your Order Form has been returned by Finance and requires your attention.\n\n' +
+      threadSubject(f.customer_name),
+      '↩ Action Required — Returned by Finance\n\n' +
       'Customer: ' + f.customer_name + '\n' +
       'Brand: ' + (f.brand_name || '—') + '\n' +
       'Reason: ' + (comment || 'See platform for details') + '\n\n' +
