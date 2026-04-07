@@ -1,6 +1,5 @@
 import { TA, SHdr } from '../../ui/index.jsx';
 import { MultiFileUpload } from '../../ui/index.jsx';
-
 export function StepTerms({ form, set, ro }) {
   const u = (k,v) => !ro && set(k,v);
   return (
@@ -10,7 +9,6 @@ export function StepTerms({ form, set, ro }) {
         <strong>Note:</strong> Appears in the PDF between Section B (Service Details) and Terms &amp; Conditions.
       </div>
       <TA label="Special terms" value={form.special_terms} onChange={v=>u('special_terms',v)} disabled={ro} rows={8}/>
-
       <SHdr c="Additional attachments (optional)"/>
       <div className="mb-4 p-4 rounded-xl text-sm bg-slate-50 border border-slate-200 text-slate-600">
         Attach any supporting documents — proposed SoW, rate cards, proposals, etc. PDF only, max 10 MB each.
@@ -20,12 +18,11 @@ export function StepTerms({ form, set, ro }) {
         value={form.attachments || []}
         onChange={v => u('attachments', v)}
         disabled={ro}
-        hint="These are stored with the Order Form for reference. Not included in the PDF."
+        hint="These will be merged with the Order Form in the Combined PDF download."
       />
     </div>
   );
 }
-
 export function StepSignatory({ form, set, ro }) {
   const u = (k,v) => !ro && set(k,v);
   return (
@@ -53,7 +50,6 @@ export function StepSignatory({ form, set, ro }) {
           </div>
         ))}
       </div>
-
       <div className="mt-2 p-4 rounded-xl bg-green-50 border border-green-200">
         <div className="text-xs font-bold uppercase tracking-wider mb-3 text-green-800">Fynd signatory (pre-filled)</div>
         <div className="grid grid-cols-3 gap-x-4">
