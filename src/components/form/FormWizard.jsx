@@ -11,7 +11,6 @@ import { useFormWizard } from '../../hooks/useFormWizard.js';
 import { REVOPS_USERS } from '../../constants/users.js';
 import { FORM_STEPS } from '../../constants/status.js';
 import { getFY } from '../../utils/dates.js';
-import { sendEmail, svcNames } from '../../utils/email.js';
 
 const T = '#00C3B5'; const NAVY = '#1B2B4B';
 
@@ -43,18 +42,6 @@ export default function FormWizard({ initial = null, onSaved }) {
     setSubmitting(true);
     try {
       await submitForm(form, revopsApprovers);
-      sendEmail(
-        [form.sales_rep_email, ...revopsApprovers].filter(Boolean).join(','),
-        '[Fynd OF] New Submission — ' + form.customer_name,
-        'A new Order Form has been submitted and is pending RevOps review.\n\n' +
-        'Customer: ' + form.customer_name + '\n' +
-        'Brand: ' + form.brand_name + '\n' +
-        'Sales Rep: ' + form.sales_rep_name + '\n' +
-        'Service(s): ' + svcNames(form) + '\n' +
-        'OF Value: ' + (form.committed_currency || 'INR') + ' ' + Number(form.of_value || 0).toLocaleString('en-IN') + '\n' +
-        'Start Date: ' + (form.start_date || '—') + '\n\n' +
-        'Log in to review:\nhttps://muskankatta.github.io/Order_Form/'
-      );
       navigate('/dashboard');
     } finally { setSubmitting(false); }
   };
