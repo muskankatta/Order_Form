@@ -37,11 +37,10 @@ export const openPDF = form => {
     '<tbody>' + (svc.fees||[]).map(feeRow).join('') + '</tbody></table></div>'
   ).join('');
 
-  // Collect all attachments: sow_document, sow_reference_document, plus any extras
+  // Collect attachments: sow_document and sow_reference_document only
   const allAttachments = [];
   if (form.sow_document?.data)           allAttachments.push({ name: form.sow_document.name,           data: form.sow_document.data });
   if (form.sow_reference_document?.data) allAttachments.push({ name: form.sow_reference_document.name, data: form.sow_reference_document.data });
-  (form.attachments || []).forEach(a => { if (a?.data) allAttachments.push({ name: a.name, data: a.data }); });
 
   const attachList = allAttachments.length > 0
     ? '<div style="margin-top:16px;padding:12px 14px;border:1px solid #ddd;font-size:10px;color:#555">' +
