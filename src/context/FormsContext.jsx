@@ -5,14 +5,14 @@ import {
 import { db, isConfigured } from '../firebase.js';
 import { storage } from '../utils/storage.js';
 import { uid } from '../utils/dates.js';
-import {
-  notifySubmitted, notifyRevOpsApproved, notifyFinanceApproved,
-  notifyRejected, notifyChurnVoidRequest, notifyRenewalReminder,
-} from '../utils/slack.js';
+import { sendEmail, svcNames } from '../utils/email.js';
 import { useAuth } from './AuthContext.jsx';
 
 const FormsContext = createContext(null);
 const COLLECTION = 'order_forms';
+
+const REVOPS_EMAILS = 'samikshamane@gofynd.com,raginivarma@gofynd.com,ronakmodi@gofynd.com,nayanlathiya@gofynd.com,atharvashetye@gofynd.com,omkarsp@gofynd.com';
+const FINANCE_EMAILS = 'rahulmandowara@gofynd.com,abhimanyumallik@gofynd.com,rasikajadhav@gofynd.com,somaydugar@gofynd.com';
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 const toFirestore = form => {
@@ -53,13 +53,11 @@ function addMonthsMinus1(dateStr, months) {
 }
 
 function getRenewalNumber(forms, baseOfNumber) {
-  // Count existing renewals for this base OF number
   const base = baseOfNumber.replace(/-R\d+$/, '');
   const existing = forms.filter(f =>
     f.of_number === base ||
     (f.of_number && f.of_number.startsWith(base + '-R'))
   );
-  // Find next R number
   let maxR = 0;
   existing.forEach(f => {
     const match = f.of_number?.match(/-R(\d+)$/);
@@ -111,27 +109,23 @@ export function FormsProvider({ children }) {
       const endDate = new Date(f.end_date);
       endDate.setHours(0, 0, 0, 0);
 
-      if (endDate >= today) continue; // Not expired yet
+      if (endDate >= today) continue;
 
-      // Check if already processed (renewal draft exists)
       const renewalExists = currentForms.some(r =>
         r.renewal_of === f.id ||
         (f.of_number && r.of_number?.startsWith(f.of_number.replace(/-R\d+$/, '') + '-R'))
       );
       if (renewalExists) {
-        // Mark original as completed if not already
         if (f.status === 'signed') {
           await persistOneDirect({ ...f, status: 'completed', completed_at: new Date().toISOString() });
         }
         continue;
       }
 
-      // Mark original as completed
       await persistOneDirect({ ...f, status: 'completed', completed_at: new Date().toISOString() });
 
       if (f.auto_renewal !== 'Yes') continue;
 
-      // Create renewal draft
       const renewalOfNum = getRenewalNumber(currentForms, f.of_number || '');
       const termMonths = parseInt(f.of_term_months) || 12;
       const newStart = new Date(f.end_date);
@@ -143,7 +137,7 @@ export function FormsProvider({ children }) {
         ...f,
         id: uid(),
         status: 'draft',
-        of_number: '',           // Finance will assign new number
+        of_number: '',
         suggested_of_number: renewalOfNum,
         renewal_of: f.id,
         renewal_of_number: f.of_number,
@@ -169,7 +163,6 @@ export function FormsProvider({ children }) {
     }
   };
 
-  // Direct persist without closure over forms state (used in renewal check)
   const persistOneDirect = async (form) => {
     if (isConfigured && db) {
       await setDoc(doc(db, COLLECTION, form.id), toFirestore(form));
@@ -184,7 +177,6 @@ export function FormsProvider({ children }) {
   };
 
   const persistOne = useCallback(async (form) => {
-    // Always save full form to localStorage (includes SoW base64)
     setForms(prev => {
       const exists = prev.find(f => f.id === form.id);
       const updated = exists ? prev.map(f => f.id === form.id ? form : f) : [...prev, form];
@@ -225,13 +217,20 @@ export function FormsProvider({ children }) {
       submitted_at: new Date().toISOString(), revops_approvers: revopsApprovers,
     };
     await persistOne(f);
-    // Post first Slack message and store thread ts for future replies
-    const threadInfo = await notifySubmitted({ form: f, repName: user?.name });
-    if (threadInfo) {
-      await persistOne({ ...f, ...threadInfo });
-    }
+    sendEmail(
+      [f.sales_rep_email, ...revopsApprovers].filter(Boolean).join(','),
+      '[Fynd OF] New Submission — ' + f.customer_name,
+      'A new Order Form has been submitted and is pending RevOps review.\n\n' +
+      'Customer: ' + f.customer_name + '\n' +
+      'Brand: ' + (f.brand_name || '—') + '\n' +
+      'Sales Rep: ' + f.sales_rep_name + '\n' +
+      'Service(s): ' + svcNames(f) + '\n' +
+      'OF Value: ' + (f.committed_currency || 'INR') + ' ' + Number(f.of_value || 0).toLocaleString('en-IN') + '\n' +
+      'Start Date: ' + (f.start_date || '—') + '\n\n' +
+      'Log in to review:\nhttps://muskankatta.github.io/Order_Form/'
+    );
     return f;
-  }, [persistOne, user]);
+  }, [persistOne]);
 
   const revopsApprove = useCallback(async (id, { editedForm, comment, financeApprovers }) => {
     const base = forms.find(f => f.id === id) || {};
@@ -241,7 +240,17 @@ export function FormsProvider({ children }) {
       revops_reviewer: user?.name, finance_approvers: financeApprovers,
     };
     await persistOne(f);
-    await notifyRevOpsApproved({ form: f, revopsName: user?.name });
+    sendEmail(
+      [f.sales_rep_email, ...financeApprovers].filter(Boolean).join(','),
+      '[Fynd OF] Approved by RevOps — ' + f.customer_name,
+      'The Order Form has been reviewed and approved by RevOps. It is now pending Finance approval.\n\n' +
+      'Customer: ' + f.customer_name + '\n' +
+      'Brand: ' + (f.brand_name || '—') + '\n' +
+      'Sales Rep: ' + f.sales_rep_name + '\n' +
+      'Service(s): ' + svcNames(f) + '\n' +
+      'OF Value: ' + (f.committed_currency || 'INR') + ' ' + Number(f.of_value || 0).toLocaleString('en-IN') + '\n\n' +
+      'Log in to the platform:\nhttps://muskankatta.github.io/Order_Form/'
+    );
   }, [forms, persistOne, user]);
 
   const revopsReject = useCallback(async (id, { comment }) => {
@@ -252,7 +261,15 @@ export function FormsProvider({ children }) {
       revops_comment: comment, revops_reviewer: user?.name,
     };
     await persistOne(f);
-    await notifyRejected({ form: f, comment, reviewerName: user?.name });
+    sendEmail(
+      f.sales_rep_email,
+      '[Fynd OF] Action Required — ' + f.customer_name,
+      'Your Order Form has been returned and requires your attention.\n\n' +
+      'Customer: ' + f.customer_name + '\n' +
+      'Brand: ' + (f.brand_name || '—') + '\n' +
+      'Reason: ' + (comment || 'See platform for details') + '\n\n' +
+      'Please log in to review and resubmit:\nhttps://muskankatta.github.io/Order_Form/'
+    );
   }, [forms, persistOne, user]);
 
   const financeApprove = useCallback(async (id, { ofNumber, comment, editedForm }) => {
@@ -263,14 +280,35 @@ export function FormsProvider({ children }) {
       finance_approver: user?.name,
     };
     await persistOne(f);
-    await notifyFinanceApproved({ form: f });
+    const revopsEmails = (f.revops_approvers || []).filter(Boolean);
+    sendEmail(
+      [f.sales_rep_email, ...revopsEmails].filter(Boolean).join(','),
+      '[Fynd OF] ✓ Approved — ' + f.customer_name + ' · ' + ofNumber,
+      'The Order Form has been approved by Finance. OF Number has been assigned.\n\n' +
+      'Customer: ' + f.customer_name + '\n' +
+      'Brand: ' + (f.brand_name || '—') + '\n' +
+      'OF Number: ' + ofNumber + '\n' +
+      'Service(s): ' + svcNames(f) + '\n' +
+      'OF Value: ' + (f.committed_currency || 'INR') + ' ' + Number(f.of_value || 0).toLocaleString('en-IN') + '\n' +
+      'Start Date: ' + (f.start_date || '—') + '\n' +
+      'End Date: ' + (f.end_date || '—') + '\n\n' +
+      'Log in to the platform:\nhttps://muskankatta.github.io/Order_Form/'
+    );
   }, [forms, persistOne, user]);
 
   const financeReject = useCallback(async (id, { comment }) => {
     const base = forms.find(f => f.id === id) || {};
     const f = { ...base, status: 'submitted', finance_comment: comment };
     await persistOne(f);
-    await notifyRejected({ form: f, comment, reviewerName: user?.name });
+    sendEmail(
+      f.sales_rep_email,
+      '[Fynd OF] Action Required — ' + f.customer_name,
+      'Your Order Form has been returned by Finance and requires your attention.\n\n' +
+      'Customer: ' + f.customer_name + '\n' +
+      'Brand: ' + (f.brand_name || '—') + '\n' +
+      'Reason: ' + (comment || 'See platform for details') + '\n\n' +
+      'Please log in to review:\nhttps://muskankatta.github.io/Order_Form/'
+    );
   }, [forms, persistOne, user]);
 
   const markSigned = useCallback(async (id, signingDate, signedLink = '') => {
@@ -293,7 +331,7 @@ export function FormsProvider({ children }) {
   }, [forms, persistOne]);
 
   const submitChurnVoidRequest = useCallback(async (payload) => {
-    await notifyChurnVoidRequest({ ...payload, requesterName: user?.name });
+    // Churn/void requests — no email notification currently
   }, [user]);
 
   const cloneForm = useCallback(async (formData) => {
