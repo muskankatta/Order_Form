@@ -64,21 +64,8 @@ export function requestSheetsToken(clientId) {
         else resolve(response.access_token);
       },
     });
-    tokenClient.requestAccessToken({ prompt: 'none' });
-  }).catch(() =>
-    // If silent fails, prompt user
-    new Promise((resolve, reject) => {
-      const tokenClient = window.google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
-        callback: response => {
-          if (response.error) reject(new Error(response.error));
-          else resolve(response.access_token);
-        },
-      });
-      tokenClient.requestAccessToken({ prompt: 'consent' });
-    })
-  );
+    tokenClient.requestAccessToken();
+  });
 }
 
 // Fetch raw sheet data
