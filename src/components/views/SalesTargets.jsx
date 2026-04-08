@@ -253,7 +253,7 @@ export default function SalesTargets() {
                 return (
                   <tr key={r.id}
                     onClick={() => setSelectedRep(r)}
-                    className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer"
+                    className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer">
                     {!isSales && <td className="px-4 py-3.5 text-xs text-slate-300">{i+1}</td>}
                     <td className="px-4 py-3.5">
                       <div className="font-semibold text-sm" style={{ color:NAVY }}>{r.name}</div>
