@@ -12,6 +12,10 @@ import AdminUsers from './components/views/AdminUsers.jsx';
 import Settings from './components/views/Settings.jsx';
 import PendingRequests from './components/views/PendingRequests.jsx';
 import SalesTargets from './components/views/SalesTargets.jsx';
+import AuditLog from './components/views/AuditLog.jsx';
+import AuditLog from './components/views/AuditLog.jsx';
+import AuditLog from './components/views/AuditLog.jsx';
+import AuditLog from './components/views/AuditLog.jsx';
 import { useForms } from './context/FormsContext.jsx';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getFY } from './utils/dates.js';
@@ -55,6 +59,9 @@ function ProtectedApp() {
           <Route path="/pending"     element={<PendingRequests/>}/>
           <Route path="/repository"  element={<Repository/>}/>
           <Route path="/targets"     element={<SalesTargets/>}/>
+          <Route path="/audit-log"   element={<AuditLog/>}/>
+          <Route path="/audit-log"   element={<AuditLog/>}/>
+          <Route path="/audit-log"   element={<AuditLog/>}/>
           <Route path="/form/new"    element={<NewFormPage/>}/>
           <Route path="/form/:id"    element={<FormDetailRoute/>}/>
           <Route path="/signed"      element={<SignedOFs/>}/>
