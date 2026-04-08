@@ -11,6 +11,7 @@ import { SignedOFs, ChurnVoidRequest } from './components/views/SignedChurnVoid.
 import AdminUsers from './components/views/AdminUsers.jsx';
 import Settings from './components/views/Settings.jsx';
 import PendingRequests from './components/views/PendingRequests.jsx';
+import SalesTargets from './components/views/SalesTargets.jsx';
 import { useForms } from './context/FormsContext.jsx';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getFY } from './utils/dates.js';
@@ -53,6 +54,7 @@ function ProtectedApp() {
           <Route path="/dashboard"   element={<Dashboard/>}/>
           <Route path="/pending"     element={<PendingRequests/>}/>
           <Route path="/repository"  element={<Repository/>}/>
+          <Route path="/targets"     element={<SalesTargets/>}/>
           <Route path="/form/new"    element={<NewFormPage/>}/>
           <Route path="/form/:id"    element={<FormDetailRoute/>}/>
           <Route path="/signed"      element={<SignedOFs/>}/>
