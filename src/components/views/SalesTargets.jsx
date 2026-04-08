@@ -79,19 +79,14 @@ function getFYRange(fy) {
 
 function formatAmount(amount, currency) {
   if (currency === 'INR') {
-    if (amount >= 10000000) return '₹' + (amount / 10000000).toFixed(2) + ' Cr';
-    if (amount >= 100000)   return '₹' + (amount / 100000).toFixed(2) + ' L';
     return '₹' + Math.round(amount).toLocaleString('en-IN');
   }
-  // USD
-  if (amount >= 1000000) return '$' + (amount / 1000000).toFixed(2) + 'M';
-  if (amount >= 1000)    return '$' + (amount / 1000).toFixed(1) + 'K';
   return '$' + Math.round(amount).toLocaleString('en-US');
 }
 
 function ProgressBar({ pct }) {
   const clamped = Math.min(pct, 100);
-  const color = pct >= 100 ? '#22c55e' : pct >= 75 ? T : pct >= 50 ? '#f59e0b' : '#ef4444';
+  const color = pct >= 100 ? '#22c55e' : pct >= 75 ? T : pct >= 50 ? '#f59e0b' : pct >= 25 ? '#f97316' : '#ef4444';
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
@@ -105,6 +100,8 @@ function ProgressBar({ pct }) {
 }
 
 function StatusBadge({ pct }) {
+  if (pct >= 180) return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">🚀 Exceptional</span>;
+  if (pct >= 140) return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">✓ Exceeded</span>;
   if (pct >= 100) return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">✓ Achieved</span>;
   if (pct >= 75)  return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">On track</span>;
   if (pct >= 50)  return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">At risk</span>;
@@ -172,8 +169,8 @@ export default function SalesTargets() {
     const visible = repData;
     const achieved = visible.filter(r => r.pct >= 100).length;
     const onTrack  = visible.filter(r => r.pct >= 75 && r.pct < 100).length;
-    const atRisk   = visible.filter(r => r.pct >= 50 && r.pct < 75).length;
-    const behind   = visible.filter(r => r.pct < 50).length;
+    const atRisk   = visible.filter(r => r.pct >= 25 && r.pct < 75).length;
+    const behind   = visible.filter(r => r.pct < 25).length;
     return { total: visible.length, achieved, onTrack, atRisk, behind };
   }, [repData, isSales]);
 
