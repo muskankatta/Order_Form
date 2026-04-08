@@ -4,17 +4,13 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
 import { useToast } from '../../hooks/useToast.js';
 import { syncAllToSheets } from '../../utils/sheets.js';
+import { requestSheetsToken, importFromSheets } from '../../utils/sheetsImport.js';
+import { db, isConfigured } from '../../firebase.js';
+import { doc, setDoc } from 'firebase/firestore';
 
 const NAVY = '#1B2B4B'; const T = '#00C3B5';
 const LS_KEY = 'fynd_of_settings';
-
-const BOT_TOKEN = import.meta.env.VITE_SLACK_BOT_TOKEN || '';
-
-const TEAM_CHANNELS = {
-  'India':   { id: 'C0AQTCE3PNY',  label: '#india-channel' },
-  'Global':  { id: 'C08CBBNRAKZ',  label: '#global-channel' },
-  'AI/SaaS': { id: 'C0978TZNGM8',  label: '#aisaas-channel' },
-};
+const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 export function loadSettings() {
   try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { return {}; }
@@ -26,11 +22,16 @@ export default function Settings() {
   const { forms } = useForms();
   const { toast, show, hide } = useToast();
   const [settings, setSettings] = useState(loadSettings);
+
+  // Outbound sync state
   const [syncStatus, setSyncStatus] = useState('');
   const [syncing,    setSyncing]    = useState(false);
-  const [channelTestStatus, setChannelTestStatus] = useState('');
-  const [channelTesting,    setChannelTesting]    = useState(false);
-  const [webhookTestStatus, setWebhookTestStatus] = useState('');
+
+  // Import state
+  const [importing,     setImporting]     = useState(false);
+  const [importStatus,  setImportStatus]  = useState('');
+  const [importPreview, setImportPreview] = useState(null); // { imported, updated, skipped, toWrite }
+  const [committing,    setCommitting]    = useState(false);
 
   if (!user?.isUniversal) {
     return (
@@ -46,63 +47,10 @@ export default function Settings() {
   const u = (k, v) => setSettings(s => ({ ...s, [k]: v }));
   const handleSave = () => { saveSettings(settings); show('Settings saved ✓'); };
 
-  // ── Test webhook (fallback path) ─────────────────────────────────────────
-  const testWebhook = async () => {
-    if (!settings.slackWebhook) { alert('Enter a webhook URL first.'); return; }
-    setWebhookTestStatus('sending');
-    try {
-      await fetch(settings.slackWebhook, {
-        method: 'POST',
-        mode: 'no-cors',                      // ← fixes CORS error
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: '✅ Fynd OF Platform — Slack webhook test successful!' }),
-      });
-      setWebhookTestStatus('sent');
-      show('Test message sent ✓ — check your Slack channel');
-    } catch(e) {
-      setWebhookTestStatus('error');
-      show('Failed to send — check the webhook URL', 'error');
-    }
-    setTimeout(() => setWebhookTestStatus(''), 4000);
-  };
-
-  // ── Test all 3 team channels via bot token ───────────────────────────────
-  const testChannels = async () => {
-    if (!BOT_TOKEN) {
-      setChannelTestStatus('❌ VITE_SLACK_BOT_TOKEN is not set in GitHub Secrets.');
-      return;
-    }
-    setChannelTesting(true);
-    setChannelTestStatus('');
-    const results = [];
-    for (const [team, ch] of Object.entries(TEAM_CHANNELS)) {
-      try {
-        const res = await fetch('https://slack.com/api/chat.postMessage', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8',
-            Authorization: `Bearer ${BOT_TOKEN}`,
-          },
-          body: JSON.stringify({
-            channel: ch.id,
-            text: `🧪 *Test from Fynd OF Platform* — ${team} channel (${ch.label}) is reachable ✓`,
-          }),
-        });
-        const data = await res.json();
-        results.push(`${team} (${ch.label}): ${data.ok ? '✓ delivered' : '✗ ' + data.error}`);
-      } catch(e) {
-        results.push(`${team} (${ch.label}): ✗ ${e.message}`);
-      }
-    }
-    setChannelTestStatus(results.join('\n'));
-    setChannelTesting(false);
-  };
-
-  // ── Google Sheets sync ───────────────────────────────────────────────────
+  // ── Outbound sync to Sheets ──────────────────────────────────────────────
   const handleSync = async () => {
     if (!settings.sheetsId) { alert('Enter a Google Sheet ID first.'); return; }
-    setSyncing(true);
-    setSyncStatus('');
+    setSyncing(true); setSyncStatus('');
     try {
       const result = await syncAllToSheets(forms, msg => setSyncStatus(msg));
       show(`✓ Synced ${result.indexRows} OFs and ${result.serviceRows} service rows`);
@@ -112,112 +60,182 @@ export default function Settings() {
     } finally { setSyncing(false); }
   };
 
+  // ── Import from Sheets — Step 1: parse & preview ─────────────────────────
+  const handleImportPreview = async () => {
+    setImporting(true);
+    setImportStatus('');
+    setImportPreview(null);
+    try {
+      setImportStatus('Requesting Google Sheets access…');
+      const token   = await requestSheetsToken(CLIENT_ID);
+      const results = await importFromSheets(token, forms, msg => setImportStatus(msg));
+      setImportPreview(results);
+      setImportStatus(
+        `Preview ready: ${results.imported} new OFs · ${results.updated} updates · ${results.skipped} unchanged`
+      );
+    } catch(e) {
+      setImportStatus('Error: ' + e.message);
+    } finally { setImporting(false); }
+  };
+
+  // ── Import — Step 2: commit to Firestore ─────────────────────────────────
+  const handleCommit = async () => {
+    if (!importPreview?.toWrite?.length) return;
+    setCommitting(true);
+    setImportStatus('Writing to Firestore…');
+    try {
+      let done = 0;
+      for (const form of importPreview.toWrite) {
+        if (isConfigured && db) {
+          // Strip large binary fields before writing
+          const { sow_document, sow_reference_document, ...rest } = form;
+          await setDoc(doc(db, 'order_forms', form.id), {
+            ...rest,
+            sow_document_name: null,
+            sow_reference_document_name: null,
+          });
+        }
+        done++;
+        if (done % 10 === 0) setImportStatus(`Writing… ${done}/${importPreview.toWrite.length}`);
+      }
+      show(`✓ Import complete — ${importPreview.imported} new, ${importPreview.updated} updated`);
+      setImportStatus(`✓ Done — ${importPreview.imported} new OFs imported, ${importPreview.updated} updated.`);
+      setImportPreview(null);
+    } catch(e) {
+      setImportStatus('Error during write: ' + e.message);
+      show('Import failed: ' + e.message, 'error');
+    } finally { setCommitting(false); }
+  };
+
   return (
     <div>
       <h2 className="text-xl font-bold mb-2" style={{ color:NAVY }}>Platform Settings</h2>
       <p className="text-sm text-brand-muted mb-6">Configure integrations and platform behaviour.</p>
 
-      {/* ── Slack ──────────────────────────────────────────────────────────── */}
+      {/* ── Import from Google Sheets ───────────────────────────────────────── */}
       <Card className="p-6 mb-6">
         <div className="flex items-start gap-3 mb-4">
-          <div className="text-2xl">💬</div>
+          <div className="text-2xl">⬇️</div>
           <div>
-            <h3 className="font-bold" style={{ color:NAVY }}>Slack Notifications</h3>
+            <h3 className="font-bold" style={{ color:NAVY }}>Import from Google Sheets</h3>
             <p className="text-sm text-brand-muted mt-0.5">
-              Messages are routed to team-specific channels via the Mogambo bot.
+              One-time bulk import from your existing OF repository in Google Sheets into the platform.
             </p>
           </div>
         </div>
 
-        {/* Bot token status */}
-        <div className={`mb-4 p-3 rounded-xl text-sm border ${BOT_TOKEN ? 'bg-green-50 border-green-200 text-green-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
-          {BOT_TOKEN
-            ? '✓ Bot token is configured via GitHub Secrets (VITE_SLACK_BOT_TOKEN).'
-            : '⚠️ VITE_SLACK_BOT_TOKEN not found. Add it to GitHub Secrets for full threading support.'}
-        </div>
-
-        {/* Channel routing */}
-        <div className="mb-4 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
-          <strong>Channel routing:</strong>
-          <div className="mt-1 space-y-0.5">
-            <div>🇮🇳 <strong>India team</strong> → <code>#india-channel</code> (C0AQTCE3PNY)</div>
-            <div>🌍 <strong>Global team</strong> → <code>#global-channel</code> (C08CBBNRAKZ)</div>
-            <div>🤖 <strong>AI/SaaS team</strong> → <code>#aisaas-channel</code> (C0978TZNGM8)</div>
+        <div className="mb-4 p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs">
+          <strong>Source sheet:</strong>
+          <div className="mt-1 font-mono break-all">
+            https://docs.google.com/spreadsheets/d/16YjUNyERrUU3oeHlGXdrZ9F3i5zB3RXOILFMfFDs6lQ/edit
+          </div>
+          <div className="mt-2 space-y-0.5">
+            <div>📋 Tab: <strong>Index</strong></div>
+            <div>🔗 Signed OF URL: Column AP</div>
+            <div>⚙️ Ignored: Columns AE, AJ (Valyx), AL–AN</div>
           </div>
         </div>
 
-        {/* Test all channels */}
-        <div className="mb-5">
-          <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color:'#94a3b8' }}>
-            Test bot → all channels
-          </div>
-          <Btn onClick={testChannels} disabled={channelTesting} variant="ghost">
-            {channelTesting ? '⏳ Sending…' : '🚀 Test all channels'}
+        <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+          <strong>Conflict rule:</strong> If an OF# already exists in the platform, fields that differ will be overwritten. If everything matches, the row is skipped.
+        </div>
+
+        {/* Step 1 — Preview */}
+        {!importPreview && (
+          <Btn onClick={handleImportPreview} disabled={importing}>
+            {importing ? '⏳ Fetching…' : '🔍 Preview import'}
           </Btn>
-          {channelTestStatus && (
-            <div className={`mt-3 p-3 rounded-xl text-xs font-mono whitespace-pre-line border ${channelTestStatus.includes('✗') ? 'bg-red-50 border-red-200 text-red-700' : 'bg-green-50 border-green-200 text-green-700'}`}>
-              {channelTestStatus}
+        )}
+
+        {importStatus && (
+          <div className={`mt-3 p-3 rounded-xl text-sm border ${
+            importStatus.startsWith('Error')
+              ? 'bg-red-50 border-red-200 text-red-700'
+              : importStatus.startsWith('✓')
+              ? 'bg-green-50 border-green-200 text-green-700'
+              : 'bg-slate-50 border-slate-200 text-slate-600'
+          }`}>
+            {importStatus}
+          </div>
+        )}
+
+        {/* Step 2 — Preview results + confirm */}
+        {importPreview && (
+          <div className="mt-4">
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              {[
+                { lbl:'New OFs',    val:importPreview.imported, color:'#15803d' },
+                { lbl:'Updates',    val:importPreview.updated,  color:'#1d4ed8' },
+                { lbl:'Unchanged',  val:importPreview.skipped,  color:'#94a3b8' },
+              ].map(s => (
+                <div key={s.lbl} className="p-3 rounded-xl border text-center" style={{ borderColor:'#e2e8f0' }}>
+                  <div className="text-2xl font-black" style={{ color:s.color }}>{s.val}</div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-brand-faint mt-0.5">{s.lbl}</div>
+                </div>
+              ))}
             </div>
-          )}
-        </div>
 
-        {/* Webhook fallback */}
-        <div className="pt-4 border-t border-slate-100">
-          <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color:'#94a3b8' }}>
-            Webhook URL (fallback — used if bot token is absent)
-          </div>
-          <Inp
-            label=""
-            value={settings.slackWebhook || ''}
-            onChange={v => u('slackWebhook', v)}
-            placeholder="https://hooks.slack.com/services/T.../B.../..."
-            hint="Only used when VITE_SLACK_BOT_TOKEN is not set"
-          />
-          <div className="flex items-center gap-3">
-            <Btn onClick={testWebhook} variant="ghost" disabled={webhookTestStatus === 'sending'}>
-              {webhookTestStatus === 'sending' ? '⏳ Sending…' : '🧪 Test webhook'}
-            </Btn>
-            {webhookTestStatus === 'sent' && <span className="text-xs font-semibold text-green-600">✓ Sent — check Slack</span>}
-            {webhookTestStatus === 'error' && <span className="text-xs font-semibold text-red-600">✗ Failed — check URL</span>}
-          </div>
-        </div>
+            {/* Sample preview */}
+            {importPreview.toWrite.length > 0 && (
+              <div className="mb-4 rounded-xl border border-slate-200 overflow-hidden">
+                <div className="bg-slate-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-brand-faint">
+                  Preview (first 5 rows to be written)
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs" style={{ minWidth:'600px' }}>
+                    <thead>
+                      <tr className="border-b border-slate-100">
+                        {['OF Number','Customer','Status','Signed Date','Committed Revenue'].map(h => (
+                          <th key={h} className="text-left px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-brand-faint">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importPreview.toWrite.slice(0,5).map(f => (
+                        <tr key={f.id} className="border-b border-slate-50">
+                          <td className="px-3 py-2 font-mono font-bold" style={{ color:NAVY }}>{f.of_number||'—'}</td>
+                          <td className="px-3 py-2" style={{ color:NAVY }}>{f.customer_name}</td>
+                          <td className="px-3 py-2">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                              style={{ background: f.status==='signed'?'#f0fdf4':f.status==='approved'?'#eff6ff':'#f1f5f9',
+                                       color:      f.status==='signed'?'#15803d':f.status==='approved'?'#1d4ed8':'#475569' }}>
+                              {f.status}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-brand-muted">{f.signed_date||'—'}</td>
+                          <td className="px-3 py-2 font-mono text-brand-muted">
+                            {f.committed_currency||'INR'} {Number(f.committed_revenue||0).toLocaleString('en-IN')||'—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
-        <div className="mt-5 pt-4 border-t border-slate-100">
-          <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color:'#94a3b8' }}>
-            Notifications fired for
+            <div className="flex gap-3">
+              <Btn onClick={handleCommit} disabled={committing || importPreview.toWrite.length === 0}>
+                {committing ? '⏳ Importing…' : `✓ Confirm & import ${importPreview.toWrite.length} rows`}
+              </Btn>
+              <Btn variant="ghost" onClick={() => { setImportPreview(null); setImportStatus(''); }}>
+                Cancel
+              </Btn>
+            </div>
           </div>
-          <div className="space-y-1 text-xs text-slate-500">
-            <div>📋 <strong>Form submitted</strong> — Sales Rep submits for RevOps review</div>
-            <div>✅ <strong>RevOps approved</strong> — sent to Finance queue</div>
-            <div>🎉 <strong>Finance approved</strong> — OF# assigned</div>
-            <div>❌ <strong>Rejected</strong> — sent back with comment</div>
-            <div>⚠️ <strong>Churn / Void request</strong> — filed by RevOps or Finance</div>
-            <div>🔔 <strong>Renewal reminder</strong> — contract expiring soon</div>
-          </div>
-        </div>
+        )}
       </Card>
 
-      {/* ── Google Sheets ──────────────────────────────────────────────────── */}
+      {/* ── Outbound Google Sheets sync ─────────────────────────────────────── */}
       <Card className="p-6 mb-6">
         <div className="flex items-start gap-3 mb-4">
           <div className="text-2xl">📊</div>
           <div>
-            <h3 className="font-bold" style={{ color:NAVY }}>Google Sheets Sync</h3>
+            <h3 className="font-bold" style={{ color:NAVY }}>Google Sheets Sync (Outbound)</h3>
             <p className="text-sm text-brand-muted mt-0.5">
-              Syncs all Order Forms to two tabs — <strong>OF Index</strong> (one row per OF) and <strong>Service Index</strong> (one row per service), matching your original Excel format exactly.
+              Push all platform OFs to your Google Sheet — OF Index and Service Index tabs.
             </p>
           </div>
-        </div>
-
-        <div className="mb-4 p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-sm">
-          <strong>Setup steps:</strong>
-          <ol className="mt-2 space-y-1 list-decimal list-inside text-xs">
-            <li>Create a new Google Sheet (or use your existing one)</li>
-            <li>Create two tabs named exactly: <code className="bg-blue-100 px-1 rounded">Index</code> and <code className="bg-blue-100 px-1 rounded">Service Index</code></li>
-            <li>Copy the Sheet ID from the URL: <code className="bg-blue-100 px-1 rounded">docs.google.com/spreadsheets/d/<strong>THIS_PART</strong>/edit</code></li>
-            <li>Paste it below, save settings, then click Sync</li>
-            <li>A Google sign-in popup will appear — approve Sheets access</li>
-          </ol>
         </div>
 
         <Inp label="Google Sheet ID"
@@ -230,9 +248,7 @@ export default function Settings() {
           <Btn onClick={handleSync} disabled={syncing || !settings.sheetsId}>
             {syncing ? '⏳ Syncing...' : '🔄 Sync to Google Sheets'}
           </Btn>
-          <span className="text-xs text-brand-muted">
-            {forms.length} OFs · will sync both Index and Service Index tabs
-          </span>
+          <span className="text-xs text-brand-muted">{forms.length} OFs in platform</span>
         </div>
 
         {syncStatus && (
@@ -240,13 +256,6 @@ export default function Settings() {
             {syncStatus}
           </div>
         )}
-
-        <div className="mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">
-          <strong>Column mapping (41 columns on Index tab):</strong>
-          <p className="mt-1 leading-relaxed">
-            SrNo · Order_Form_No · QTR · FY_for_Incentive · Customer_Name · Brand Name · Services · Segment · Sales Team · Sales_Representative · Lead_type · Lead_name · Lead_category · Start_date · End_date · Auto_Renewal · Renewal_Term · Order_Form_Term · Sent for Signing · Date_of_Signing · Submitted · Signed · Dropped · Expired · Unsigned Aging · Submitted_Link · Signed_Link · ARR · Committed Revenue · Committed Revenue Currency · Comments · Churn · TAT · Country · Region · Valyx · Slack ID · Authorised Signatory Name · Authorised Signatory Email · Customer CC · Sales Representative Email
-          </p>
-        </div>
       </Card>
 
       <Btn onClick={handleSave}>💾 Save settings</Btn>
