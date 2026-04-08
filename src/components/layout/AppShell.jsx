@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
-
+ 
 const NAVY = '#1B2B4B';
 const T    = '#00C3B5';
 const ROLE_COLOR = { sales:NAVY, revops:'#7c3aed', finance:T, universal:'#ef4444' };
