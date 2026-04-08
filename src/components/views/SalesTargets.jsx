@@ -156,6 +156,22 @@ export default function SalesTargets() {
   // FY options — current + 2 past
   const fyOptions = [currentFY, currentFY - 1, currentFY - 2];
 
+  const [selectedRep, setSelectedRep] = useState(null);
+
+  // OFs for the detail drill-down
+  const selectedRepOFs = useMemo(() => {
+    if (!selectedRep) return [];
+    return signedInFY
+      .filter(f => f.sales_rep_email === selectedRep.email)
+      .map(f => {
+        const rev = parseFloat(f.committed_revenue || 0);
+        const cur = f.committed_currency || 'INR';
+        const converted = convertRevenue(rev, cur, selectedRep.targetCurrency);
+        return { ...f, convertedRevenue: converted };
+      })
+      .sort((a,b) => (b.signed_date||'').localeCompare(a.signed_date||''));
+  }, [selectedRep, signedInFY]);
+
   const thCls = "text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-brand-faint";
 
   return (
@@ -235,7 +251,9 @@ export default function SalesTargets() {
               {repData.map((r, i) => {
                 const roleStyle = ROLE_COLOR[r.role] || { bg:'#f1f5f9', text:'#475569' };
                 return (
-                  <tr key={r.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                  <tr key={r.id}
+                    onClick={() => setSelectedRep(r)}
+                    className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer"
                     {!isSales && <td className="px-4 py-3.5 text-xs text-slate-300">{i+1}</td>}
                     <td className="px-4 py-3.5">
                       <div className="font-semibold text-sm" style={{ color:NAVY }}>{r.name}</div>
@@ -300,8 +318,122 @@ export default function SalesTargets() {
         ))}
       </div>
       <p className="text-xs text-brand-faint mt-2">
-        India team targets &amp; achievement in INR · Global and AI/SaaS in USD (conversion: $1 = ₹91 · $1 = AED 3.6725 · $1 = MYR 4.30 · $1 = IDR 16,950 · $1 = £0.80 · $1 = €0.90)
+        Click any row to see the Order Forms considered for that rep's target. · India in INR · Global &amp; AI/SaaS in USD ($1 = ₹91 · AED 3.6725 · MYR 4.30 · IDR 16,950 · £0.80 · €0.90)
       </p>
+
+      {/* Rep detail panel */}
+      {selectedRep && (
+        <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center"
+          style={{ background:'rgba(0,0,0,0.45)' }}
+          onClick={() => setSelectedRep(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-4 mb-4 sm:mb-0 max-h-[85vh] flex flex-col"
+            onClick={e => e.stopPropagation()}>
+            {/* Panel header */}
+            <div className="flex items-start justify-between p-6 pb-4 border-b border-slate-100">
+              <div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <h3 className="text-lg font-bold" style={{ color:NAVY }}>{selectedRep.name}</h3>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style={{ background:(ROLE_COLOR[selectedRep.role]||{bg:'#f1f5f9'}).bg, color:(ROLE_COLOR[selectedRep.role]||{text:'#475569'}).text }}>
+                    {selectedRep.role}
+                  </span>
+                  <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-500">
+                    {selectedRep.team}
+                  </span>
+                </div>
+                <p className="text-xs text-brand-faint mt-1">{selectedRep.email}</p>
+                <div className="flex items-center gap-4 mt-3 flex-wrap">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-faint">Target</span>
+                    <div className="text-sm font-bold font-mono mt-0.5" style={{ color:NAVY }}>
+                      {formatAmount(selectedRep.target, selectedRep.targetCurrency)}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-faint">Achieved</span>
+                    <div className="text-sm font-bold font-mono mt-0.5"
+                      style={{ color: selectedRep.pct >= 100 ? '#22c55e' : NAVY }}>
+                      {formatAmount(selectedRep.achieved, selectedRep.targetCurrency)}
+                    </div>
+                  </div>
+                  <div className="flex-1" style={{ minWidth:'120px' }}>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-faint">Progress</span>
+                    <div className="mt-1.5"><ProgressBar pct={selectedRep.pct}/></div>
+                  </div>
+                  <StatusBadge pct={selectedRep.pct}/>
+                </div>
+              </div>
+              <button onClick={() => setSelectedRep(null)}
+                className="text-slate-400 hover:text-slate-600 text-xl leading-none ml-4 mt-1">✕</button>
+            </div>
+
+            {/* OF list */}
+            <div className="overflow-y-auto flex-1 p-6 pt-4">
+              <div className="text-xs font-bold uppercase tracking-wider mb-3 text-brand-faint">
+                {selectedRepOFs.length} Signed OF{selectedRepOFs.length !== 1 ? 's' : ''} in {getFYLabel(fy)} counted towards target
+              </div>
+              {selectedRepOFs.length === 0 ? (
+                <div className="text-center py-10 text-slate-300 text-sm">No signed OFs in {getFYLabel(fy)}</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs" style={{ minWidth:'580px' }}>
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        {['OF Number','Customer','Services','Currency','Committed Revenue','Converted (' + selectedRep.targetCurrency + ')','Signing Date'].map(h => (
+                          <th key={h} className="text-left px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-brand-faint whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedRepOFs.map((f, i) => (
+                        <tr key={f.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50">
+                          <td className="px-3 py-2.5 font-mono font-bold whitespace-nowrap" style={{ color:NAVY }}>
+                            {f.of_number || '—'}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <div className="font-semibold" style={{ color:NAVY }}>{f.customer_name}</div>
+                            {f.brand_name && f.brand_name !== f.customer_name && (
+                              <div className="text-[10px] text-brand-faint">{f.brand_name}</div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <div className="flex flex-wrap gap-1">
+                              {(f.services_fees||[]).map(s => (
+                                <span key={s.id} className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-teal-50 text-teal-700">
+                                  {s.name}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5 text-brand-muted">{f.committed_currency || 'INR'}</td>
+                          <td className="px-3 py-2.5 font-mono font-semibold" style={{ color:NAVY }}>
+                            {Number(f.committed_revenue||0).toLocaleString('en-IN')}
+                          </td>
+                          <td className="px-3 py-2.5 font-mono font-bold" style={{ color:T }}>
+                            {formatAmount(f.convertedRevenue, selectedRep.targetCurrency)}
+                          </td>
+                          <td className="px-3 py-2.5 text-brand-muted whitespace-nowrap">
+                            {f.signed_date ? new Date(f.signed_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-slate-50 border-t-2 border-slate-200">
+                        <td colSpan={5} className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-brand-faint">Total</td>
+                        <td className="px-3 py-2.5 font-mono font-black text-sm" style={{ color:NAVY }}>
+                          {formatAmount(selectedRep.achieved, selectedRep.targetCurrency)}
+                        </td>
+                        <td/>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
