@@ -36,6 +36,28 @@ function convertRevenue(amount, fromCurrency, targetCurrency) {
   return toTargetCurrency(usd, targetCurrency);
 }
 
+// Incentive slab — applied on achieved revenue
+// Upto 25%: 0% | 25–49.99%: 3% | 50–74.99%: 5% | 75–99.99%: 7%
+// 100–139.99%: 9% | 140–179.99%: 11% | 180%+: 13%
+function getIncentiveRate(pct) {
+  if (pct >= 180)  return 0.13;
+  if (pct >= 140)  return 0.11;
+  if (pct >= 100)  return 0.09;
+  if (pct >= 75)   return 0.07;
+  if (pct >= 50)   return 0.05;
+  if (pct >= 25)   return 0.03;
+  return 0;
+}
+function getIncentiveTierLabel(pct) {
+  if (pct >= 180)  return '180%+ · 13%';
+  if (pct >= 140)  return '140–179.99% · 11%';
+  if (pct >= 100)  return '100–139.99% · 9%';
+  if (pct >= 75)   return '75–99.99% · 7%';
+  if (pct >= 50)   return '50–74.99% · 5%';
+  if (pct >= 25)   return '25–49.99% · 3%';
+  return 'Upto 25% · 0%';
+}
+
 // FY helpers
 function getFYLabel(fy) { return 'FY' + String(fy).slice(2); }
 
@@ -137,7 +159,9 @@ export default function SalesTargets() {
           return sum + convertRevenue(rev, cur, r.targetCurrency);
         }, 0);
         const pct = r.target > 0 ? (achieved / r.target) * 100 : 0;
-        return { ...r, achieved, pct, ofCount: myOFs.length };
+        const incentiveRate   = getIncentiveRate(pct);
+        const incentiveAmount = achieved * incentiveRate;
+        return { ...r, achieved, pct, ofCount: myOFs.length, incentiveRate, incentiveAmount };
       })
       .sort((a, b) => b.pct - a.pct);
   }, [repsWithTargets, signedInFY, teamFilter, isSales, user]);
@@ -240,6 +264,7 @@ export default function SalesTargets() {
                 <th className={thCls}>OFs Signed</th>
                 <th className={thCls} style={{ minWidth:'180px' }}>Progress</th>
                 <th className={thCls}>Status</th>
+                <th className={thCls}>Incentive</th>
               </tr>
             </thead>
             <tbody>
@@ -293,6 +318,18 @@ export default function SalesTargets() {
                         ? <StatusBadge pct={r.pct}/>
                         : <span className="text-xs text-slate-300">No OFs yet</span>
                       }
+                    </td>
+                    <td className="px-4 py-3.5">
+                      {r.achieved > 0 ? (
+                        <div>
+                          <div className="font-mono text-xs font-bold" style={{ color: r.incentiveAmount > 0 ? '#15803d' : '#94a3b8' }}>
+                            {r.incentiveAmount > 0 ? formatAmount(r.incentiveAmount, r.targetCurrency) : '—'}
+                          </div>
+                          <div className="text-[10px] mt-0.5" style={{ color:'#94a3b8' }}>
+                            {getIncentiveTierLabel(r.pct)}
+                          </div>
+                        </div>
+                      ) : <span className="text-xs text-slate-300">—</span>}
                     </td>
                   </tr>
                 );
@@ -361,6 +398,15 @@ export default function SalesTargets() {
                     <div className="mt-1.5"><ProgressBar pct={selectedRep.pct}/></div>
                   </div>
                   <StatusBadge pct={selectedRep.pct}/>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-faint">Eligible Incentive</span>
+                    <div className="text-sm font-bold font-mono mt-0.5" style={{ color: selectedRep.incentiveAmount > 0 ? '#15803d' : '#94a3b8' }}>
+                      {selectedRep.incentiveAmount > 0 ? formatAmount(selectedRep.incentiveAmount, selectedRep.targetCurrency) : '—'}
+                    </div>
+                    <div className="text-[10px] mt-0.5" style={{ color:'#94a3b8' }}>
+                      {getIncentiveTierLabel(selectedRep.pct)}
+                    </div>
+                  </div>
                 </div>
               </div>
               <button onClick={() => setSelectedRep(null)}
