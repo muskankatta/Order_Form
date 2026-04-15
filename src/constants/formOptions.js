@@ -123,4 +123,7 @@ export const BLANK_FORM = {
   services_fees:[], special_terms:'', comments:'', signatory_name:'',
   signatory_designation:'', signatory_email:'', customer_cc:'',
   sow_document:null, sow_reference_document:null,
+  expected_delivery_date: '',
+  gaas_payment_trigger:   '',
+  gaas_payment_net:       '',
 };
