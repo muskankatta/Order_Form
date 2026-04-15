@@ -286,6 +286,11 @@ export default function Dashboard() {
               <div className="text-xs text-brand-faint">Signed OFs · by signing date</div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              <button onClick={()=>navigate('/repository?status=signed')}
+                className="text-[11px] font-semibold hover:underline"
+                style={{color:T}}>
+                View →
+              </button>
               <select value={chartFY} onChange={e=>setChartFY(e.target.value)}
                 className="text-xs border rounded-lg px-2 py-1 bg-white border-slate-200">
                 <option value="all">All FYs</option>
@@ -316,25 +321,27 @@ export default function Dashboard() {
                     <Bar dataKey="value" fill={T} radius={[4,4,0,0]}/>
                   </BarChart>
                 </ResponsiveContainer>
-                <button onClick={()=>navigate('/repository?status=signed')}
-                  className="w-full text-[11px] text-center mt-2 font-semibold hover:underline"
-                  style={{color:T}}>
-                  Click to view signed OFs in Repository →
-                </button>
               </>
           }
         </Card>
 
         {/* Pie chart — by status */}
         <Card className="p-5">
-          <div className="font-bold text-sm mb-1" style={{color:NAVY}}>OFs by Status</div>
-          <div className="text-xs text-brand-faint mb-1">All {visible.length} OFs</div>
+          <div className="flex items-center justify-between mb-1">
+            <div className="font-bold text-sm" style={{color:NAVY}}>OFs by Status</div>
+            <button onClick={()=>navigate('/repository')}
+              className="text-[11px] font-semibold hover:underline"
+              style={{color:T}}>
+              View in Repository →
+            </button>
+          </div>
+          <div className="text-xs text-brand-faint mb-2">All {visible.length} OFs</div>
           {pieData.length === 0
             ? <div className="h-48 flex items-center justify-center text-slate-300 text-sm">No data</div>
             : <>
-                <ResponsiveContainer width="100%" height={200}>
+                <ResponsiveContainer width="100%" height={180}>
                   <PieChart>
-                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80}
+                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={75}
                       dataKey="value" nameKey="label">
                       {pieData.map((entry,i) => (
                         <Cell key={i} fill={STATUS_COLORS[entry.name]||'#94a3b8'}/>
@@ -343,15 +350,20 @@ export default function Dashboard() {
                     <Tooltip
                       formatter={(v,n)=>[v+' OFs',n]}
                       contentStyle={{borderRadius:'10px',border:'1px solid #e2e8f0',fontSize:'12px'}}/>
-                    <Legend iconSize={8} iconType="circle"
-                      formatter={v=><span style={{fontSize:'10px',color:'#64748b',textTransform:'capitalize'}}>{v.replace(/_/g,' ')}</span>}/>
                   </PieChart>
                 </ResponsiveContainer>
-                <button onClick={()=>navigate('/repository')}
-                  className="w-full text-[11px] text-center mt-1 font-semibold hover:underline"
-                  style={{color:T}}>
-                  Click to view in Repository →
-                </button>
+                {/* Legend outside recharts so it doesn't overlap the button */}
+                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 justify-center">
+                  {pieData.map((entry,i)=>(
+                    <div key={i} className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full shrink-0"
+                        style={{background:STATUS_COLORS[entry.name]||'#94a3b8'}}/>
+                      <span className="text-[10px] text-slate-500 capitalize">
+                        {entry.name.replace(/_/g,' ')} ({entry.value})
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </>
           }
         </Card>
