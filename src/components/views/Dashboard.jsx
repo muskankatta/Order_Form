@@ -6,7 +6,7 @@ import { useForms } from '../../context/FormsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { SALES_REPS, getRepRegion } from '../../constants/users.js';
 import { fmtShort, daysUntil } from '../../utils/dates.js';
- 
+
 const NAVY='#1B2B4B'; const T='#00C3B5';
 
 // Exchange rates to USD
@@ -31,20 +31,26 @@ function matchesFilter(f, filter) {
 
 function isGlobalFilter(filter) { return filter === 'MEA' || filter === 'SEA & RoW' || filter === 'Global'; }
 
-// Quarter from signing date
+// Quarter from signing date — returns { label, sortKey }
 function signingQtr(dateStr) {
   if (!dateStr) return null;
   const d = new Date(dateStr), m = d.getMonth()+1, y = d.getFullYear();
-  if (m>=4&&m<=6)  return `Q1 FY${String(y+1).slice(2)}`;
-  if (m>=7&&m<=9)  return `Q2 FY${String(y+1).slice(2)}`;
-  if (m>=10&&m<=12)return `Q3 FY${String(y+1).slice(2)}`;
-  return `Q4 FY${String(y).slice(2)}`;
+  let q, fy;
+  if (m>=4&&m<=6)  { q='Q1'; fy=y+1; }
+  else if (m>=7&&m<=9)  { q='Q2'; fy=y+1; }
+  else if (m>=10&&m<=12){ q='Q3'; fy=y+1; }
+  else                  { q='Q4'; fy=y; }
+  return { label:`${q} FY${String(fy).slice(2)}`, sortKey:`${fy}${q}`, fy };
 }
 
+// Month from signing date — returns { label, sortKey, fy }
 function signingMonth(dateStr) {
   if (!dateStr) return null;
   const d = new Date(dateStr);
-  return d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'});
+  const m = d.getMonth()+1, y = d.getFullYear();
+  const fy = (m>=4) ? y+1 : y;
+  const label = d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'});
+  return { label, sortKey:`${y}${String(m).padStart(2,'0')}`, fy };
 }
 
 function fmtRev(val, useUSD) {
@@ -65,7 +71,7 @@ function StatCard({ label, value, color, onClick, sub }) {
       <div className="text-2xl font-black mb-0.5" style={{color:color||NAVY}}>{value}</div>
       <div className="text-xs font-semibold uppercase tracking-wide text-brand-faint">{label}</div>
       {sub && <div className="text-[10px] mt-1 text-brand-faint">{sub}</div>}
-      {onClick && <div className="text-[10px] mt-1.5 font-medium" style={{color:color||T}}>View \u2192</div>}
+      {onClick && <div className="text-[10px] mt-1.5 font-medium" style={{color:color||T}}>View →</div>}
     </div>
   );
 }
@@ -76,7 +82,7 @@ function BigStatCard({ label, value, color, onClick }) {
       style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}} onClick={onClick}>
       <div className="text-xs font-bold uppercase tracking-widest mb-2 text-brand-faint">{label}</div>
       <div className="text-2xl font-black" style={{color:color||NAVY}}>{value}</div>
-      {onClick && <div className="text-[10px] mt-1.5 font-medium" style={{color:color||T}}>View \u2192</div>}
+      {onClick && <div className="text-[10px] mt-1.5 font-medium" style={{color:color||T}}>View →</div>}
     </div>
   );
 }
@@ -88,6 +94,7 @@ export default function Dashboard() {
 
   const [teamFilter,  setTeamFilter]  = useState('all');
   const [chartView,   setChartView]   = useState('quarter'); // 'quarter' | 'month'
+  const [chartFY,     setChartFY]     = useState('all');     // FY filter for bar chart
 
   const isSales = user?.role === 'sales' && !user?.isUniversal;
   const useUSD  = isGlobalFilter(teamFilter);
@@ -130,21 +137,33 @@ export default function Dashboard() {
       .reduce((s,f)=>s+toUSD(Number(f.committed_revenue||0),f.committed_currency||'INR'),0),
   [visible]);
 
+  // Available FYs for bar chart filter
+  const availableFYs = useMemo(() => {
+    const fys = new Set();
+    signedForms.forEach(f => {
+      const info = chartView==='month' ? signingMonth(f.signed_date) : signingQtr(f.signed_date);
+      if (info?.fy) fys.add(info.fy);
+    });
+    return [...fys].sort((a,b)=>b-a);
+  }, [signedForms, chartView]);
+
   // ── BAR CHART: Revenue by quarter/month ───────────────────────────────────
   const barData = useMemo(() => {
     const map = {};
     signedForms.forEach(f => {
-      const key = chartView==='month' ? signingMonth(f.signed_date) : signingQtr(f.signed_date);
-      if (!key) return;
+      const info = chartView==='month' ? signingMonth(f.signed_date) : signingQtr(f.signed_date);
+      if (!info) return;
+      if (chartFY !== 'all' && String(info.fy) !== String(chartFY)) return;
       const rev = useUSD
         ? toUSD(Number(f.committed_revenue||0), f.committed_currency||'INR')
         : Number(f.committed_revenue||0);
-      map[key] = (map[key]||0) + rev;
+      if (!map[info.sortKey]) map[info.sortKey] = { label: info.label, value: 0 };
+      map[info.sortKey].value += rev;
     });
     return Object.entries(map)
-      .sort((a,b)=>a[0].localeCompare(b[0]))
-      .map(([name,value])=>({name, value:Math.round(value)}));
-  }, [signedForms, chartView, useUSD]);
+      .sort((a,b) => a[0].localeCompare(b[0]))
+      .map(([, {label, value}]) => ({ name: label, value: Math.round(value) }));
+  }, [signedForms, chartView, chartFY, useUSD]);
 
   // ── PIE CHART: OFs by status ──────────────────────────────────────────────
   const pieData = useMemo(() => {
@@ -261,58 +280,72 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 gap-5 mb-6">
         {/* Bar chart — revenue */}
         <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
             <div>
               <div className="font-bold text-sm" style={{color:NAVY}}>Committed Revenue</div>
               <div className="text-xs text-brand-faint">Signed OFs · by signing date</div>
             </div>
-            <div className="flex gap-1 p-0.5 rounded-lg bg-slate-100">
-              {[{id:'quarter',lbl:'Quarter'},{id:'month',lbl:'Month'}].map(v=>(
-                <button key={v.id} onClick={()=>setChartView(v.id)}
-                  className="px-2.5 py-1 text-xs font-semibold rounded-md transition-all"
-                  style={chartView===v.id?{background:'#fff',color:NAVY,boxShadow:'0 1px 3px rgba(0,0,0,0.1)'}:{color:'#94a3b8'}}>
-                  {v.lbl}
-                </button>
-              ))}
+            <div className="flex items-center gap-2 flex-wrap">
+              <select value={chartFY} onChange={e=>setChartFY(e.target.value)}
+                className="text-xs border rounded-lg px-2 py-1 bg-white border-slate-200">
+                <option value="all">All FYs</option>
+                {availableFYs.map(fy=><option key={fy} value={fy}>FY{String(fy).slice(2)}</option>)}
+              </select>
+              <div className="flex gap-1 p-0.5 rounded-lg bg-slate-100">
+                {[{id:'quarter',lbl:'Quarter'},{id:'month',lbl:'Month'}].map(v=>(
+                  <button key={v.id} onClick={()=>{setChartView(v.id);setChartFY('all');}}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-md transition-all"
+                    style={chartView===v.id?{background:'#fff',color:NAVY,boxShadow:'0 1px 3px rgba(0,0,0,0.1)'}:{color:'#94a3b8'}}>
+                    {v.lbl}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           {barData.length === 0
             ? <div className="h-48 flex items-center justify-center text-slate-300 text-sm">No signed OFs yet</div>
-            : <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={barData} margin={{top:0,right:0,bottom:0,left:0}}>
-                  <XAxis dataKey="name" tick={{fontSize:10,fill:'#94a3b8'}} axisLine={false} tickLine={false}/>
-                  <YAxis tick={{fontSize:10,fill:'#94a3b8'}} axisLine={false} tickLine={false}
-                    tickFormatter={v=>useUSD?'$'+(v/1000).toFixed(0)+'K':'\u20b9'+(v/100000).toFixed(0)+'L'}/>
-                  <Tooltip
-                    formatter={(value)=>[fmtRev(value,useUSD),'Revenue']}
-                    contentStyle={{borderRadius:'10px',border:'1px solid #e2e8f0',fontSize:'12px'}}/>
-                  <Bar dataKey="value" fill={T} radius={[4,4,0,0]}/>
-                </BarChart>
-              </ResponsiveContainer>
+            : <>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={barData} margin={{top:0,right:0,bottom:0,left:0}}
+                    style={{cursor:'pointer'}} onClick={()=>navigate('/repository?status=signed')}>
+                    <XAxis dataKey="name" tick={{fontSize:10,fill:'#94a3b8'}} axisLine={false} tickLine={false}/>
+                    <YAxis tick={{fontSize:10,fill:'#94a3b8'}} axisLine={false} tickLine={false}
+                      tickFormatter={v=>useUSD?'$'+(v/1000).toFixed(0)+'K':'₹'+(v/100000).toFixed(0)+'L'}/>
+                    <Tooltip
+                      formatter={(value)=>[fmtRev(value,useUSD),'Revenue']}
+                      contentStyle={{borderRadius:'10px',border:'1px solid #e2e8f0',fontSize:'12px'}}/>
+                    <Bar dataKey="value" fill={T} radius={[4,4,0,0]}/>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="text-[10px] text-center mt-1 font-medium" style={{color:T}}>Click to view signed OFs in Repository →</div>
+              </>
           }
         </Card>
 
         {/* Pie chart — by status */}
-        <Card className="p-5">
+        <Card className="p-5 cursor-pointer hover:shadow-md transition-all" onClick={()=>navigate('/repository')}>
           <div className="font-bold text-sm mb-1" style={{color:NAVY}}>OFs by Status</div>
-          <div className="text-xs text-brand-faint mb-3">All {visible.length} OFs</div>
+          <div className="text-xs text-brand-faint mb-1">All {visible.length} OFs</div>
           {pieData.length === 0
             ? <div className="h-48 flex items-center justify-center text-slate-300 text-sm">No data</div>
-            : <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80}
-                    dataKey="value" nameKey="label">
-                    {pieData.map((entry,i) => (
-                      <Cell key={i} fill={STATUS_COLORS[entry.name]||'#94a3b8'}/>
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(v,n)=>[v+' OFs',n]}
-                    contentStyle={{borderRadius:'10px',border:'1px solid #e2e8f0',fontSize:'12px'}}/>
-                  <Legend iconSize={8} iconType="circle"
-                    formatter={v=><span style={{fontSize:'10px',color:'#64748b',textTransform:'capitalize'}}>{v.replace(/_/g,' ')}</span>}/>
-                </PieChart>
-              </ResponsiveContainer>
+            : <>
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80}
+                      dataKey="value" nameKey="label">
+                      {pieData.map((entry,i) => (
+                        <Cell key={i} fill={STATUS_COLORS[entry.name]||'#94a3b8'}/>
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(v,n)=>[v+' OFs',n]}
+                      contentStyle={{borderRadius:'10px',border:'1px solid #e2e8f0',fontSize:'12px'}}/>
+                    <Legend iconSize={8} iconType="circle"
+                      formatter={v=><span style={{fontSize:'10px',color:'#64748b',textTransform:'capitalize'}}>{v.replace(/_/g,' ')}</span>}/>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="text-[10px] text-center font-medium" style={{color:T}}>Click to view in Repository →</div>
+              </>
           }
         </Card>
       </div>
@@ -320,9 +353,13 @@ export default function Dashboard() {
       {/* Leaderboard */}
       {!isSales && leaderboard.length > 0 && (
         <Card className="mb-6 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-50">
-            <div className="font-bold text-sm" style={{color:NAVY}}>Rep Performance Leaderboard</div>
-            <div className="text-xs text-brand-faint mt-0.5">Signed OFs · Target achievement · {teamFilter==='all'?'All teams':teamFilter}</div>
+          <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-all"
+            onClick={()=>navigate('/targets')}>
+            <div>
+              <div className="font-bold text-sm" style={{color:NAVY}}>Rep Performance Leaderboard</div>
+              <div className="text-xs text-brand-faint mt-0.5">Signed OFs · Target achievement · {teamFilter==='all'?'All teams':teamFilter}</div>
+            </div>
+            <div className="text-xs font-medium" style={{color:T}}>View full targets →</div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs" style={{minWidth:'650px'}}>
@@ -375,7 +412,7 @@ export default function Dashboard() {
       {n.renewals > 0 && (
         <Card className="mb-6 overflow-hidden cursor-pointer hover:shadow-md transition-all" onClick={()=>goPending('renewals')}>
           <div className="px-6 py-3 bg-purple-50 border-b border-purple-200">
-            <h3 className="font-bold text-sm text-purple-800">\uD83D\uDD04 Renewal drafts ready for review ({n.renewals}) — click to view \u2192</h3>
+            <h3 className="font-bold text-sm text-purple-800">🔄 Renewal drafts ready for review ({n.renewals}) — click to view →</h3>
           </div>
           {visible.filter(f=>f.is_renewal&&f.status==='draft').map(f=>(
             <div key={f.id} onClick={e=>{e.stopPropagation();navigate('/form/'+f.id);}}
@@ -384,7 +421,7 @@ export default function Dashboard() {
                 <span className="text-sm font-medium" style={{color:NAVY}}>{f.customer_name}</span>
                 <span className="text-xs text-purple-600 ml-2 font-semibold">Renewal of {f.renewal_of_number} · Suggested: {f.suggested_of_number}</span>
               </div>
-              <span className="text-xs text-brand-faint">{f.start_date} \u2192 {f.end_date}</span>
+              <span className="text-xs text-brand-faint">{f.start_date} → {f.end_date}</span>
             </div>
           ))}
         </Card>
@@ -394,7 +431,7 @@ export default function Dashboard() {
       {renewing.length > 0 && (
         <Card className="mb-6 overflow-hidden cursor-pointer hover:shadow-md transition-all" onClick={()=>goRepo()}>
           <div className="px-6 py-3 bg-amber-50 border-b border-amber-200">
-            <h3 className="font-bold text-sm text-amber-800">\uD83D\uDD14 Renewing / expiring within 30 days ({renewing.length}) \u2192</h3>
+            <h3 className="font-bold text-sm text-amber-800">🔔 Renewing / expiring within 30 days ({renewing.length}) →</h3>
           </div>
           {renewing.map(f=>(
             <div key={f.id} onClick={e=>{e.stopPropagation();navigate('/form/'+f.id);}}
@@ -410,18 +447,18 @@ export default function Dashboard() {
       <Card>
         <div className="px-6 py-4 border-b border-slate-50">
           <h3 className="font-bold text-sm text-slate-500">
-            {user?.role==='revops'?'\u23f3 Pending your review':user?.role==='finance'?'\uD83D\uDCBC Pending your approval':'\uD83D\uDCCB My active forms'}
+            {user?.role==='revops'?'⏳ Pending your review':user?.role==='finance'?'💼 Pending your approval':'📋 My active forms'}
             <span className="ml-2 font-normal text-brand-faint">({queue.length})</span>
           </h3>
         </div>
         {queue.length===0
-          ? <div className="py-14 text-center text-sm text-slate-300">Queue is clear \uD83C\uDF89</div>
+          ? <div className="py-14 text-center text-sm text-slate-300">Queue is clear 🎉</div>
           : queue.map(f=>(
             <div key={f.id} onClick={()=>navigate('/form/'+f.id)}
               className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0">
               <div>
                 <div className="font-semibold text-sm" style={{color:NAVY}}>
-                  {f.customer_name} <span className="text-slate-300">\u00b7</span>{' '}
+                  {f.customer_name} <span className="text-slate-300">·</span>{' '}
                   <span className="font-normal text-slate-500">{f.brand_name}</span>
                 </div>
                 <div className="text-xs mt-0.5 text-brand-faint">
@@ -430,7 +467,7 @@ export default function Dashboard() {
               </div>
               <div className="flex items-center gap-3">
                 <StatusPill status={f.status}/>
-                <span className="text-slate-300">\u203a</span>
+                <span className="text-slate-300">›</span>
               </div>
             </div>
           ))
