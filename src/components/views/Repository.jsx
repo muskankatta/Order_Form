@@ -220,6 +220,18 @@ export default function Repository() {
 
   const hasActiveFilters = qtrFilter!=='all' || fyFilter!=='all' || dateFrom || dateTo || channelFilter!=='all' || leadCatFilter!=='all';
 
+  // ── Summary stats (dynamic, based on filtered set) ────────────────────────
+  const TO_USD = { USD:v=>v, INR:v=>v/91, AED:v=>v/3.6725, MYR:v=>v/4.30, IDR:v=>v/16950, GBP:v=>v/0.80, EUR:v=>v/0.90, SGD:v=>v/1.35, SAR:v=>v/3.75, AUD:v=>v/1.55 };
+  const toUSD = (amt, cur) => (TO_USD[cur] || (v=>v))(Number(amt||0));
+
+  const summaryINR = filtered
+    .filter(f => f.sales_team === 'India')
+    .reduce((s,f) => s + Number(f.committed_revenue||0), 0);
+
+  const summaryUSD = filtered
+    .filter(f => f.sales_team !== 'India')
+    .reduce((s,f) => s + toUSD(f.committed_revenue, f.committed_currency||'USD'), 0);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -344,6 +356,26 @@ export default function Repository() {
             Signing date filter active
           </span>
         )}
+      </div>
+
+      {/* ── Summary stats ─────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="bg-white rounded-xl border px-4 py-3" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">OFs shown</div>
+          <div className="text-2xl font-black" style={{color:NAVY}}>{filtered.length}</div>
+        </div>
+        <div className="bg-white rounded-xl border px-4 py-3" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">Committed Revenue · India (INR)</div>
+          <div className="text-xl font-black" style={{color:T}}>
+            ₹{Math.round(summaryINR).toLocaleString('en-IN')}
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border px-4 py-3" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">Committed Revenue · Global + AI/SaaS (USD)</div>
+          <div className="text-xl font-black" style={{color:'#7c3aed'}}>
+            ${Math.round(summaryUSD).toLocaleString('en-US')}
+          </div>
+        </div>
       </div>
 
       <Card className="overflow-hidden">
