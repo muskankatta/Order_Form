@@ -6,6 +6,7 @@ import { useForms } from '../../context/FormsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { SALES_REPS, getRepRegion } from '../../constants/users.js';
 import { fmtShort, daysUntil } from '../../utils/dates.js';
+import { generateDashboardReport } from '../../utils/reports.js';
 
 const NAVY='#1B2B4B'; const T='#00C3B5';
 
@@ -224,9 +225,17 @@ export default function Dashboard() {
     <div>
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-xl font-bold" style={{color:NAVY}}>Dashboard</h2>
-        {(user?.role==='sales'||user?.isUniversal) && (
-          <Btn onClick={()=>navigate('/form/new')}>+ New Order Form</Btn>
-        )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => generateDashboardReport(visible, leaderboard, teamFilter)}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all"
+            style={{color:NAVY}}>
+            📊 Export Report
+          </button>
+          {(user?.role==='sales'||user?.isUniversal) && (
+            <Btn onClick={()=>navigate('/form/new')}>+ New Order Form</Btn>
+          )}
+        </div>
       </div>
 
       {/* Team filter */}
