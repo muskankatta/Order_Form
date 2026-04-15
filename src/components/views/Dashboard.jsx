@@ -306,8 +306,7 @@ export default function Dashboard() {
             ? <div className="h-48 flex items-center justify-center text-slate-300 text-sm">No signed OFs yet</div>
             : <>
                 <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={barData} margin={{top:0,right:0,bottom:0,left:0}}
-                    style={{cursor:'pointer'}} onClick={()=>navigate('/repository?status=signed')}>
+                  <BarChart data={barData} margin={{top:0,right:0,bottom:0,left:0}}>
                     <XAxis dataKey="name" tick={{fontSize:10,fill:'#94a3b8'}} axisLine={false} tickLine={false}/>
                     <YAxis tick={{fontSize:10,fill:'#94a3b8'}} axisLine={false} tickLine={false}
                       tickFormatter={v=>useUSD?'$'+(v/1000).toFixed(0)+'K':'₹'+(v/100000).toFixed(0)+'L'}/>
@@ -317,13 +316,17 @@ export default function Dashboard() {
                     <Bar dataKey="value" fill={T} radius={[4,4,0,0]}/>
                   </BarChart>
                 </ResponsiveContainer>
-                <div className="text-[10px] text-center mt-1 font-medium" style={{color:T}}>Click to view signed OFs in Repository →</div>
+                <button onClick={()=>navigate('/repository?status=signed')}
+                  className="w-full text-[11px] text-center mt-2 font-semibold hover:underline"
+                  style={{color:T}}>
+                  Click to view signed OFs in Repository →
+                </button>
               </>
           }
         </Card>
 
         {/* Pie chart — by status */}
-        <Card className="p-5 cursor-pointer hover:shadow-md transition-all" onClick={()=>navigate('/repository')}>
+        <Card className="p-5">
           <div className="font-bold text-sm mb-1" style={{color:NAVY}}>OFs by Status</div>
           <div className="text-xs text-brand-faint mb-1">All {visible.length} OFs</div>
           {pieData.length === 0
@@ -344,7 +347,11 @@ export default function Dashboard() {
                       formatter={v=><span style={{fontSize:'10px',color:'#64748b',textTransform:'capitalize'}}>{v.replace(/_/g,' ')}</span>}/>
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="text-[10px] text-center font-medium" style={{color:T}}>Click to view in Repository →</div>
+                <button onClick={()=>navigate('/repository')}
+                  className="w-full text-[11px] text-center mt-1 font-semibold hover:underline"
+                  style={{color:T}}>
+                  Click to view in Repository →
+                </button>
               </>
           }
         </Card>
