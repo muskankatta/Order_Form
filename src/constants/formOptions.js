@@ -75,6 +75,8 @@ export const PAY_TRIGGERS = [
 
 export const PAY_TERMS      = ['Net 7','Net 15','Net 30','Net 60','Advance','Custom'];
 export const RENEWAL_FREQS  = ['Monthly','Quarterly','Bi-Annually','Annually'];
+export const GAAS_PAYMENT_TRIGGERS = ['Dispatch', 'Delivery', 'Invoice'];
+export const GAAS_PAYMENT_NETS     = ['Net 30', 'Net 45', 'Net 60', 'Net 90'];
 
 export const CURRENCIES = [
   {code:'INR',name:'Indian Rupee',sym:'₹'},
