@@ -132,6 +132,20 @@ export function SignedOFs() {
   const approved = baseFilter(forms.filter(f => f.status==='approved' && !f.signed_date));
   const signed   = baseFilter(forms.filter(f => (f.signed_date || f.status==='signed') && matchesPeriod(f)));
 
+  // Revenue helpers
+  const TO_USD = { USD:v=>v, INR:v=>v/91, AED:v=>v/3.6725, MYR:v=>v/4.30, IDR:v=>v/16950, GBP:v=>v/0.80, EUR:v=>v/0.90, SGD:v=>v/1.35, SAR:v=>v/3.75, AUD:v=>v/1.55 };
+  const toUSD = (amt, cur) => (TO_USD[cur] || (v=>v))(Number(amt||0));
+
+  const calcSummary = (arr) => ({
+    count: arr.length,
+    inr:   arr.filter(f=>f.sales_team==='India').reduce((s,f)=>s+Number(f.committed_revenue||0),0),
+    usd:   arr.filter(f=>f.sales_team!=='India').reduce((s,f)=>s+toUSD(f.committed_revenue,f.committed_currency||'USD'),0),
+  });
+
+  const approvedSummary = calcSummary(approved);
+  const signedSummary   = calcSummary(signed);
+  const cvSummary       = { count: cvRequests.length, inr: 0, usd: 0 };
+
   const updateField = (id, field, val) =>
     setSigningData(d => ({...d, [id]:{...(d[id]||{}),[field]:val}}));
 
@@ -247,6 +261,33 @@ export function SignedOFs() {
           )}
         </div>
       )}
+
+      {/* ── Summary bar — dynamic per active tab ──────────────────────────── */}
+      {(() => {
+        const s = cvTab==='unsigned' ? approvedSummary : cvTab==='signed' ? signedSummary : cvSummary;
+        return (
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="bg-white rounded-xl border px-4 py-3" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">
+                {cvTab==='unsigned'?'Pending Signing':cvTab==='signed'?'Signed OFs':'Pending Requests'}
+              </div>
+              <div className="text-2xl font-black" style={{color:NAVY}}>{s.count}</div>
+            </div>
+            <div className="bg-white rounded-xl border px-4 py-3" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">Committed Revenue · India (INR)</div>
+              <div className="text-xl font-black" style={{color:T}}>
+                {cvTab==='requests' ? '—' : '₹'+Math.round(s.inr).toLocaleString('en-IN')}
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border px-4 py-3" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">Committed Revenue · Global + AI/SaaS (USD)</div>
+              <div className="text-xl font-black" style={{color:'#7c3aed'}}>
+                {cvTab==='requests' ? '—' : '$'+Math.round(s.usd).toLocaleString('en-US')}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Pending Signing */}
       {cvTab==='unsigned' && (
