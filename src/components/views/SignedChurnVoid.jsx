@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, Btn, Lbl, Sel, TA, Inp, MultiSelect, Toast } from '../ui/index.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
@@ -9,7 +9,7 @@ import { fmtDate, uid } from '../../utils/dates.js';
 import { useToast } from '../../hooks/useToast.js';
 import { db, isConfigured } from '../../firebase.js';
 import { collection, onSnapshot, doc, setDoc, updateDoc } from 'firebase/firestore';
- 
+
 const NAVY = '#1B2B4B'; const T = '#00C3B5';
 
 function formRegion(f) { return f.region || getRepRegion(f.sales_rep_email) || null; }
@@ -31,6 +31,19 @@ const REGION_FILTERS = [
   { id:'AI/SaaS',   lbl:'AI/SaaS' },
 ];
 
+// Period helpers (Indian FY)
+function getSigningPeriod(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr), m = d.getMonth()+1, y = d.getFullYear();
+  let q, fy;
+  if      (m>=4&&m<=6)  { q='Q1'; fy=y+1; }
+  else if (m>=7&&m<=9)  { q='Q2'; fy=y+1; }
+  else if (m>=10&&m<=12){ q='Q3'; fy=y+1; }
+  else                  { q='Q4'; fy=y;   }
+  const monthLabel = d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'});
+  return { q, fy, fyLabel:`FY${String(fy).slice(2)}`, monthLabel };
+}
+
 export function SignedOFs() {
   const { forms, markSigned, applyDealStatus } = useForms();
   const { user }   = useAuth();
@@ -42,6 +55,11 @@ export function SignedOFs() {
   const [cvRequests,   setCvRequests]  = useState([]);
   const [q,            setQ]           = useState('');
   const [regionFilter, setRegionFilter]= useState('all');
+
+  // Period filters for Signed tab
+  const [periodFY,    setPeriodFY]    = useState('all');
+  const [periodQtr,   setPeriodQtr]   = useState('all');
+  const [periodMonth, setPeriodMonth] = useState('all');
 
   useEffect(() => {
     const t = searchParams.get('tab');
@@ -60,14 +78,59 @@ export function SignedOFs() {
     return () => unsub();
   }, []);
 
-  const searchFn = arr => {
+  // Available FY/Quarter/Month options derived from signed forms
+  const signedBase = useMemo(() =>
+    forms.filter(f => f.signed_date || f.status==='signed'),
+  [forms]);
+
+  const availableFYs = useMemo(() => {
+    const s = new Set();
+    signedBase.forEach(f => { const p = getSigningPeriod(f.signed_date); if (p) s.add(p.fyLabel); });
+    return [...s].sort((a,b)=>b.localeCompare(a));
+  }, [signedBase]);
+
+  const availableQtrs = useMemo(() => {
+    const s = new Set();
+    signedBase.forEach(f => {
+      const p = getSigningPeriod(f.signed_date);
+      if (p && (periodFY==='all'||p.fyLabel===periodFY)) s.add(p.q);
+    });
+    return [...s].sort();
+  }, [signedBase, periodFY]);
+
+  const availableMonths = useMemo(() => {
+    const map = {};
+    signedBase.forEach(f => {
+      const p = getSigningPeriod(f.signed_date);
+      if (!p) return;
+      if (periodFY!=='all'&&p.fyLabel!==periodFY) return;
+      if (periodQtr!=='all'&&p.q!==periodQtr) return;
+      // sortKey for ordering
+      const d = new Date(f.signed_date);
+      const sortKey = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}`;
+      map[p.monthLabel] = sortKey;
+    });
+    return Object.entries(map).sort((a,b)=>a[1].localeCompare(b[1])).map(([lbl])=>lbl);
+  }, [signedBase, periodFY, periodQtr]);
+
+  const matchesPeriod = (f) => {
+    if (!f.signed_date) return periodFY==='all'&&periodQtr==='all'&&periodMonth==='all';
+    const p = getSigningPeriod(f.signed_date);
+    if (!p) return false;
+    if (periodFY!=='all'&&p.fyLabel!==periodFY) return false;
+    if (periodQtr!=='all'&&p.q!==periodQtr) return false;
+    if (periodMonth!=='all'&&p.monthLabel!==periodMonth) return false;
+    return true;
+  };
+
+  const baseFilter = arr => {
     let res = arr;
     if (q) res = res.filter(f=>[f.customer_name,f.of_number,f.brand_name,f.sales_rep_name].some(v=>v?.toLowerCase().includes(q.toLowerCase())));
     return res.filter(f => matchesRegion(f, regionFilter));
   };
 
-  const approved = searchFn(forms.filter(f => f.status==='approved' && !f.signed_date));
-  const signed   = searchFn(forms.filter(f => f.signed_date || f.status==='signed'));
+  const approved = baseFilter(forms.filter(f => f.status==='approved' && !f.signed_date));
+  const signed   = baseFilter(forms.filter(f => (f.signed_date || f.status==='signed') && matchesPeriod(f)));
 
   const updateField = (id, field, val) =>
     setSigningData(d => ({...d, [id]:{...(d[id]||{}),[field]:val}}));
@@ -117,6 +180,8 @@ export function SignedOFs() {
     { id:'signed',   lbl:'Signed ('+signed.length+')' },
   ];
 
+  const hasPeriodFilter = periodFY!=='all'||periodQtr!=='all'||periodMonth!=='all';
+
   return (
     <div>
       <h2 className="text-xl font-bold mb-4" style={{color:NAVY}}>Signed Order Forms</h2>
@@ -132,8 +197,8 @@ export function SignedOFs() {
         ))}
       </div>
 
-      {/* Search + region filters */}
-      <div className="flex gap-3 mb-4 flex-wrap items-center">
+      {/* Search + region filter */}
+      <div className="flex gap-3 mb-3 flex-wrap items-center">
         <input value={q} onChange={e=>setQ(e.target.value)}
           placeholder="🔍 Search customer, OF#, rep…"
           className="text-sm border rounded-xl px-4 py-2.5 focus:outline-none border-slate-200 flex-1" style={{minWidth:'200px'}}/>
@@ -147,6 +212,41 @@ export function SignedOFs() {
           ))}
         </div>
       </div>
+
+      {/* Period filters — only on Signed tab */}
+      {cvTab==='signed' && (
+        <div className="flex gap-2 mb-4 items-center flex-wrap">
+          <select value={periodFY} onChange={e=>{setPeriodFY(e.target.value);setPeriodQtr('all');setPeriodMonth('all');}}
+            className="text-xs border rounded-lg px-3 py-2 bg-white border-slate-200"
+            style={periodFY!=='all'?{borderColor:T}:{}}>
+            <option value="all">All FYs</option>
+            {availableFYs.map(fy=><option key={fy} value={fy}>{fy}</option>)}
+          </select>
+          <select value={periodQtr} onChange={e=>{setPeriodQtr(e.target.value);setPeriodMonth('all');}}
+            className="text-xs border rounded-lg px-3 py-2 bg-white border-slate-200"
+            style={periodQtr!=='all'?{borderColor:T}:{}}>
+            <option value="all">All quarters</option>
+            {availableQtrs.map(q=><option key={q} value={q}>{q} (Apr–{q==='Q1'?'Jun':q==='Q2'?'Sep':q==='Q3'?'Dec':'Mar'})</option>)}
+          </select>
+          <select value={periodMonth} onChange={e=>setPeriodMonth(e.target.value)}
+            className="text-xs border rounded-lg px-3 py-2 bg-white border-slate-200"
+            style={periodMonth!=='all'?{borderColor:T}:{}}>
+            <option value="all">All months</option>
+            {availableMonths.map(m=><option key={m} value={m}>{m}</option>)}
+          </select>
+          {hasPeriodFilter && (
+            <button onClick={()=>{setPeriodFY('all');setPeriodQtr('all');setPeriodMonth('all');}}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50">
+              ✕ Clear period
+            </button>
+          )}
+          {hasPeriodFilter && (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{background:'#e0f7f5',color:'#00897b'}}>
+              {signed.length} signed OFs in period
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Pending Signing */}
       {cvTab==='unsigned' && (
@@ -248,16 +348,17 @@ export function SignedOFs() {
       {cvTab==='signed' && (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
-          <table style={{minWidth:'700px',width:'100%'}} className="text-sm">
+          <table style={{minWidth:'750px',width:'100%'}} className="text-sm">
             <thead><tr>
-              {['OF#','Customer','Region','Value','Signed On','Signed PDF'].map(h=>(
+              {['OF#','Customer','Region','Quarter','Value','Signed On','Signed PDF'].map(h=>(
                 <th key={h} className={thCls}>{h}</th>
               ))}
             </tr></thead>
             <tbody>
-              {signed.length===0&&<tr><td colSpan={6} className="text-center py-12 text-slate-300">No signed OFs yet.</td></tr>}
+              {signed.length===0&&<tr><td colSpan={7} className="text-center py-12 text-slate-300">No signed OFs{hasPeriodFilter?' in selected period':' yet'}.</td></tr>}
               {signed.map(f=>{
                 const region=formRegion(f);
+                const period=getSigningPeriod(f.signed_date);
                 return (
                   <tr key={f.id} className="border-b border-slate-50 last:border-0 cursor-pointer hover:bg-slate-50" onClick={()=>navigate('/form/'+f.id)}>
                     <td className="px-4 py-3 font-mono font-bold" style={{color:NAVY}}>{f.of_number}</td>
@@ -268,11 +369,16 @@ export function SignedOFs() {
                        :region?<span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700">{region}</span>
                        :<span className="text-slate-300">—</span>}
                     </td>
+                    <td className="px-4 py-3 text-xs">
+                      {period
+                        ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700">{period.q} {period.fyLabel}</span>
+                        : <span className="text-slate-300">—</span>}
+                    </td>
                     <td className="px-4 py-3 text-xs">{f.committed_currency} {Number(f.committed_revenue||0).toLocaleString('en-IN')}</td>
                     <td className="px-4 py-3 text-xs text-brand-muted">{fmtDate(f.signed_date)}</td>
-                    <td className="px-4 py-3 text-xs">
+                    <td className="px-4 py-3 text-xs" onClick={e=>e.stopPropagation()}>
                       {f.signed_of_link
-                        ? <a href={f.signed_of_link} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="font-medium hover:underline" style={{color:T}}>View signed PDF</a>
+                        ? <a href={f.signed_of_link} target="_blank" rel="noreferrer" className="font-medium hover:underline" style={{color:T}}>View signed PDF</a>
                         : <span className="text-slate-300">--</span>}
                     </td>
                   </tr>
@@ -298,10 +404,32 @@ export function ChurnVoidRequest() {
   const [submitting, setSubmitting] = useState(false);
 
   const u = (k,v) => setReq(r=>({...r,[k]:v}));
-  const approvedForms = forms.filter(f=>['approved','signed'].includes(f.status));
-  const customerNames = [...new Set(approvedForms.map(f=>f.customer_name?.trim()))].filter(Boolean).sort((a,b)=>a.localeCompare(b));
-  const relevantOFs = approvedForms.filter(f=>!req.customer||f.customer_name?.trim()===req.customer?.trim()).sort((a,b)=>(a.of_number||'').localeCompare(b.of_number||''));
-  const selectedForm = req.of_number ? forms.find(f=>f.customer_name?.trim()===req.customer?.trim()&&f.of_number===req.of_number) : null;
+
+  const approvedForms = useMemo(() =>
+    forms.filter(f=>['approved','signed'].includes(f.status)),
+  [forms]);
+
+  const customerNames = useMemo(() =>
+    [...new Set(approvedForms.map(f=>f.customer_name?.trim()))].filter(Boolean).sort((a,b)=>a.localeCompare(b)),
+  [approvedForms]);
+
+  // Fix: case-insensitive, trimmed comparison
+  const relevantOFs = useMemo(() =>
+    !req.customer
+      ? []
+      : approvedForms
+          .filter(f => f.customer_name?.trim().toLowerCase() === req.customer.trim().toLowerCase())
+          .sort((a,b)=>(a.of_number||'').localeCompare(b.of_number||'')),
+  [approvedForms, req.customer]);
+
+  const selectedForm = useMemo(() =>
+    req.of_number
+      ? approvedForms.find(f =>
+          f.customer_name?.trim().toLowerCase() === req.customer?.trim().toLowerCase() &&
+          f.of_number === req.of_number
+        )
+      : null,
+  [approvedForms, req.customer, req.of_number]);
 
   const handleSubmit = async () => {
     const errs=[];
@@ -313,16 +441,20 @@ export function ChurnVoidRequest() {
     if (errs.length) return;
     setSubmitting(true);
     try {
-      const form=forms.find(f=>f.customer_name?.trim()===req.customer?.trim()&&f.of_number===req.of_number);
-      if (isConfigured&&db) {
-        const reqId=uid();
+      const form = selectedForm;
+      if (isConfigured && db) {
+        const reqId = uid();
         await setDoc(doc(db,'churn_void_requests',reqId),{
-          id:reqId, form_id:form?.id||'', of_number:req.of_number, customer_name:req.customer,
-          status_requested:req.status_requested, churn_value:req.churn_value||'', reason:req.reason||'',
+          id:reqId, form_id:form?.id||'', of_number:req.of_number,
+          customer_name:req.customer, status_requested:req.status_requested,
+          churn_value:req.churn_value||'', reason:req.reason||'',
           requested_by:user?.name||'', requested_at:new Date().toISOString(), actioned:false,
         });
       }
-      await submitChurnVoidRequest({form:form||{customer_name:req.customer,of_number:req.of_number},statusRequested:req.status_requested,churnValue:req.churn_value,reason:req.reason});
+      await submitChurnVoidRequest({
+        form: form||{customer_name:req.customer,of_number:req.of_number},
+        statusRequested:req.status_requested, churnValue:req.churn_value, reason:req.reason,
+      });
       show('Request submitted');
       setReq({customer:'',of_number:'',status_requested:'Churn',churn_value:'',reason:'',finance_dris:[]});
       setValidationErrors([]);
@@ -336,14 +468,49 @@ export function ChurnVoidRequest() {
       <p className="text-sm text-brand-muted mb-6">File a request to Finance to mark a deal as Churn or Void.</p>
       <Card className="p-6 max-w-2xl">
         <div className="grid grid-cols-2 gap-x-4">
-          <Sel label="Client / Customer" req options={customerNames.map(n=>({value:n,label:n}))} value={req.customer} onChange={v=>{u('customer',v);u('of_number','');}}/>
-          <Sel label="Order Form #" req options={relevantOFs.map(f=>({value:f.of_number,label:f.of_number+' — '+f.customer_name}))} value={req.of_number} onChange={v=>u('of_number',v)} hint={!req.customer?'Select a customer first':''}/>
+          <Sel label="Client / Customer" req
+            options={customerNames.map(n=>({value:n,label:n}))}
+            value={req.customer}
+            onChange={v=>{u('customer',v);u('of_number','');}}/>
+          <div className="mb-4">
+            <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
+              Order Form # <span className="text-red-400">*</span>
+            </label>
+            <select value={req.of_number}
+              onChange={e=>u('of_number',e.target.value)}
+              disabled={!req.customer}
+              className="field-input cursor-pointer">
+              <option value="">{req.customer ? 'Select OF…' : 'Select a customer first'}</option>
+              {relevantOFs.map(f=>(
+                <option key={f.id} value={f.of_number}>
+                  {f.of_number} — {f.customer_name}
+                </option>
+              ))}
+            </select>
+            {req.customer && relevantOFs.length === 0 && (
+              <p className="text-xs mt-1 text-amber-600">No approved/signed OFs found for this customer.</p>
+            )}
+          </div>
         </div>
-        {selectedForm&&(
-          <div className="mb-4 p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-600">
-            <strong>{selectedForm.of_number}</strong> · {selectedForm.start_date} → {selectedForm.end_date} · {selectedForm.committed_currency} {Number(selectedForm.committed_revenue||0).toLocaleString('en-IN')}
+
+        {selectedForm && (
+          <div className="mb-4 p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs">
+            <div className="flex items-center gap-3 mb-1">
+              <span className="font-mono font-bold" style={{color:NAVY}}>{selectedForm.of_number}</span>
+              <span className="text-slate-400">·</span>
+              <span className="text-brand-muted">{selectedForm.start_date} → {selectedForm.end_date}</span>
+              <span className="text-slate-400">·</span>
+              <span className="font-semibold" style={{color:T}}>{selectedForm.committed_currency} {Number(selectedForm.committed_revenue||0).toLocaleString('en-IN')}</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                style={{background:selectedForm.status==='signed'?'#f0fdf4':'#eff6ff',
+                        color:selectedForm.status==='signed'?'#15803d':'#1d4ed8'}}>
+                {selectedForm.status}
+              </span>
+            </div>
+            <div className="text-brand-faint">{(selectedForm.services_fees||[]).map(s=>s.name).filter(Boolean).join(', ')||'—'}</div>
           </div>
         )}
+
         <div className="mb-4">
           <Lbl c="Status requested" req/>
           <div className="flex gap-3">
@@ -356,17 +523,30 @@ export function ChurnVoidRequest() {
             ))}
           </div>
         </div>
-        {req.status_requested==='Churn'&&<Inp label="Churn amount" value={req.churn_value} onChange={v=>u('churn_value',v)} placeholder="e.g. 150000" mono hint="Portion of OF value to be churned"/>}
-        {req.status_requested==='Void'&&<div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">Warning: Marking as Void will set the OF value to zero.</div>}
+
+        {req.status_requested==='Churn' && (
+          <Inp label="Churn amount" value={req.churn_value} onChange={v=>u('churn_value',v)} placeholder="e.g. 150000" mono hint="Portion of OF value to be churned"/>
+        )}
+        {req.status_requested==='Void' && (
+          <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+            Warning: Marking as Void will set the OF value to zero.
+          </div>
+        )}
+
         <TA label="Reason / justification" req value={req.reason} onChange={v=>u('reason',v)} rows={4}/>
-        <MultiSelect label="Notify Finance DRI(s)" req options={FINANCE_USERS.map(u=>({value:u.email,label:u.name}))} value={req.finance_dris} onChange={v=>u('finance_dris',v)}/>
-        {validationErrors.length>0&&(
+        <MultiSelect label="Notify Finance DRI(s)" req
+          options={FINANCE_USERS.map(u=>({value:u.email,label:u.name}))}
+          value={req.finance_dris} onChange={v=>u('finance_dris',v)}/>
+
+        {validationErrors.length > 0 && (
           <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
             <p className="font-bold mb-1">Please fix:</p>
             {validationErrors.map((e,i)=><p key={i}>• {e}</p>)}
           </div>
         )}
-        <Btn onClick={handleSubmit} disabled={submitting}>{submitting?'Submitting...':'Submit request'}</Btn>
+        <Btn onClick={handleSubmit} disabled={submitting}>
+          {submitting?'Submitting...':'Submit request'}
+        </Btn>
       </Card>
       {toast&&<Toast msg={toast.msg} type={toast.type} onClose={hide}/>}
     </div>
