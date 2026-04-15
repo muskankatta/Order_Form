@@ -311,16 +311,25 @@ export default function Dashboard() {
             ? <div className="h-48 flex items-center justify-center text-slate-300 text-sm">No signed OFs yet</div>
             : <>
                 <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={barData} margin={{top:0,right:0,bottom:0,left:0}}>
+                  <BarChart data={barData} margin={{top:0,right:0,bottom:0,left:0}}
+                    onClick={()=>navigate('/repository?status=signed')}
+                    style={{cursor:'pointer'}}>
                     <XAxis dataKey="name" tick={{fontSize:10,fill:'#94a3b8'}} axisLine={false} tickLine={false}/>
                     <YAxis tick={{fontSize:10,fill:'#94a3b8'}} axisLine={false} tickLine={false}
                       tickFormatter={v=>useUSD?'$'+(v/1000).toFixed(0)+'K':'₹'+(v/100000).toFixed(0)+'L'}/>
                     <Tooltip
                       formatter={(value)=>[fmtRev(value,useUSD),'Revenue']}
                       contentStyle={{borderRadius:'10px',border:'1px solid #e2e8f0',fontSize:'12px'}}/>
-                    <Bar dataKey="value" fill={T} radius={[4,4,0,0]}/>
+                    <Bar dataKey="value" fill={T} radius={[4,4,0,0]} cursor="pointer"
+                      onClick={()=>navigate('/repository?status=signed')}/>
                   </BarChart>
                 </ResponsiveContainer>
+                <div className="text-center mt-1">
+                  <button onClick={()=>navigate('/repository?status=signed')}
+                    className="text-[11px] font-semibold hover:underline" style={{color:T}}>
+                    Click to view signed OFs in Repository →
+                  </button>
+                </div>
               </>
           }
         </Card>
@@ -332,17 +341,18 @@ export default function Dashboard() {
             <button onClick={()=>navigate('/repository')}
               className="text-[11px] font-semibold hover:underline"
               style={{color:T}}>
-              View in Repository →
+              View all in Repository →
             </button>
           </div>
-          <div className="text-xs text-brand-faint mb-2">All {visible.length} OFs</div>
+          <div className="text-xs text-brand-faint mb-2">All {visible.length} OFs · click any segment or label to filter</div>
           {pieData.length === 0
             ? <div className="h-48 flex items-center justify-center text-slate-300 text-sm">No data</div>
             : <>
                 <ResponsiveContainer width="100%" height={180}>
                   <PieChart>
                     <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={75}
-                      dataKey="value" nameKey="label">
+                      dataKey="value" nameKey="label" cursor="pointer"
+                      onClick={(entry)=>navigate('/repository?status='+entry.name)}>
                       {pieData.map((entry,i) => (
                         <Cell key={i} fill={STATUS_COLORS[entry.name]||'#94a3b8'}/>
                       ))}
@@ -352,17 +362,24 @@ export default function Dashboard() {
                       contentStyle={{borderRadius:'10px',border:'1px solid #e2e8f0',fontSize:'12px'}}/>
                   </PieChart>
                 </ResponsiveContainer>
-                {/* Legend outside recharts so it doesn't overlap the button */}
-                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 justify-center">
+                <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-2 justify-center">
                   {pieData.map((entry,i)=>(
-                    <div key={i} className="flex items-center gap-1">
+                    <button key={i}
+                      onClick={()=>navigate('/repository?status='+entry.name)}
+                      className="flex items-center gap-1 hover:opacity-70 transition-opacity cursor-pointer">
                       <span className="w-2 h-2 rounded-full shrink-0"
                         style={{background:STATUS_COLORS[entry.name]||'#94a3b8'}}/>
-                      <span className="text-[10px] text-slate-500 capitalize">
+                      <span className="text-[10px] text-slate-500 capitalize hover:text-slate-800 transition-colors">
                         {entry.name.replace(/_/g,' ')} ({entry.value})
                       </span>
-                    </div>
+                    </button>
                   ))}
+                </div>
+                <div className="text-center mt-2">
+                  <button onClick={()=>navigate('/repository')}
+                    className="text-[11px] font-semibold hover:underline" style={{color:T}}>
+                    Click to view all OFs in Repository →
+                  </button>
                 </div>
               </>
           }
