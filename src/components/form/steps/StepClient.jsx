@@ -5,6 +5,8 @@ import { SEGMENTS, SALES_TEAMS, LEAD_TYPES, LEAD_CATS, SALE_TYPES,
 import { SALES_REPS } from '../../../constants/users.js';
 import { useAuth } from '../../../context/AuthContext.jsx';
 
+const REGIONS = ['MEA', 'SEA & RoW'];
+
 export default function StepClient({ form, set, ro }) {
   const { user } = useAuth();
   const u = (k,v) => !ro && set(k,v);
@@ -12,11 +14,12 @@ export default function StepClient({ form, set, ro }) {
   const needsRef = SOW_REFERENCE_TYPES.has(form.sale_type);
   const cats = LEAD_CATS[form.lead_type] || [];
 
-  // Filter reps by selected team; if no team selected show all
   const teamReps = form.sales_team
     ? SALES_REPS.filter(r => r.team === form.sales_team)
     : SALES_REPS;
   const sortedReps = [...teamReps].sort((a,b) => a.name.localeCompare(b.name));
+
+  const isGlobal = form.sales_team === 'Global';
 
   const handleRepSelect = email => {
     const rep = SALES_REPS.find(r => r.email === email);
@@ -24,19 +27,21 @@ export default function StepClient({ form, set, ro }) {
     u('sales_rep_name', rep.name);
     u('sales_rep_email', rep.email);
     u('slack_id', rep.slack);
-    // Auto-fill team from rep's team assignment
     if (rep.team) u('sales_team', rep.team);
+    // Auto-fill region from rep's assignment
+    if (rep.region) u('region', rep.region);
   };
 
   const handleTeamChange = v => {
     u('sales_team', v);
-    // Clear rep if they're not in the new team
+    if (v !== 'Global') u('region', '');
     if (form.sales_rep_email) {
       const rep = SALES_REPS.find(r => r.email === form.sales_rep_email);
       if (rep && rep.team !== v) {
         u('sales_rep_name', '');
         u('sales_rep_email', '');
         u('slack_id', '');
+        u('region', '');
       }
     }
   };
@@ -61,7 +66,6 @@ export default function StepClient({ form, set, ro }) {
         <Inp label="Brand / trade name" req value={form.brand_name} onChange={v=>u('brand_name',v)} disabled={ro}/>
         <div className="col-span-2"><TA label="Customer billing address" req value={form.billing_address} onChange={v=>u('billing_address',v)} disabled={ro} rows={2}/></div>
 
-        {/* GSTIN with format validation */}
         <div className="mb-4">
           <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">Customer GSTIN</label>
           <input
@@ -72,18 +76,16 @@ export default function StepClient({ form, set, ro }) {
             style={{ borderColor: form.gstin
               ? (/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) ? '#4ade80' : '#fca5a5')
               : '#e2e8f0' }}
-            maxLength={15}
-            disabled={ro}
+            maxLength={15} disabled={ro}
           />
           {form.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) && (
-            <p className="text-xs mt-1 text-red-500">Format: 2 digits + 5 letters + 4 digits + 1 letter + 1 digit + Z + 1 alphanumeric (e.g. 27AADCB2230M1ZT)</p>
+            <p className="text-xs mt-1 text-red-500">Format: 2 digits + 5 letters + 4 digits + 1 letter + 1 digit + Z + 1 alphanumeric</p>
           )}
           {form.gstin && /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) && (
             <p className="text-xs mt-1 text-green-600">✓ Valid GSTIN format</p>
           )}
         </div>
 
-        {/* PAN with format validation — mandatory */}
         <div className="mb-4">
           <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
             Customer PAN <span className="text-red-400">*</span>
@@ -96,11 +98,10 @@ export default function StepClient({ form, set, ro }) {
             style={{ borderColor: form.pan
               ? (/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) ? '#4ade80' : '#fca5a5')
               : '#e2e8f0' }}
-            maxLength={10}
-            disabled={ro}
+            maxLength={10} disabled={ro}
           />
           {form.pan && !/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) && (
-            <p className="text-xs mt-1 text-red-500">Format: 5 letters + 4 digits + 1 letter (e.g. AADCB2230M)</p>
+            <p className="text-xs mt-1 text-red-500">Format: 5 letters + 4 digits + 1 letter</p>
           )}
           {form.pan && /^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) && (
             <p className="text-xs mt-1 text-green-600">✓ Valid PAN format</p>
@@ -130,6 +131,28 @@ export default function StepClient({ form, set, ro }) {
           )}
         </div>
         <Inp label="Slack ID (auto)" value={form.slack_id} disabled mono/>
+
+        {/* Region — only for Global team */}
+        {isGlobal && (
+          <div className="mb-4">
+            <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
+              Region <span className="text-red-400">*</span>
+            </label>
+            <select value={form.region||''} onChange={e=>u('region',e.target.value)}
+              disabled={ro} className="field-input cursor-pointer">
+              <option value="">Select region…</option>
+              {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+            {form.region && (
+              <p className="text-xs mt-1 text-brand-faint">
+                {form.region === 'MEA' ? 'Middle East & Africa' : 'South East Asia & Rest of World'}
+                {form.sales_rep_email && SALES_REPS.find(r=>r.email===form.sales_rep_email)?.region !== form.region && (
+                  <span className="text-amber-600 ml-1">· Manually overridden</span>
+                )}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <SHdr c="Lead & sale classification"/>
@@ -161,9 +184,9 @@ export default function StepClient({ form, set, ro }) {
         <>
           <SHdr c="Scope of Work (SoW)"/>
           <div className={`p-4 rounded-xl mb-4 text-sm ${needsSoW ? 'bg-amber-50 border border-amber-200 text-amber-800' : 'bg-slate-50 border border-slate-200 text-slate-500'}`}>
-            {needsSoW ? `⚠️ A signed SoW is mandatory for ${form.sale_type}.` : 'No SoW required for this sale type.'}
+            {needsSoW ? `\u26a0\ufe0f A signed SoW is mandatory for ${form.sale_type}.` : 'No SoW required for this sale type.'}
           </div>
-          {needsSoW && <FileUpload label="Signed Scope of Work (PDF)" req value={form.sow_document} onChange={v=>u('sow_document',v)} disabled={ro} hint="PDF only · Max 10 MB"/>}
+          {needsSoW && <FileUpload label="Signed Scope of Work (PDF)" req value={form.sow_document} onChange={v=>u('sow_document',v)} disabled={ro} hint="PDF only \u00b7 Max 10 MB"/>}
           {needsRef  && <FileUpload label={`Previous SoW for reference (${form.sale_type})`} req value={form.sow_reference_document} onChange={v=>u('sow_reference_document',v)} disabled={ro} hint="Upload the earlier SoW being superseded"/>}
         </>
       )}
