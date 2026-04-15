@@ -8,6 +8,7 @@ import { SALES_TEAMS } from '../../constants/formOptions.js';
 import { SALES_REPS } from '../../constants/users.js';
 import { fmtShort } from '../../utils/dates.js';
 import { exportOFIndex, exportServiceIndex } from '../../utils/csv.js';
+import { generateRepositoryReport } from '../../utils/reports.js';
 
 const NAVY='#1B2B4B'; const T='#00C3B5';
 
@@ -200,6 +201,23 @@ export default function Repository() {
   const svcRows = [];
   sorted.forEach(f => (f.services_fees||[]).forEach(svc => svcRows.push({f,svc})));
 
+  // Deduplicate by OF number for the Index tab — keep the doc with the most data/latest update
+  const dedupedSorted = (() => {
+    const seen = new Map();
+    sorted.forEach(f => {
+      if (!f.of_number) return;
+      const existing = seen.get(f.of_number);
+      if (!existing) { seen.set(f.of_number, f); return; }
+      // Prefer the one with a signed_date, or the later created_at
+      const fBetter = (f.signed_date && !existing.signed_date)
+        || (!existing.signed_date && (f.created_at||'') > (existing.created_at||''));
+      if (fBetter) seen.set(f.of_number, f);
+    });
+    // Include forms without OF numbers as-is
+    const noNum = sorted.filter(f => !f.of_number);
+    return [...seen.values(), ...noNum];
+  })();
+
   const show = id => visibleCols.includes(id);
   const thCls = "text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-brand-faint whitespace-nowrap";
 
@@ -245,6 +263,9 @@ export default function Repository() {
           {tab==='of' && <ColumnPicker visible={visibleCols} onChange={setVisibleCols}/>}
           <Btn variant="ghost" onClick={() => tab==='of' ? exportOFIndex(filtered) : exportServiceIndex(filtered)}>
             ⬇ Export CSV
+          </Btn>
+          <Btn variant="ghost" onClick={() => generateRepositoryReport(filtered)}>
+            📊 Report
           </Btn>
         </div>
       </div>
@@ -403,11 +424,11 @@ export default function Repository() {
                 </tr>
               </thead>
               <tbody>
-                {sorted.length===0 && (
+                {dedupedSorted.length===0 && (
                   <tr><td colSpan={visibleCols.length + (user?.isUniversal?1:0)}
                     className="text-center py-16 text-slate-300">No order forms found.</td></tr>
                 )}
-                {sorted.map((f,i) => {
+                {dedupedSorted.map((f,i) => {
                   const daysSinceSent = f.approved_at ? Math.floor((new Date()-new Date(f.approved_at))/86400000) : null;
                   const overdue = f.status==='approved' && !f.signed_date && daysSinceSent>=30;
                   const signingQtr = fmtQtr(f.signed_date);
