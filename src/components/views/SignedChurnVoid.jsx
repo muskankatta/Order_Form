@@ -9,6 +9,7 @@ import { fmtDate, uid } from '../../utils/dates.js';
 import { useToast } from '../../hooks/useToast.js';
 import { db, isConfigured } from '../../firebase.js';
 import { collection, onSnapshot, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { generateSignedOFReport, generateUnsignedOFReport } from '../../utils/reports.js';
 
 const NAVY = '#1B2B4B'; const T = '#00C3B5';
 
@@ -198,7 +199,25 @@ export function SignedOFs() {
 
   return (
     <div>
-      <h2 className="text-xl font-bold mb-4" style={{color:NAVY}}>Signed Order Forms</h2>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <h2 className="text-xl font-bold" style={{color:NAVY}}>Signed Order Forms</h2>
+        <div className="flex gap-2">
+          {cvTab==='signed' && (
+            <button onClick={()=>generateSignedOFReport(signed)}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all"
+              style={{color:NAVY}}>
+              📊 Export Signed Report
+            </button>
+          )}
+          {cvTab==='unsigned' && (
+            <button onClick={()=>generateUnsignedOFReport(approved)}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all"
+              style={{color:NAVY}}>
+              📊 Export Unsigned Report
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Tab buttons */}
       <div className="flex gap-2 mb-4 flex-wrap">
