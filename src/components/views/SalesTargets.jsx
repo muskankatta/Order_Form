@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
 import { SALES_REPS } from '../../constants/users.js';
 import { Card } from '../ui/index.jsx';
+import { generateSalesTargetReport } from '../../utils/reports.js';
 
 const NAVY = '#1B2B4B';
 const T    = '#00C3B5';
@@ -206,6 +207,12 @@ export default function SalesTargets() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => generateSalesTargetReport(repData, signedInFY, getFYLabel(fy))}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all"
+            style={{color:NAVY}}>
+            ⬇ Export Report
+          </button>
           {!isSales && (
             <select value={teamFilter} onChange={e => setTeamFilter(e.target.value)}
               className="text-sm border rounded-xl px-3 py-2 bg-white border-slate-200">
