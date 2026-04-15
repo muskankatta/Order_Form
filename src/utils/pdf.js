@@ -1,7 +1,193 @@
 import { fmtDate } from './dates.js';
 import { getSym } from './formatting.js';
 
+// ── Number to Indian words ────────────────────────────────────────────────────
+function numToWordsIN(amount) {
+  const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  function conv(n) {
+    if (n < 20) return ones[n];
+    if (n < 100) return tens[Math.floor(n/10)] + (n%10 ? ' '+ones[n%10] : '');
+    if (n < 1000) return ones[Math.floor(n/100)] + ' Hundred' + (n%100 ? ' '+conv(n%100) : '');
+    return '';
+  }
+  let n = Math.floor(Math.abs(amount)), r = '';
+  if (n >= 10000000) { r += conv(Math.floor(n/10000000))+' Crore '; n %= 10000000; }
+  if (n >= 100000)   { r += conv(Math.floor(n/100000))+' Lakh '; n %= 100000; }
+  if (n >= 1000)     { r += conv(Math.floor(n/1000))+' Thousand '; n %= 1000; }
+  if (n > 0)         { r += conv(n); }
+  return r.trim() ? 'Rupees ' + r.trim() + ' Only' : 'Zero Only';
+}
+
+// ── GaaS Order Confirmation PDF ───────────────────────────────────────────────
+export const openGaaSPDF = form => {
+  const svcs    = form.services_fees || [];
+  const gaasSvc = svcs.find(s => s.name === 'GaaS') || {};
+  const lines   = gaasSvc.gaas_lines || [];
+  const sym     = '\u20b9';
+  const ofNum   = form.of_number || 'DRAFT';
+  const custName= form.customer_name || '\u2014';
+  const sigName = form.signatory_name || '________________________';
+  const sigDesig= form.signatory_designation || 'Authorised Signatory';
+
+  const totalQty = lines.reduce((s,l) => s + Number(l.quantity||0), 0);
+  const totalAmt = lines.reduce((s,l) => s + Number(l.amount||0), 0);
+
+  const FYND_SVG = '<svg width="120" height="42" viewBox="0 0 1480 500" xmlns="http://www.w3.org/2000/svg"><path fill="#1B2B4B" d="M486.63,66.3l-60.2-50.01c-26.11-21.7-63.99-21.7-90.09,0l-72.83,60.49-72.77-60.49c-26.11-21.7-63.93-21.73-90.06-.06l-60.35,50.07C17.46,85.27,4.25,113.43,4.25,143.15v124.55c0,29.66,13.19,57.79,36,76.75l159.36,132.49c37,30.75,90.68,30.75,127.65,0l159.36-132.49c22.83-18.98,36.03-47.13,36.03-76.81v-124.54c0-29.66-13.21-57.82-36.03-76.79ZM475.67,259.41c0,20.94-9.34,40.82-25.43,54.21l-141.74,117.84c-26.11,21.7-63.99,21.7-90.12,0l-141.74-117.84c-16.09-13.39-25.4-33.27-25.4-54.21v-108c0-20.97,9.34-40.85,25.49-54.24l42.7-35.41c15.24-12.66,37.32-12.63,52.53.03l54.79,45.55-79.96,66.39c-19.76,16.44-19.79,46.78-.03,63.22l90.24,75.2c15.24,12.69,37.35,12.72,52.59.03l90.5-75.23c19.76-16.44,19.76-46.78,0-63.22l-43.94-36.52c-2.18-1.81-5.33-1.81-7.51,0l-27.57,22.9c-2.83,2.35-2.83,6.69,0,9.03l32.68,27.17c5.67,4.7,5.67,13.36,0,18.06l-62.9,52.33c-4.38,3.61-10.69,3.61-15.04-.03l-62.72-52.27c-5.64-4.7-5.64-13.36.03-18.06l50.77-42.17,12.1-10.04,44.25-36.76,35.15-29.19,19.7-16.39c15.24-12.66,37.32-12.66,52.53,0l42.61,35.38c16.09,13.39,25.43,33.24,25.43,54.21v108.03Z"/><g fill="#1B2B4B"><path d="M707.33,52.27h113c2.89,0,5.23,2.34,5.23,5.23v34.2c0,2.89-2.34,5.23-5.23,5.23h-106.41c-22.39,0-40.55,18.15-40.55,40.55v36.15c0,2.89,2.34,5.23,5.23,5.23h117.67c2.89,0,5.23,2.34,5.23,5.23v31.72c0,2.89-2.34,5.23-5.23,5.23h-117.67c-2.89,0-5.23,2.34-5.23,5.23v120.64c0,2.89-2.34,5.23-5.23,5.23h-36.68c-2.89,0-5.23-2.34-5.23-5.23v-213.55c0-44.79,36.31-81.1,81.1-81.1Z"/><path d="M1219.88,150.75c-13.51-12.13-31.99-18.2-55.42-18.2-.64,0-1.28.01-1.92.03-.62-.01-1.24-.03-1.87-.03-22.97,0-43.83,9.05-59.2,23.78-1.66,1.59-4.42.42-4.42-1.88v-10.88c0-2.89-2.34-5.23-5.23-5.23h-34.2c-2.89,0-5.23,2.34-5.23,5.23v203.35c0,2.89,2.34,5.23,5.23,5.23h36.68c2.89,0,5.23-2.34,5.23-5.23v-120.91c0-7.72,1.24-15.02,3.72-21.92,2.48-6.89,5.93-12.89,10.34-17.99,4.41-5.1,9.78-9.1,16.13-11.99,6.34-2.89,13.51-4.34,21.51-4.34,14.06,0,24.4,3.79,31.02,11.37,6.62,7.59,10.2,19.79,10.75,36.6v129.18c0,2.89,2.34,5.23,5.23,5.23h36.68c2.89,0,5.23-2.34,5.23-5.23v-141.58c0-24.26-6.76-42.46-20.26-54.59Z"/><path d="M1017.79,143.51v227.99c0,44.8-36.31,81.11-81.09,81.11h-90.01c-2.89,0-5.24-2.35-5.24-5.24v-34.19c0-2.89,2.35-5.24,5.24-5.24h83.41c22.4,0,43.02-18.59,43.02-40.99v-30.86c0-2.32-2.78-3.54-4.47-1.93-15.37,14.69-36.21,23.73-59.15,23.73-.63,0-1.25-.01-1.88-.03-.63.01-1.27.03-1.9.03-23.43,0-41.91-6.06-55.43-18.19-13.51-12.15-20.27-30.33-20.27-54.6v-141.59c0-2.88,2.35-5.23,5.24-5.23h36.68c2.89,0,5.23,2.35,5.23,5.23v129.19c.56,16.81,4.14,29.02,10.76,36.59,6.62,7.59,16.96,11.37,31.02,11.37,7.99,0,15.17-1.45,21.5-4.34,6.34-2.89,11.73-6.89,16.13-11.99,4.41-5.11,7.86-11.1,10.34-17.99,2.48-6.9,3.72-14.21,3.72-21.93v-120.91c0-2.88,2.35-5.23,5.23-5.23h36.69c2.88,0,5.23,2.35,5.23,5.23Z"/><path d="M1428.61,57.51v97.02c0,2.3-2.75,3.48-4.41,1.89-7.86-7.55-17.16-13.6-27.44-17.73-.34-.16-.7-.33-1.1-.49-23.44-9.76-53.14-4.57-53.14-4.57v.02c-6.73,1.03-13.4,2.79-20,5.32-11.17,4.28-21.09,10.96-29.78,20.06-8.68,9.1-15.65,20.68-20.89,34.74-5.24,14.06-7.86,30.75-7.86,50.04,0,15.99,2.07,30.95,6.2,44.87,4.14,13.93,10.34,25.99,18.61,36.19,8.27,10.2,18.67,18.27,31.22,24.19,12.54,5.93,27.22,8.89,44.04,8.89.43,0,.85-.03,1.28-.03.69.02,1.38.03,2.07.03,22.98,0,43.85-9.06,59.22-23.8,1.66-1.6,4.42-.43,4.42,1.88v10.9c0,2.89,2.34,5.23,5.23,5.23h34.2c2.89,0,5.23-2.34,5.23-5.23V57.51c0-2.89-2.34-5.23-5.23-5.23h-36.68c-2.89,0-5.23,2.34-5.23,5.23ZM1325.42,297.98c-4.83-6.89-8.41-14.75-10.75-23.57-2.35-8.82-3.52-17.78-3.52-26.88,0-9.65,1.03-19.09,3.1-28.33,2.07-9.23,5.51-17.51,10.34-24.81,4.82-7.3,11.02-13.23,18.61-17.78,7.58-4.55,16.89-6.82,27.92-6.82,18.2,0,32.6,6.62,43.22,19.85,10.61,13.23,15.92,31.71,15.92,55.42,0,9.38-1.18,18.55-3.52,27.5-2.35,8.96-5.93,17.03-10.75,24.19-4.83,7.17-11.03,12.96-18.61,17.37-7.59,4.41-16.61,6.62-27.09,6.62s-19.02-2.07-26.47-6.2c-7.44-4.14-13.58-9.65-18.4-16.54Z"/></g></svg>';
+
+  const skuRowsHtml = lines.length === 0
+    ? '<tr><td colspan="7" style="text-align:center;padding:12px;color:#999">No SKU rows</td></tr>'
+    : lines.map(l =>
+        '<tr>' +
+        '<td><strong>' + (l.skuDetails||'\u2014') + '</strong></td>' +
+        '<td>' + (l.styleId||'\u2014') + '</td>' +
+        '<td>' + (l.color||'\u2014') + '</td>' +
+        '<td style="text-align:center">' + (l.size||'\u2014') + '</td>' +
+        '<td style="text-align:center">' + Number(l.quantity||0) + '</td>' +
+        '<td style="text-align:right">' + Number(l.rate||0).toLocaleString('en-IN') + '</td>' +
+        '<td style="text-align:right"><strong>' + sym + Number(l.amount||0).toLocaleString('en-IN') + '</strong></td>' +
+        '</tr>'
+      ).join('');
+
+  const delDate = form.expected_delivery_date
+    ? new Date(form.expected_delivery_date).toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'})
+    : '\u2014';
+
+  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Order Confirmation ' + ofNum + '</title>' +
+    '<style>' +
+    '*{margin:0;padding:0;box-sizing:border-box}' +
+    'body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;padding:30px 40px}' +
+    '.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;padding-bottom:12px;border-bottom:2.5px solid #1B2B4B}' +
+    'h1{font-size:13px;font-weight:900;text-align:center;margin:14px 0;letter-spacing:2px;text-transform:uppercase}' +
+    'h2{font-size:10px;font-weight:700;background:#1B2B4B;color:#fff;padding:5px 12px;margin:14px 0 0}' +
+    'table{width:100%;border-collapse:collapse;font-size:10.5px}' +
+    'th{background:#f0f4f8;font-weight:700;text-align:left;padding:6px 8px;border:1px solid #ccc}' +
+    'td{padding:5px 8px;border:1px solid #e0e0e0;vertical-align:top}' +
+    '.kv td:first-child{background:#f8f9fa;font-weight:600;width:23%}' +
+    '.kv td:nth-child(3){background:#f8f9fa;font-weight:600;width:23%}' +
+    '.tc-section{margin-top:4px;font-size:10px;line-height:1.75;color:#222}' +
+    '.tc-section strong{display:block;margin-top:8px;margin-bottom:2px}' +
+    '.tc-section ul{margin-left:16px}' +
+    '.tc-section li{margin-bottom:2px}' +
+    '.sign-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}' +
+    '.sign-box{border:1px solid #ccc;border-radius:4px;padding:12px}' +
+    '.sign-box h4{font-size:10px;font-weight:700;color:#1B2B4B;text-transform:uppercase;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:4px}' +
+    '.sign-line{border-bottom:1px solid #999;margin:22px 0 6px}' +
+    '.footer{margin-top:16px;font-size:9px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:6px}' +
+    '@media print{button,#actionBar{display:none}h2,.sign-box h4,th{-webkit-print-color-adjust:exact;print-color-adjust:exact}}' +
+    '</style></head><body>' +
+    '<div id="oc-content">' +
+
+    // Header
+    '<div class="hdr">' +
+    '<div style="display:flex;align-items:center;gap:10px">' + FYND_SVG +
+    '<div><div style="font-weight:700;font-size:10px;color:#1B2B4B">Shopsense Retail Technologies Ltd.</div>' +
+    '<div style="font-size:9px;color:#444;line-height:1.65">1st Floor, Wework Vijay Diamond, Opp. SBI Branch, Cross Road B,<br/>Ajit Nagar, Kondivita, Andheri East, Mumbai- 400093<br/>MOB: +91 9321 938 025 | CIN: U52100MH2012PLC236314<br/>GSTN: 27AALCA0442L1ZM | PAN: AALCA0442L</div>' +
+    '</div></div></div>' +
+
+    '<h1>ORDER CONFIRMATION</h1>' +
+
+    // Section A
+    '<h2>A. Buyer &amp; Order Form Details</h2>' +
+    '<table class="kv" style="margin-bottom:1px">' +
+    '<tr><td>Buyer Name</td><td><strong>' + custName + '</strong></td><td>Order Form No</td><td><strong>' + ofNum + '</strong></td></tr>' +
+    '<tr><td>Brand/Trade Name</td><td>' + (form.brand_name||'\u2014') + '</td><td>Billing Currency</td><td>' + (form.committed_currency||'INR') + '</td></tr>' +
+    '<tr><td>Billing Address</td><td>' + (form.billing_address||'\u2014').replace(/\n/g,'<br/>') + '</td><td>Expected Delivery Date</td><td><strong>' + delDate + '</strong></td></tr>' +
+    '<tr><td>Tax Details</td><td>GST: ' + (form.gstin||'\u2014') + ' \u2022 PAN: ' + (form.pan||'\u2014') + '</td><td>Sales Channel</td><td>' + (form.lead_type||'\u2014') + '</td></tr>' +
+    '<tr><td>Billing Email</td><td>' + (form.billing_email||'\u2014') + '</td><td>Order Form Value</td><td><strong>' + sym + totalAmt.toLocaleString('en-IN') + '</strong></td></tr>' +
+    '<tr><td>Order Form Term</td><td>' + (form.of_term||'\u2014') + '</td><td>Payment Terms</td><td>' + (form.payment_terms||'\u2014') + '</td></tr>' +
+    '<tr><td colspan="4" style="padding:0;border:none"></td></tr>' +
+    '<tr><td colspan="4" style="background:#f8f9fa;padding:6px 8px"><strong>Buyer Representative</strong> &nbsp; Name: <strong>' + (form.client_rep_name||'\u2014') + '</strong> &nbsp;&nbsp; Mobile No.: ' + (form.client_rep_mobile||'\u2014') + ' &nbsp;&nbsp; Email: ' + (form.client_rep_email||'\u2014') + '</td></tr>' +
+    '<tr><td colspan="4" style="background:#f8f9fa;padding:6px 8px"><strong>Sales Representative</strong> &nbsp; Name: <strong>' + (form.sales_rep_name||'\u2014') + '</strong> &nbsp;&nbsp; Email: ' + (form.sales_rep_email||'\u2014') + '</td></tr>' +
+    '</table>' +
+
+    // Section a: Garment Sale
+    '<h2>a. Garment Sale</h2>' +
+    '<table>' +
+    '<thead><tr><th style="width:22%">SKU Details</th><th>Style id</th><th>Color</th><th style="text-align:center">Size</th><th style="text-align:center">Quantity</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead>' +
+    '<tbody>' + skuRowsHtml + '</tbody>' +
+    '<tfoot>' +
+    '<tr><td colspan="4" style="text-align:right;font-weight:700;background:#f0f4f8">Total</td>' +
+    '<td style="text-align:center;font-weight:700;background:#f0f4f8">' + totalQty + '</td>' +
+    '<td style="background:#f0f4f8"></td>' +
+    '<td style="text-align:right;font-weight:900;background:#f0f4f8">' + sym + ' ' + totalAmt.toLocaleString('en-IN') + '</td></tr>' +
+    '</tfoot></table>' +
+    '<div style="padding:6px 8px;border:1px solid #e0e0e0;border-top:none;font-size:10px;font-weight:600;background:#fffbeb">' +
+    'In Words: ' + numToWordsIN(totalAmt) +
+    '</div>' +
+
+    // T&Cs
+    '<div style="margin-top:14px;font-size:11px;font-weight:700;margin-bottom:6px">Terms &amp; Conditions:</div>' +
+    '<div class="tc-section">' +
+    '<strong>\u2022 Products</strong> \u2013 finished garments supplied under this agreement/Order Confirmation.' +
+    '<strong>\u2022 Order</strong> \u2013 Buyer\u2019s written purchase order specifying quantities, designs and delivery terms.' +
+    '<strong>\u2022 Orders and Acceptance</strong>' +
+    '<ul>' +
+    '<li>Buyer shall issue Orders referencing agreed MOQs and delivery timelines.</li>' +
+    '<li>Orders are subject to Fynd\u2019s written acceptance. Upon acceptance, the Order becomes binding.</li>' +
+    '<li>Modifications to Orders (quantities, designs) require mutual written consent.</li>' +
+    '<li>Goods once sold cannot be taken back under any circumstances.</li>' +
+    '<li>Once the goods are delivered, the responsibility of Fynd ceases and any loss or damage thereafter shall be to the account of the buyer.</li>' +
+    '<li>The goods are as per the specification / grade already approved by the buyer and no complaints whatsoever regarding the quality will be entertained.</li>' +
+    '</ul>' +
+    '<strong>\u2022 Claims and Liability</strong>' +
+    '<ul>' +
+    '<li>In case of any claim (Direct/Indirect) by the buyer or by the ultimate consumer, the liability of Fynd will be limited only to the value specified in the Invoice.</li>' +
+    '<li>The goods supplied shall not be subject to any express or implied warranty.</li>' +
+    '<li>Interest @ 21% p. a. will be payable by the buyer on all overdues.</li>' +
+    '</ul>' +
+    '<strong>\u2022 Pricing and Payment Terms</strong>' +
+    '<ul>' +
+    '<li>All fees are exclusive of applicable taxes, which will be charged separately as per prevailing laws. Fynd will charge GST at the rates applicable to services and goods separately.</li>' +
+    '<li>All banking charges at the buyer\u2019s bank are to be borne by the buyer. Payment must be made net of such charges.</li>' +
+    '<li>The Buyer agrees to pay the fees outlined in this Order Confirmation upon its execution and subsequently according to the Billing Frequency specified herein.</li>' +
+    '<li>Until Fynd receives full payment for the goods, Fynd shall continue to have a lien on the goods and ownership shall stand transferred to the buyer only on receipt of full payment.</li>' +
+    '<li>If the Customer is in default of payment, the customer shall be liable for any incidental, legal and/or collection costs incurred by the seller.</li>' +
+    '</ul>' +
+    '<strong>\u2022 Validity</strong>' +
+    '<ul>' +
+    '<li>This Order Confirmation shall remain valid for a period of seven (7) working days from the date of issuance. If not signed and returned within this period, the Order Confirmation shall be deemed null and void unless extended in writing by Fynd.</li>' +
+    '<li>The Expected delivery date mentioned is only tentative and is subject to change in case of unavoidable circumstances or due to a Force Majeure event.</li>' +
+    '<li>Fynd reserves the right to withhold delivery of the goods or terminate the transaction due to a Force Majeure event, or if the customer has exceeded the agreed credit limit (if any) or becomes insolvent.</li>' +
+    '</ul>' +
+    '</div>' +
+
+    // Authorization
+    '<div style="margin-top:14px;font-size:11px;font-weight:700;margin-bottom:6px">Authorization:</div>' +
+    '<div class="sign-grid">' +
+    '<div class="sign-box"><h4>For Buyer:</h4>' +
+    '<div style="font-size:10px;color:#555;margin-bottom:4px">Name &amp; Designation</div>' +
+    '<div class="sign-line"></div>' +
+    '<div><strong>' + sigName + '</strong></div>' +
+    '<div style="color:#555;margin-top:3px">' + sigDesig + '</div>' +
+    '<div style="margin-top:10px;color:#999;font-size:9.5px">e- Sign: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>' +
+    '<div style="color:#999;font-size:9.5px;margin-top:6px">Date of Signing: _______________</div>' +
+    '</div>' +
+    '<div class="sign-box"><h4>For Fynd:</h4>' +
+    '<div style="font-size:10px;color:#555;margin-bottom:4px">Name &amp; Designation</div>' +
+    '<div class="sign-line"></div>' +
+    '<div><strong>Sreeraman Mohan Girija</strong></div>' +
+    '<div style="color:#555;margin-top:3px">Whole-time Director</div>' +
+    '<div style="margin-top:10px;color:#999;font-size:9.5px">e- Sign: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>' +
+    '<div style="color:#999;font-size:9.5px;margin-top:6px">Date of Signing: _______________</div>' +
+    '</div>' +
+    '</div>' +
+
+    '<div class="footer">OF#: ' + ofNum + ' \u00b7 Generated: ' + new Date().toLocaleString('en-IN') + ' \u00b7 Shopsense Retail Technologies Ltd.</div>' +
+    '</div>' +
+
+    '<div id="actionBar" style="text-align:center;margin-top:14px">' +
+    '<button onclick="window.print()" style="background:#1B2B4B;color:#fff;border:none;padding:10px 28px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">' +
+    '\uD83D\uDDB6 Print / Save as PDF</button>' +
+    '</div>' +
+    '</body></html>';
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+};
 export const openPDF = form => {
+  if ((form.services_fees||[]).some(s=>s.name==='GaaS')) return openGaaSPDF(form);
   const sym  = getSym(form.committed_currency || 'INR');
   const svcs = form.services_fees || [];
   const isBundle = svcs.length > 1;
