@@ -147,6 +147,7 @@ export default function Repository() {
   const [dateTo,      setDateTo]     = useState('');
   const [qtrFilter,   setQtrFilter]  = useState('all');
   const [fyFilter,    setFyFilter]   = useState('all');
+  const [channelFilter, setChannelFilter] = useState('all');
   const [tab,         setTab]        = useState('of');
   const [statusModal, setStatusModal]= useState(null);
   const [sortBy,      setSortBy]     = useState('approved_desc');
@@ -182,7 +183,8 @@ export default function Repository() {
     const qInfo = getSigningQuarter(f.signed_date);
     const qm = qtrFilter==='all' || (qInfo && qInfo.q===qtrFilter);
     const fm = fyFilter==='all'  || (qInfo && String(qInfo.fy)===String(fyFilter));
-    return m && s && t && r && df && dt && qm && fm;
+    const ch = channelFilter==='all' || f.lead_type===channelFilter;
+    return m && s && t && r && df && dt && qm && fm && ch;
   });
 
   const sorted = [...filtered].sort((a,b) => {
@@ -214,7 +216,7 @@ export default function Repository() {
     setStatusModal(null);
   };
 
-  const hasActiveFilters = qtrFilter!=='all' || fyFilter!=='all' || dateFrom || dateTo;
+  const hasActiveFilters = qtrFilter!=='all' || fyFilter!=='all' || dateFrom || dateTo || channelFilter!=='all';
 
   return (
     <div>
@@ -295,6 +297,14 @@ export default function Repository() {
           <option value="all">All FYs</option>
           {fyOptions.map(fy=><option key={fy} value={fy}>FY{String(fy).slice(2)}</option>)}
         </select>
+        {/* Sales Channel filter */}
+        <select value={channelFilter} onChange={e=>setChannelFilter(e.target.value)}
+          className="text-sm border rounded-xl px-3 py-2.5 bg-white border-slate-200"
+          style={channelFilter!=='all'?{borderColor:T,boxShadow:`0 0 0 2px ${T}33`}:{}}>
+          <option value="all">All channels</option>
+          <option value="Direct">Direct</option>
+          <option value="Indirect">Indirect</option>
+        </select>
       </div>
 
       {/* Row 3: Start date range */}
@@ -306,7 +316,7 @@ export default function Repository() {
         <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}
           className="text-sm border rounded-xl px-3 py-2 bg-white border-slate-200"/>
         {hasActiveFilters && (
-          <button onClick={()=>{setDateFrom('');setDateTo('');setQtrFilter('all');setFyFilter('all');}}
+          <button onClick={()=>{setDateFrom('');setDateTo('');setQtrFilter('all');setFyFilter('all');setChannelFilter('all');}}
             className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-all">
             ✕ Clear filters
           </button>
