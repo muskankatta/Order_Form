@@ -2,8 +2,9 @@
  * Fynd OF Platform — Slack notification utility via Boltic proxy
  */
 
-const BOLTIC_URL = import.meta.env.VITE_BOLTIC_SLACK_URL || '';
- 
+const BOLTIC_URL        = import.meta.env.VITE_BOLTIC_SLACK_URL || '';
+const BOLTIC_THREAD_URL = import.meta.env.VITE_BOLTIC_SLACK_THREAD_URL || '';
+
 const CHANNELS = {
   India:    'C0AQTCE3PNY',
   Global:   'C08CBBNRAKZ',
@@ -71,11 +72,13 @@ function getChannel(form) {
 }
 
 async function postToSlack({ channel, text, thread_ts }) {
-  if (!BOLTIC_URL) { console.warn('VITE_BOLTIC_SLACK_URL not set'); return null; }
+  const url = thread_ts ? BOLTIC_THREAD_URL : BOLTIC_URL;
+  if (!url) { console.warn('Boltic URL not set'); return null; }
   try {
-    const body = { channel, text, thread_ts: thread_ts || 'none' };
+    const body = { channel, text };
+    if (thread_ts) body.thread_ts = thread_ts;
 
-    const res = await fetch(BOLTIC_URL, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -99,14 +102,14 @@ function buildMessage(event, form, extra = {}) {
   const repMention = slackMention(form.sales_rep_email) || form.sales_rep_name || '—';
 
   const icons  = { submitted:'📋', revops_approved:'✅', revops_rejected:'❌', approved:'🎉', finance_rejected:'❌', signed:'✍️' };
-const labels = {
-  submitted:        'Submitted for RevOps review',
-  revops_approved:  'RevOps Approved → sent to Finance',
-  revops_rejected:  'RevOps Rejected',
-  approved:         'Finance Approved',
-  finance_rejected: 'Finance Rejected — Returned for revision',
-  signed:           'Marked as Signed',
-};
+  const labels = {
+    submitted:        'Submitted for RevOps review',
+    revops_approved:  'RevOps Approved → sent to Finance',
+    revops_rejected:  'RevOps Rejected',
+    approved:         'Finance Approved',
+    finance_rejected: 'Finance Rejected — Returned for revision',
+    signed:           'Marked as Signed',
+  };
 
   let text = `${icons[event]||'🔔'} *${labels[event]||event}*\n`;
   text += `• OF: <${url}|${ofRef}> — ${cust}\n`;
@@ -120,7 +123,7 @@ const labels = {
     const tags = form.finance_approvers.map(e => slackMention(e) || e).join(', ');
     text += `• Finance: ${tags}\n`;
   }
-  if (event === 'revops_rejected' && extra.comment) text += `• Reason: _${extra.comment}_\n`;
+  if (event === 'revops_rejected' && extra.comment)  text += `• Reason: _${extra.comment}_\n`;
   if (event === 'finance_rejected' && extra.comment) text += `• Reason: _${extra.comment}_\n`;
   if (event === 'approved' && form.of_number)        text += `• OF# assigned: ${form.of_number}\n`;
   if (event === 'signed' && form.signed_date)        text += `• Signing date: ${form.signed_date}\n`;
