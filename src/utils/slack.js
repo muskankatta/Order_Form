@@ -7,7 +7,7 @@ const BOLTIC_URL = import.meta.env.VITE_BOLTIC_SLACK_URL || '';
 const CHANNELS = {
   India:    'C0AQTCE3PNY',
   Global:   'C08CBBNRAKZ',
-  'AI/SaaS':'C0978TZNGM8',
+  'AI/SaaS':   'C0978TZNGM8',
 };
 
 // Slack user IDs keyed by email
