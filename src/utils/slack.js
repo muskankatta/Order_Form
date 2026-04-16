@@ -99,14 +99,15 @@ function buildMessage(event, form, extra = {}) {
   const url   = `https://muskankatta.github.io/Order_Form/#/form/${form.id}`;
   const repMention = slackMention(form.sales_rep_email) || form.sales_rep_name || '—';
 
-  const icons  = { submitted:'📋', revops_approved:'✅', revops_rejected:'❌', approved:'🎉', signed:'✍️' };
-  const labels = {
-    submitted:       'Submitted for RevOps review',
-    revops_approved: 'RevOps Approved → sent to Finance',
-    revops_rejected: 'RevOps Rejected',
-    approved:        'Finance Approved',
-    signed:          'Marked as Signed',
-  };
+  const icons  = { submitted:'📋', revops_approved:'✅', revops_rejected:'❌', approved:'🎉', finance_rejected:'❌', signed:'✍️' };
+const labels = {
+  submitted:        'Submitted for RevOps review',
+  revops_approved:  'RevOps Approved → sent to Finance',
+  revops_rejected:  'RevOps Rejected',
+  approved:         'Finance Approved',
+  finance_rejected: 'Finance Rejected — Returned for revision',
+  signed:           'Marked as Signed',
+};
 
   let text = `${icons[event]||'🔔'} *${labels[event]||event}*\n`;
   text += `• OF: <${url}|${ofRef}> — ${cust}\n`;
@@ -121,6 +122,7 @@ function buildMessage(event, form, extra = {}) {
     text += `• Finance: ${tags}\n`;
   }
   if (event === 'revops_rejected' && extra.comment) text += `• Reason: _${extra.comment}_\n`;
+  if (event === 'finance_rejected' && extra.comment) text += `• Reason: _${extra.comment}_\n`;
   if (event === 'approved' && form.of_number)        text += `• OF# assigned: ${form.of_number}\n`;
   if (event === 'signed' && form.signed_date)        text += `• Signing date: ${form.signed_date}\n`;
   if (form.committed_revenue) {
