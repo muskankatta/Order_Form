@@ -327,11 +327,12 @@ export function FormsProvider({ children }) {
     sendEmail(
       f.sales_rep_email,
       threadSubject(f.customer_name),
-      '↩ Action Required — Returned by Finance\n\n' +
+      '❌ Action Required — Returned by Finance\n\n' +
       'Customer: ' + f.customer_name + '\n' +
       'Brand: ' + (f.brand_name || '—') + '\n' +
       'Reason: ' + (comment || 'See platform for details') + '\n\n' +
       'Please log in to review:\nhttps://muskankatta.github.io/Order_Form/'
+      );
     notifySlack('finance_rejected', f, { comment }, ts => persistOne({ ...f, slack_thread_ts: ts }));
   }, [forms, persistOne, user]);
 
