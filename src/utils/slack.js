@@ -29,14 +29,27 @@ function getChannel(form) {
 async function postToSlack({ channel, text, thread_ts }) {
   if (!BOLTIC_URL) { console.warn('VITE_BOLTIC_SLACK_URL not set'); return null; }
   try {
-    const body = { channel, text };
+    // Encode channel in URL so Boltic can route it without body variable resolution
+    const url = `${BOLTIC_URL}?channel=${encodeURIComponent(channel)}`;
+    const body = { text };
     if (thread_ts) body.thread_ts = thread_ts;
 
-    const res  = await fetch(BOLTIC_URL, {
-      method:  'POST',
+    const res = await fetch(url, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(body),
+      body: JSON.stringify(body),
     });
+
+    const data = await res.json();
+    const slack = data?.result || data;
+    if (slack?.ok && slack?.ts) return slack.ts;
+    console.warn('Slack post failed:', JSON.stringify(slack));
+    return null;
+  } catch (e) {
+    console.error('Slack error:', e);
+    return null;
+  }
+}
 
     // Boltic returns the Slack API response inside result
     const data = await res.json();
