@@ -6,6 +6,7 @@ import { db, isConfigured } from '../firebase.js';
 import { storage } from '../utils/storage.js';
 import { uid } from '../utils/dates.js';
 import { sendEmail, svcNames, threadSubject } from '../utils/email.js';
+import { notifySlack } from '../utils/slack.js';
 import { useAuth } from './AuthContext.jsx';
 
 const FormsContext = createContext(null);
@@ -247,6 +248,7 @@ export function FormsProvider({ children }) {
       'Start Date: ' + (f.start_date || '—') + '\n\n' +
       'Log in to review:\nhttps://muskankatta.github.io/Order_Form/'
     );
+    notifySlack('submitted', f, {}, ts => persistOne({ ...f, slack_thread_ts: ts }));
     return f;
   }, [persistOne]);
 
@@ -269,6 +271,7 @@ export function FormsProvider({ children }) {
       'OF Value: ' + (f.committed_currency || 'INR') + ' ' + Number(f.of_value || 0).toLocaleString('en-IN') + '\n\n' +
       'Log in to the platform:\nhttps://muskankatta.github.io/Order_Form/'
     );
+    notifySlack('revops_approved', f, {}, ts => persistOne({ ...f, slack_thread_ts: ts }));
   }, [forms, persistOne, user]);
 
   const revopsReject = useCallback(async (id, { comment }) => {
@@ -288,6 +291,7 @@ export function FormsProvider({ children }) {
       'Reason: ' + (comment || 'See platform for details') + '\n\n' +
       'Please log in to review and resubmit:\nhttps://muskankatta.github.io/Order_Form/'
     );
+    notifySlack('revops_rejected', f, { comment }, ts => persistOne({ ...f, slack_thread_ts: ts }));
   }, [forms, persistOne, user]);
 
   const financeApprove = useCallback(async (id, { ofNumber, comment, editedForm }) => {
@@ -313,6 +317,7 @@ export function FormsProvider({ children }) {
       'End Date: ' + (f.end_date || '—') + '\n\n' +
       'Log in to the platform:\nhttps://muskankatta.github.io/Order_Form/'
     );
+    notifySlack('approved', f, {}, ts => persistOne({ ...f, slack_thread_ts: ts }));
   }, [forms, persistOne, user]);
 
   const financeReject = useCallback(async (id, { comment }) => {
@@ -332,11 +337,13 @@ export function FormsProvider({ children }) {
 
   const markSigned = useCallback(async (id, signingDate, signedLink = '') => {
     const base = forms.find(f => f.id === id) || {};
-    await persistOne({
+    const f = {
       ...base, status: 'signed', signed_date: signingDate,
       signed_by: user?.name, signed_at: new Date().toISOString(),
       signed_of_link: signedLink,
-    });
+    };
+    await persistOne(f);
+    notifySlack('signed', f, {}, ts => persistOne({ ...f, slack_thread_ts: ts }));
   }, [forms, persistOne, user]);
 
   const markCompleted = useCallback(async (id) => {
