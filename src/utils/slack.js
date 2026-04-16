@@ -10,7 +10,7 @@ const CHANNELS = {
   Global:   'C08CBBNRAKZ',
   'AI/SaaS':'C0978TZNGM8',
 };
-
+ 
 const SLACK_IDS = {
   'abhishekdalvi@gofynd.com':   'U0A6WDTN1K7',
   'anshuman@gofynd.com':        'U0AD7ENHY04',
