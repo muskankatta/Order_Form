@@ -72,13 +72,11 @@ function getChannel(form) {
 }
 
 async function postToSlack({ channel, text, thread_ts }) {
-  const url = thread_ts ? BOLTIC_THREAD_URL : BOLTIC_URL;
-  if (!url) { console.warn('Boltic URL not set'); return null; }
+  if (!BOLTIC_URL) { console.warn('Boltic URL not set'); return null; }
   try {
     const body = { channel, text };
-    if (thread_ts) body.thread_ts = thread_ts;
 
-    const res = await fetch(url, {
+    const res = await fetch(BOLTIC_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
