@@ -73,15 +73,13 @@ function getChannel(form) {
 async function postToSlack({ channel, text, thread_ts }) {
   if (!BOLTIC_URL) { console.warn('VITE_BOLTIC_SLACK_URL not set'); return null; }
   try {
-    // Send thread_ts as query param so Boltic can access it via trigger.query_params
-    const params = new URLSearchParams({ channel, text });
-    if (thread_ts) params.append('thread_ts', thread_ts);
-    const url = `${BOLTIC_URL}?${params.toString()}`;
+    const body = { channel, text };
+    if (thread_ts) body.thread_ts = thread_ts;
 
-    const res = await fetch(url, {
+    const res = await fetch(BOLTIC_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ channel, text }),
+      body: JSON.stringify(body),
     });
 
     const data = await res.json();
