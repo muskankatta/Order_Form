@@ -175,7 +175,7 @@ export default function StepClient({ form, set, ro }) {
 
         {form.lead_type === 'Indirect' && (
           <Inp label="Partner name" req value={form.lead_name} onChange={v=>u('lead_name',v)}
-            disabled={ro} placeholder="e.g. Shweta Lamba / Prince Consulting"
+            disabled={ro} placeholder="e.g. Prince Consulting"
             hint="Name of the partner who referred this deal"/>
         )}
       </div>
