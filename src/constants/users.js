@@ -40,11 +40,12 @@ export const SALES_REPS = [
   { id:'3080', name:'Shubham Soni',      slack:'U09D0KUAG76', email:'shubhamsoni@gofynd.com',       team:'Global', region:'SEA & RoW', role:'-',        target:100000,  targetCurrency:'USD' },
 
   // ── AI/SaaS TEAM ───────────────────────────────────────────────────────────
-  { id:'3076', name:'Deep Jindal',       slack:'U09D0KZV2A0', email:'deepjindal@gofynd.com',        team:'AI/SaaS', role:'Sales', target:null,  targetCurrency:'USD' },
-  { id:'2933', name:'Faizan Ansari',     slack:'U08N41VP4JW', email:'faizanansari@gofynd.com',      team:'AI/SaaS', role:'Sales', target:12000, targetCurrency:'USD' },
-  { id:'2947', name:'Jatin Jindal',      slack:'U08R9EXEW7J', email:'jatinjindal@gofynd.com',       team:'AI/SaaS', role:'Sales', target:65000, targetCurrency:'USD' },
-  { id:'2935', name:'Saritha Ravi',      slack:'U08N41SD8F4', email:'saritharavi@gofynd.com',       team:'AI/SaaS', role:'Sales', target:21600, targetCurrency:'USD' },
-  { id:'3128', name:'Shresth Gupta',     slack:'U09R6079V9N', email:'shresthgupta@gofynd.com',      team:'AI/SaaS', role:'BDR',   target:40000, targetCurrency:'USD' },
+  { id:'3076', name:'Deep Jindal',       slack:'U09D0KZV2A0', email:'deepjindal@gofynd.com',        team:'AI/SaaS', role:'Sales',  target:null,  targetCurrency:'USD' },
+  { id:'2933', name:'Faizan Ansari',     slack:'U08N41VP4JW', email:'faizanansari@gofynd.com',      team:'AI/SaaS', role:'Sales',  target:12000, targetCurrency:'USD' },
+  { id:'2947', name:'Jatin Jindal',      slack:'U08R9EXEW7J', email:'jatinjindal@gofynd.com',       team:'AI/SaaS', role:'Sales',  target:65000, targetCurrency:'USD' },
+  { id:'2935', name:'Saritha Ravi',      slack:'U08N41SD8F4', email:'saritharavi@gofynd.com',       team:'AI/SaaS', role:'Sales',  target:21600, targetCurrency:'USD' },
+  { id:'3128', name:'Shresth Gupta',     slack:'U09R6079V9N', email:'shresthgupta@gofynd.com',      team:'AI/SaaS', role:'BDR',    target:40000, targetCurrency:'USD' },
+  { id:'1396', name:'Jay Karia',         slack:'U01T33X34UU', email:'jaykaria@gofynd.com',          team:'AI/SaaS', role:'Product',target:null, targetCurrency:'USD' },
 ];
 
 export const REVOPS_USERS = [
