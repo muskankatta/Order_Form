@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Card, StatusPill, Btn } from '../ui/index.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -10,53 +10,39 @@ import { generateDashboardReport } from '../../utils/reports.js';
 
 const NAVY='#1B2B4B'; const T='#00C3B5';
 
-// Exchange rates to USD
 const TO_USD = { USD:v=>v, INR:v=>v/91, AED:v=>v/3.6725, MYR:v=>v/4.30, IDR:v=>v/16950, GBP:v=>v/0.80, EUR:v=>v/0.90, SGD:v=>v/1.35, SAR:v=>v/3.75, AUD:v=>v/1.55 };
 const toUSD = (amt, cur) => (TO_USD[cur] || (v=>v))(amt);
 
-// Get region for a form (from rep assignment or form.region field)
-function formRegion(f) {
-  return f.region || getRepRegion(f.sales_rep_email) || null;
-}
-
-// Filter helpers
+function formRegion(f) { return f.region || getRepRegion(f.sales_rep_email) || null; }
 function matchesFilter(f, filter) {
-  if (filter === 'all')        return true;
-  if (filter === 'India')      return f.sales_team === 'India';
-  if (filter === 'AI/SaaS')    return f.sales_team === 'AI/SaaS';
-  if (filter === 'MEA')        return f.sales_team === 'Global' && formRegion(f) === 'MEA';
-  if (filter === 'SEA & RoW')  return f.sales_team === 'Global' && formRegion(f) === 'SEA & RoW';
-  if (filter === 'Global')     return f.sales_team === 'Global';
+  if (filter === 'all')       return true;
+  if (filter === 'India')     return f.sales_team === 'India';
+  if (filter === 'AI/SaaS')   return f.sales_team === 'AI/SaaS';
+  if (filter === 'MEA')       return f.sales_team === 'Global' && formRegion(f) === 'MEA';
+  if (filter === 'SEA & RoW') return f.sales_team === 'Global' && formRegion(f) === 'SEA & RoW';
+  if (filter === 'Global')    return f.sales_team === 'Global';
   return true;
 }
-
 function isGlobalFilter(filter) { return filter === 'MEA' || filter === 'SEA & RoW' || filter === 'Global'; }
 
-// Quarter from signing date — returns { label, sortKey }
 function signingQtr(dateStr) {
   if (!dateStr) return null;
   const d = new Date(dateStr), m = d.getMonth()+1, y = d.getFullYear();
   let q, fy;
-  if (m>=4&&m<=6)  { q='Q1'; fy=y+1; }
+  if (m>=4&&m<=6)   { q='Q1'; fy=y+1; }
   else if (m>=7&&m<=9)  { q='Q2'; fy=y+1; }
   else if (m>=10&&m<=12){ q='Q3'; fy=y+1; }
   else                  { q='Q4'; fy=y; }
   return { label:`${q} FY${String(fy).slice(2)}`, sortKey:`${fy}${q}`, fy };
 }
-
-// Month from signing date — returns { label, sortKey, fy }
 function signingMonth(dateStr) {
   if (!dateStr) return null;
-  const d = new Date(dateStr);
-  const m = d.getMonth()+1, y = d.getFullYear();
+  const d = new Date(dateStr), m = d.getMonth()+1, y = d.getFullYear();
   const fy = (m>=4) ? y+1 : y;
-  const label = d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'});
-  return { label, sortKey:`${y}${String(m).padStart(2,'0')}`, fy };
+  return { label: d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}), sortKey:`${y}${String(m).padStart(2,'0')}`, fy };
 }
-
 function fmtRev(val, useUSD) {
-  if (useUSD) return '$' + Math.round(val).toLocaleString('en-US');
-  return '\u20b9' + Math.round(val).toLocaleString('en-IN');
+  return useUSD ? '$' + Math.round(val).toLocaleString('en-US') : '₹' + Math.round(val).toLocaleString('en-IN');
 }
 
 const STATUS_COLORS = {
@@ -76,7 +62,6 @@ function StatCard({ label, value, color, onClick, sub }) {
     </div>
   );
 }
-
 function BigStatCard({ label, value, color, onClick }) {
   return (
     <div className={'bg-white rounded-2xl border p-5 transition-all '+(onClick?'cursor-pointer hover:shadow-md hover:-translate-y-0.5 active:scale-95':'')}
@@ -92,15 +77,13 @@ export default function Dashboard() {
   const { user }  = useAuth();
   const { forms } = useForms();
   const navigate  = useNavigate();
-
   const [teamFilter,  setTeamFilter]  = useState('all');
-  const [chartView,   setChartView]   = useState('quarter'); // 'quarter' | 'month'
-  const [chartFY,     setChartFY]     = useState('all');     // FY filter for bar chart
+  const [chartView,   setChartView]   = useState('quarter');
+  const [chartFY,     setChartFY]     = useState('all');
 
   const isSales = user?.role === 'sales' && !user?.isUniversal;
   const useUSD  = isGlobalFilter(teamFilter);
 
-  // Base visible forms
   const visible = useMemo(() => {
     let base = isSales ? forms.filter(f=>f.sales_rep_email===user.email) : forms;
     return base.filter(f => matchesFilter(f, teamFilter));
@@ -125,20 +108,15 @@ export default function Dashboard() {
     renewals: visible.filter(f=>f.is_renewal&&f.status==='draft').length,
   };
 
-  // Revenue — signed OFs
   const signedForms = visible.filter(f=>f.status==='signed');
 
   const revenueINR = useMemo(() =>
-    visible.filter(f=>f.status==='signed'&&f.sales_team==='India')
-      .reduce((s,f)=>s+Number(f.committed_revenue||0),0),
+    visible.filter(f=>f.status==='signed'&&f.sales_team==='India').reduce((s,f)=>s+Number(f.committed_revenue||0),0),
   [visible]);
-
   const revenueUSD = useMemo(() =>
-    visible.filter(f=>f.status==='signed'&&f.sales_team!=='India')
-      .reduce((s,f)=>s+toUSD(Number(f.committed_revenue||0),f.committed_currency||'INR'),0),
+    visible.filter(f=>f.status==='signed'&&f.sales_team!=='India').reduce((s,f)=>s+toUSD(Number(f.committed_revenue||0),f.committed_currency||'INR'),0),
   [visible]);
 
-  // Available FYs for bar chart filter
   const availableFYs = useMemo(() => {
     const fys = new Set();
     signedForms.forEach(f => {
@@ -148,51 +126,36 @@ export default function Dashboard() {
     return [...fys].sort((a,b)=>b-a);
   }, [signedForms, chartView]);
 
-  // ── BAR CHART: Revenue by quarter/month ───────────────────────────────────
   const barData = useMemo(() => {
     const map = {};
     signedForms.forEach(f => {
       const info = chartView==='month' ? signingMonth(f.signed_date) : signingQtr(f.signed_date);
       if (!info) return;
       if (chartFY !== 'all' && String(info.fy) !== String(chartFY)) return;
-      const rev = useUSD
-        ? toUSD(Number(f.committed_revenue||0), f.committed_currency||'INR')
-        : Number(f.committed_revenue||0);
+      const rev = useUSD ? toUSD(Number(f.committed_revenue||0), f.committed_currency||'INR') : Number(f.committed_revenue||0);
       if (!map[info.sortKey]) map[info.sortKey] = { label: info.label, value: 0 };
       map[info.sortKey].value += rev;
     });
-    return Object.entries(map)
-      .sort((a,b) => a[0].localeCompare(b[0]))
-      .map(([, {label, value}]) => ({ name: label, value: Math.round(value) }));
+    return Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0])).map(([,{label,value}]) => ({ name:label, value:Math.round(value) }));
   }, [signedForms, chartView, chartFY, useUSD]);
 
-  // ── PIE CHART: OFs by status ──────────────────────────────────────────────
   const pieData = useMemo(() => {
     const map = {};
-    visible.forEach(f => {
-      const s = f.status||'unknown';
-      map[s] = (map[s]||0)+1;
-    });
-    return Object.entries(map)
-      .filter(([,v])=>v>0)
-      .map(([name,value])=>({name, value, label: name.replace(/_/g,' ')}))
-      .sort((a,b)=>b.value-a.value);
+    visible.forEach(f => { const s=f.status||'unknown'; map[s]=(map[s]||0)+1; });
+    return Object.entries(map).filter(([,v])=>v>0).map(([name,value])=>({name,value,label:name.replace(/_/g,' ')})).sort((a,b)=>b.value-a.value);
   }, [visible]);
 
-  // ── LEADERBOARD: rep performance ─────────────────────────────────────────
   const leaderboard = useMemo(() => {
     const repsToShow = SALES_REPS.filter(r => {
-      if (!matchesFilter({sales_team:r.team, region:r.region, sales_rep_email:r.email}, teamFilter)) return false;
+      if (!matchesFilter({sales_team:r.team,region:r.region,sales_rep_email:r.email},teamFilter)) return false;
       return r.target !== null && r.target !== undefined;
     });
     return repsToShow.map(r => {
       const myOFs = signedForms.filter(f=>f.sales_rep_email===r.email);
       const achieved = myOFs.reduce((s,f)=>{
-        const rev = Number(f.committed_revenue||0);
-        const cur = f.committed_currency||'INR';
-        const usd = toUSD(rev,cur);
+        const usd = toUSD(Number(f.committed_revenue||0), f.committed_currency||'INR');
         return s + (r.targetCurrency==='INR' ? usd*91 : usd);
-      },0);
+      }, 0);
       const pct = r.target>0 ? (achieved/r.target)*100 : 0;
       return {...r, achieved, pct, ofCount:myOFs.length};
     }).sort((a,b)=>b.pct-a.pct).slice(0,10);
@@ -204,21 +167,18 @@ export default function Dashboard() {
     ? visible.filter(f=>f.status==='revops_approved')
     : visible.filter(f=>['submitted','draft','revops_rejected'].includes(f.status));
 
-  const renewing = visible.filter(f=>{
-    const d=daysUntil(f.end_date);
-    return d!==null&&d<=30&&d>0;
-  });
+  const renewing = visible.filter(f => { const d=daysUntil(f.end_date); return d!==null&&d<=30&&d>0; });
 
   const goRepo    = s => navigate(`/repository${s?'?status='+s:''}`);
   const goPending = s => navigate(`/pending${s?'?section='+s:''}`);
   const goSigned  = t => navigate(`/signed${t?'?tab='+t:''}`);
 
   const FILTERS = [
-    { id:'all',       lbl:'All' },
-    { id:'India',     lbl:'India' },
-    { id:'MEA',       lbl:'Global · MEA' },
+    { id:'all', lbl:'All' },
+    { id:'India', lbl:'India' },
+    { id:'MEA', lbl:'Global · MEA' },
     { id:'SEA & RoW', lbl:'Global · SEA & RoW' },
-    { id:'AI/SaaS',   lbl:'AI/SaaS' },
+    { id:'AI/SaaS', lbl:'AI/SaaS' },
   ];
 
   return (
@@ -226,8 +186,7 @@ export default function Dashboard() {
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-xl font-bold" style={{color:NAVY}}>Dashboard</h2>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => generateDashboardReport(visible, leaderboard, teamFilter)}
+          <button onClick={() => generateDashboardReport(visible, leaderboard, teamFilter)}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all"
             style={{color:NAVY}}>
             📊 Export Report
@@ -238,7 +197,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Team filter */}
       {!isSales && (
         <div className="flex gap-1.5 flex-wrap mb-6 p-1 rounded-xl bg-slate-100 w-fit">
           {FILTERS.map(f=>(
@@ -251,7 +209,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Row 1 */}
       <div className="grid grid-cols-4 gap-4 mb-4">
         <StatCard label="Total OFs"       value={n.total}    onClick={()=>goRepo()}/>
         <StatCard label="Pending RevOps"  value={n.revops}   color="#d97706" onClick={()=>goPending('revops')}/>
@@ -259,10 +216,9 @@ export default function Dashboard() {
         <StatCard label="Approved"        value={n.approved} color="#16a34a" onClick={()=>goRepo('approved')}/>
       </div>
 
-      {/* Row 2 — revenue */}
       {teamFilter === 'all' ? (
         <div className="grid grid-cols-4 gap-4 mb-4">
-          <BigStatCard label="Revenue (India · INR · Signed)" value={'\u20b9'+revenueINR.toLocaleString('en-IN')} color={T} onClick={()=>goRepo('signed')}/>
+          <BigStatCard label="Revenue (India · INR · Signed)" value={'₹'+revenueINR.toLocaleString('en-IN')} color={T} onClick={()=>goRepo('signed')}/>
           <BigStatCard label="Revenue (Global · USD · Signed)" value={'$'+Math.round(revenueUSD).toLocaleString('en-US')} color="#7c3aed" onClick={()=>goRepo('signed')}/>
           <BigStatCard label="Active contracts" value={n.active} color="#16a34a" onClick={()=>goRepo('signed')}/>
           <BigStatCard label="Completed contracts" value={n.completed} color="#64748b" onClick={()=>goRepo('completed')}/>
@@ -271,14 +227,13 @@ export default function Dashboard() {
         <div className="grid grid-cols-3 gap-4 mb-4">
           <BigStatCard
             label={`Committed Revenue (Signed) · ${useUSD?'USD':'INR'}`}
-            value={useUSD ? '$'+Math.round(revenueUSD).toLocaleString('en-US') : '\u20b9'+revenueINR.toLocaleString('en-IN')}
+            value={useUSD ? '$'+Math.round(revenueUSD).toLocaleString('en-US') : '₹'+revenueINR.toLocaleString('en-IN')}
             color={T} onClick={()=>goRepo('signed')}/>
           <BigStatCard label="Active contracts"    value={n.active}    color="#16a34a" onClick={()=>goRepo('signed')}/>
           <BigStatCard label="Completed contracts" value={n.completed} color="#64748b" onClick={()=>goRepo('completed')}/>
         </div>
       )}
 
-      {/* Row 3 */}
       <div className="grid grid-cols-3 gap-4 mb-8">
         <StatCard label="Unsigned OFs"       value={n.unsigned} color="#ef4444" onClick={()=>goSigned('unsigned')}/>
         <StatCard label="Drafts in progress" value={n.draft}    color="#64748b" onClick={()=>goPending('drafts')}/>
@@ -287,7 +242,6 @@ export default function Dashboard() {
 
       {/* Charts row */}
       <div className="grid grid-cols-2 gap-5 mb-6">
-        {/* Bar chart — revenue */}
         <Card className="p-5">
           <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
             <div>
@@ -295,13 +249,8 @@ export default function Dashboard() {
               <div className="text-xs text-brand-faint">Signed OFs · by signing date</div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <button onClick={()=>navigate('/repository?status=signed')}
-                className="text-[11px] font-semibold hover:underline"
-                style={{color:T}}>
-                View →
-              </button>
-              <select value={chartFY} onChange={e=>setChartFY(e.target.value)}
-                className="text-xs border rounded-lg px-2 py-1 bg-white border-slate-200">
+              <button onClick={()=>navigate('/repository?status=signed')} className="text-[11px] font-semibold hover:underline" style={{color:T}}>View →</button>
+              <select value={chartFY} onChange={e=>setChartFY(e.target.value)} className="text-xs border rounded-lg px-2 py-1 bg-white border-slate-200">
                 <option value="all">All FYs</option>
                 {availableFYs.map(fy=><option key={fy} value={fy}>FY{String(fy).slice(2)}</option>)}
               </select>
@@ -320,75 +269,46 @@ export default function Dashboard() {
             ? <div className="h-48 flex items-center justify-center text-slate-300 text-sm">No signed OFs yet</div>
             : <>
                 <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={barData} margin={{top:0,right:0,bottom:0,left:0}}
-                    onClick={()=>navigate('/repository?status=signed')}
-                    style={{cursor:'pointer'}}>
+                  <BarChart data={barData} margin={{top:0,right:0,bottom:0,left:0}} onClick={()=>navigate('/repository?status=signed')} style={{cursor:'pointer'}}>
                     <XAxis dataKey="name" tick={{fontSize:10,fill:'#94a3b8'}} axisLine={false} tickLine={false}/>
                     <YAxis tick={{fontSize:10,fill:'#94a3b8'}} axisLine={false} tickLine={false}
                       tickFormatter={v=>useUSD?'$'+(v/1000).toFixed(0)+'K':'₹'+(v/100000).toFixed(0)+'L'}/>
-                    <Tooltip
-                      formatter={(value)=>[fmtRev(value,useUSD),'Revenue']}
-                      contentStyle={{borderRadius:'10px',border:'1px solid #e2e8f0',fontSize:'12px'}}/>
-                    <Bar dataKey="value" fill={T} radius={[4,4,0,0]} cursor="pointer"
-                      onClick={()=>navigate('/repository?status=signed')}/>
+                    <Tooltip formatter={(value)=>[fmtRev(value,useUSD),'Revenue']} contentStyle={{borderRadius:'10px',border:'1px solid #e2e8f0',fontSize:'12px'}}/>
+                    <Bar dataKey="value" fill={T} radius={[4,4,0,0]} cursor="pointer" onClick={()=>navigate('/repository?status=signed')}/>
                   </BarChart>
                 </ResponsiveContainer>
                 <div className="text-center mt-1">
-                  <button onClick={()=>navigate('/repository?status=signed')}
-                    className="text-[11px] font-semibold hover:underline" style={{color:T}}>
-                    Click to view signed OFs in Repository →
-                  </button>
+                  <button onClick={()=>navigate('/repository?status=signed')} className="text-[11px] font-semibold hover:underline" style={{color:T}}>Click to view signed OFs in Repository →</button>
                 </div>
               </>
           }
         </Card>
 
-        {/* Pie chart — by status */}
         <Card className="p-5">
           <div className="flex items-center justify-between mb-1">
             <div className="font-bold text-sm" style={{color:NAVY}}>OFs by Status</div>
-            <button onClick={()=>navigate('/repository')}
-              className="text-[11px] font-semibold hover:underline"
-              style={{color:T}}>
-              View all in Repository →
-            </button>
+            <button onClick={()=>navigate('/repository')} className="text-[11px] font-semibold hover:underline" style={{color:T}}>View all →</button>
           </div>
-          <div className="text-xs text-brand-faint mb-2">All {visible.length} OFs · click any segment or label to filter</div>
+          <div className="text-xs text-brand-faint mb-2">All {visible.length} OFs · click any segment to filter</div>
           {pieData.length === 0
             ? <div className="h-48 flex items-center justify-center text-slate-300 text-sm">No data</div>
             : <>
                 <ResponsiveContainer width="100%" height={180}>
                   <PieChart>
-                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={75}
-                      dataKey="value" nameKey="label" cursor="pointer"
+                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={75} dataKey="value" nameKey="label" cursor="pointer"
                       onClick={(entry)=>navigate('/repository?status='+entry.name)}>
-                      {pieData.map((entry,i) => (
-                        <Cell key={i} fill={STATUS_COLORS[entry.name]||'#94a3b8'}/>
-                      ))}
+                      {pieData.map((entry,i) => <Cell key={i} fill={STATUS_COLORS[entry.name]||'#94a3b8'}/>)}
                     </Pie>
-                    <Tooltip
-                      formatter={(v,n)=>[v+' OFs',n]}
-                      contentStyle={{borderRadius:'10px',border:'1px solid #e2e8f0',fontSize:'12px'}}/>
+                    <Tooltip formatter={(v,n)=>[v+' OFs',n]} contentStyle={{borderRadius:'10px',border:'1px solid #e2e8f0',fontSize:'12px'}}/>
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-2 justify-center">
                   {pieData.map((entry,i)=>(
-                    <button key={i}
-                      onClick={()=>navigate('/repository?status='+entry.name)}
-                      className="flex items-center gap-1 hover:opacity-70 transition-opacity cursor-pointer">
-                      <span className="w-2 h-2 rounded-full shrink-0"
-                        style={{background:STATUS_COLORS[entry.name]||'#94a3b8'}}/>
-                      <span className="text-[10px] text-slate-500 capitalize hover:text-slate-800 transition-colors">
-                        {entry.name.replace(/_/g,' ')} ({entry.value})
-                      </span>
+                    <button key={i} onClick={()=>navigate('/repository?status='+entry.name)} className="flex items-center gap-1 hover:opacity-70 transition-opacity cursor-pointer">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{background:STATUS_COLORS[entry.name]||'#94a3b8'}}/>
+                      <span className="text-[10px] text-slate-500 capitalize hover:text-slate-800">{entry.name.replace(/_/g,' ')} ({entry.value})</span>
                     </button>
                   ))}
-                </div>
-                <div className="text-center mt-2">
-                  <button onClick={()=>navigate('/repository')}
-                    className="text-[11px] font-semibold hover:underline" style={{color:T}}>
-                    Click to view all OFs in Repository →
-                  </button>
                 </div>
               </>
           }
@@ -398,8 +318,7 @@ export default function Dashboard() {
       {/* Leaderboard */}
       {!isSales && leaderboard.length > 0 && (
         <Card className="mb-6 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-all"
-            onClick={()=>navigate('/targets')}>
+          <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-all" onClick={()=>navigate('/targets')}>
             <div>
               <div className="font-bold text-sm" style={{color:NAVY}}>Rep Performance Leaderboard</div>
               <div className="text-xs text-brand-faint mt-0.5">Signed OFs · Target achievement · {teamFilter==='all'?'All teams':teamFilter}</div>
@@ -422,26 +341,16 @@ export default function Dashboard() {
                     <tr key={r.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50">
                       <td className="px-4 py-2.5 text-slate-300 font-bold">{i+1}</td>
                       <td className="px-4 py-2.5 font-semibold" style={{color:NAVY}}>{r.name}</td>
-                      <td className="px-4 py-2.5">
-                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-500">{r.team}{r.region?' · '+r.region:''}</span>
-                      </td>
-                      <td className="px-4 py-2.5 font-mono">
-                        {r.targetCurrency==='INR'?'\u20b9':'$'}{Math.round(r.target).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-2.5 font-mono" style={{color:pctColor}}>
-                        {r.targetCurrency==='INR'?'\u20b9':'$'}{Math.round(r.achieved).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-2.5 text-center">
-                        {r.ofCount>0?<span className="px-1.5 py-0.5 rounded-full font-bold bg-teal-50 text-teal-700">{r.ofCount}</span>:'—'}
-                      </td>
+                      <td className="px-4 py-2.5"><span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-500">{r.team}{r.region?' · '+r.region:''}</span></td>
+                      <td className="px-4 py-2.5 font-mono">{r.targetCurrency==='INR'?'₹':'$'}{Math.round(r.target).toLocaleString()}</td>
+                      <td className="px-4 py-2.5 font-mono" style={{color:pctColor}}>{r.targetCurrency==='INR'?'₹':'$'}{Math.round(r.achieved).toLocaleString()}</td>
+                      <td className="px-4 py-2.5 text-center">{r.ofCount>0?<span className="px-1.5 py-0.5 rounded-full font-bold bg-teal-50 text-teal-700">{r.ofCount}</span>:'—'}</td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden" style={{minWidth:'80px'}}>
                             <div className="h-full rounded-full" style={{width:Math.min(r.pct,100)+'%',background:pctColor}}/>
                           </div>
-                          <span className="font-bold w-10 text-right" style={{color:pctColor}}>
-                            {r.pct>=1000?'999%+':r.pct.toFixed(1)+'%'}
-                          </span>
+                          <span className="font-bold w-10 text-right" style={{color:pctColor}}>{r.pct>=1000?'999%+':r.pct.toFixed(1)+'%'}</span>
                         </div>
                       </td>
                     </tr>
@@ -453,39 +362,53 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* Renewal drafts banner */}
+      {/* ── Renewal drafts — header navigates to pending, each row navigates to form ── */}
       {n.renewals > 0 && (
-        <Card className="mb-6 overflow-hidden cursor-pointer hover:shadow-md transition-all" onClick={()=>goPending('renewals')}>
-          <div className="px-6 py-3 bg-purple-50 border-b border-purple-200">
-            <h3 className="font-bold text-sm text-purple-800">🔄 Renewal drafts ready for review ({n.renewals}) — click to view →</h3>
+        <div className="mb-6 rounded-2xl border overflow-hidden" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+          <div className="px-6 py-3 bg-purple-50 border-b border-purple-200 flex items-center justify-between cursor-pointer hover:bg-purple-100 transition-all"
+            onClick={()=>goPending('renewals')}>
+            <h3 className="font-bold text-sm text-purple-800">🔄 Renewal drafts ready for review ({n.renewals})</h3>
+            <span className="text-xs text-purple-600 font-medium">View all in Pending →</span>
           </div>
           {visible.filter(f=>f.is_renewal&&f.status==='draft').map(f=>(
-            <div key={f.id} onClick={e=>{e.stopPropagation();navigate('/form/'+f.id);}}
-              className="flex items-center justify-between px-6 py-3 cursor-pointer hover:bg-slate-50 border-b border-slate-50 last:border-0">
+            <div key={f.id}
+              onClick={()=>navigate('/form/'+f.id)}
+              className="flex items-center justify-between px-6 py-3 cursor-pointer hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors">
               <div>
                 <span className="text-sm font-medium" style={{color:NAVY}}>{f.customer_name}</span>
-                <span className="text-xs text-purple-600 ml-2 font-semibold">Renewal of {f.renewal_of_number} · Suggested: {f.suggested_of_number}</span>
+                <span className="text-xs text-purple-600 ml-2 font-semibold">
+                  Renewal of {f.renewal_of_number} · Suggested: {f.suggested_of_number}
+                </span>
               </div>
-              <span className="text-xs text-brand-faint">{f.start_date} → {f.end_date}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-brand-faint">{f.start_date} → {f.end_date}</span>
+                <span className="text-slate-300">›</span>
+              </div>
             </div>
           ))}
-        </Card>
+        </div>
       )}
 
-      {/* Renewing soon */}
+      {/* ── Renewing soon — header navigates to repo, each row navigates to form ── */}
       {renewing.length > 0 && (
-        <Card className="mb-6 overflow-hidden cursor-pointer hover:shadow-md transition-all" onClick={()=>goRepo()}>
-          <div className="px-6 py-3 bg-amber-50 border-b border-amber-200">
-            <h3 className="font-bold text-sm text-amber-800">🔔 Renewing / expiring within 30 days ({renewing.length}) →</h3>
+        <div className="mb-6 rounded-2xl border overflow-hidden" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+          <div className="px-6 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between cursor-pointer hover:bg-amber-100 transition-all"
+            onClick={()=>goRepo()}>
+            <h3 className="font-bold text-sm text-amber-800">🔔 Renewing / expiring within 30 days ({renewing.length})</h3>
+            <span className="text-xs text-amber-600 font-medium">View all in Repository →</span>
           </div>
           {renewing.map(f=>(
-            <div key={f.id} onClick={e=>{e.stopPropagation();navigate('/form/'+f.id);}}
-              className="flex items-center justify-between px-6 py-3 cursor-pointer hover:bg-slate-50 border-b border-slate-50 last:border-0">
+            <div key={f.id}
+              onClick={()=>navigate('/form/'+f.id)}
+              className="flex items-center justify-between px-6 py-3 cursor-pointer hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors">
               <span className="text-sm font-medium" style={{color:NAVY}}>{f.customer_name}</span>
-              <span className="text-xs text-amber-600 font-bold">{daysUntil(f.end_date)}d remaining · {f.end_date}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-amber-600 font-bold">{daysUntil(f.end_date)}d remaining · {f.end_date}</span>
+                <span className="text-slate-300">›</span>
+              </div>
             </div>
           ))}
-        </Card>
+        </div>
       )}
 
       {/* Queue */}
