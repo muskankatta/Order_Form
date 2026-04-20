@@ -39,7 +39,7 @@ export default function AppShell({ children }) {
       to:'/signed', lbl:'Signed OFs',
       badge:overdueCount>0?overdueCount:null, badgeColor:'#ef4444'
     }] : []),
-    ...(user?.role==='revops'||user?.isUniversal ? [{ to:'/churn-void', lbl:'Churn / Void' }] : []),
+    ...(user?.role==='sales'||user?.role==='revops'||user?.isUniversal ? [{ to:'/churn-void', lbl:'Churn / Void' }] : []),
     ...(user?.isUniversal ? [
       { to:'/audit-log',   lbl:'Audit Log' },
       { to:'/admin-users', lbl:'User Management' },
