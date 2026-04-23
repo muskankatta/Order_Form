@@ -248,8 +248,9 @@ export function FormsProvider({ children }) {
       'Start Date: ' + (f.start_date || '—') + '\n\n' +
       'Log in to review:\nhttps://muskankatta.github.io/Order_Form/'
     );
-    notifySlack('submitted', f, {}, ts => persistOne({ ...f, slack_thread_ts: ts }));
-    return f;
+    const ts = await notifySlack('submitted', f, {});
+if (ts) await persistOne({ ...f, slack_thread_ts: ts });
+return f;
   }, [persistOne]);
 
   const revopsApprove = useCallback(async (id, { editedForm, comment, financeApprovers }) => {
@@ -271,7 +272,7 @@ export function FormsProvider({ children }) {
       'OF Value: ' + (f.committed_currency || 'INR') + ' ' + Number(f.of_value || 0).toLocaleString('en-IN') + '\n\n' +
       'Log in to the platform:\nhttps://muskankatta.github.io/Order_Form/'
     );
-    notifySlack('revops_approved', f, {}, ts => persistOne({ ...f, slack_thread_ts: ts }));
+    await notifySlack('revops_approved', f, {});
   }, [forms, persistOne, user]);
 
   const revopsReject = useCallback(async (id, { comment }) => {
@@ -291,7 +292,7 @@ export function FormsProvider({ children }) {
       'Reason: ' + (comment || 'See platform for details') + '\n\n' +
       'Please log in to review and resubmit:\nhttps://muskankatta.github.io/Order_Form/'
     );
-    notifySlack('revops_rejected', f, { comment }, ts => persistOne({ ...f, slack_thread_ts: ts }));
+    await notifySlack('revops_rejected', f, { comment });
   }, [forms, persistOne, user]);
 
   const financeApprove = useCallback(async (id, { ofNumber, comment, editedForm }) => {
@@ -317,7 +318,7 @@ export function FormsProvider({ children }) {
       'End Date: ' + (f.end_date || '—') + '\n\n' +
       'Log in to the platform:\nhttps://muskankatta.github.io/Order_Form/'
     );
-    notifySlack('approved', f, {}, ts => persistOne({ ...f, slack_thread_ts: ts }));
+    await notifySlack('approved', f, {});
   }, [forms, persistOne, user]);
 
   const financeReject = useCallback(async (id, { comment }) => {
@@ -333,7 +334,7 @@ export function FormsProvider({ children }) {
       'Reason: ' + (comment || 'See platform for details') + '\n\n' +
       'Please log in to review:\nhttps://muskankatta.github.io/Order_Form/'
       );
-    notifySlack('finance_rejected', f, { comment }, ts => persistOne({ ...f, slack_thread_ts: ts }));
+    await notifySlack('finance_rejected', f, { comment });
   }, [forms, persistOne, user]);
 
   const markSigned = useCallback(async (id, signingDate, signedLink = '') => {
@@ -344,7 +345,7 @@ export function FormsProvider({ children }) {
       signed_of_link: signedLink,
     };
     await persistOne(f);
-    notifySlack('signed', f, {}, ts => persistOne({ ...f, slack_thread_ts: ts }));
+    await notifySlack('signed', f, {});
   }, [forms, persistOne, user]);
 
   const markCompleted = useCallback(async (id) => {
