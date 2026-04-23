@@ -136,8 +136,8 @@ function buildMessage(event, form, extra = {}) {
 export async function notifySlack(event, form, extra = {}, onTs = null) {
   const channel   = getChannel(form);
   const text      = buildMessage(event, form, extra);
-  const thread_ts = form.slack_thread_ts || null;
-
+  const thread_ts = (form.slack_thread_ts && form.slack_thread_ts !== 'undefined') ? form.slack_thread_ts : null;
+  
   const ts = await postToSlack({ channel, text, thread_ts });
   if (ts && !thread_ts && onTs) onTs(ts);
   return ts;
