@@ -84,11 +84,19 @@ async function postToSlack({ channel, text, thread_ts }) {
       body: JSON.stringify(body),
     });
 
-    const data = await res.json();
-    const slack = data?.result || data;
-    if (slack?.ok && slack?.ts) return slack.ts;
-    console.warn('Slack post failed:', JSON.stringify(slack));
-    return null;
+    const res = await fetch(url, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+});
+
+const text = await res.text();
+if (!text) { console.warn('Boltic returned empty response'); return null; }
+const data = JSON.parse(text);
+const slack = data?.result || data;
+if (slack?.ok && slack?.ts) return slack.ts;
+console.warn('Slack post failed:', JSON.stringify(slack));
+return null;
   } catch (e) {
     console.error('Slack error:', e);
     return null;
