@@ -77,7 +77,8 @@ async function postToSlack({ channel, text, thread_ts }) {
   try {
     const body = { channel, text };
 
-    const res = await fetch(BOLTIC_URL, {
+    const url = thread_ts ? `${BOLTIC_URL}?thread_ts=${encodeURIComponent(thread_ts)}` : BOLTIC_URL;
+const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
