@@ -2,15 +2,14 @@
  * Fynd OF Platform — Slack notification utility via Boltic proxy
  */
 
-const BOLTIC_URL        = import.meta.env.VITE_BOLTIC_SLACK_URL || '';
-const BOLTIC_THREAD_URL = import.meta.env.VITE_BOLTIC_SLACK_THREAD_URL || '';
+const BOLTIC_URL = import.meta.env.VITE_BOLTIC_SLACK_URL || '';
 
 const CHANNELS = {
   India:    'C0AQTCE3PNY',
   Global:   'C08CBBNRAKZ',
   'AI/SaaS':'C0978TZNGM8',
 };
- 
+
 const SLACK_IDS = {
   'abhishekdalvi@gofynd.com':   'U0A6WDTN1K7',
   'anshuman@gofynd.com':        'U0AD7ENHY04',
@@ -60,7 +59,7 @@ const SLACK_IDS = {
   'somaydugar@gofynd.com':      'U07H3FK41U0',
   'vikysangoi@gofynd.com':      'U3JUC5YNS',
   'roshanimohan@gofynd.com':    'UBZ21KS66',
-  'jaykaria@gofynd.com':        'U01T33X34UU'
+  'jaykaria@gofynd.com':        'U01T33X34UU',
 };
 
 function slackMention(email) {
@@ -84,19 +83,13 @@ async function postToSlack({ channel, text, thread_ts }) {
       body: JSON.stringify(body),
     });
 
-    const res = await fetch(url, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(body),
-});
-
-const text = await res.text();
-if (!text) { console.warn('Boltic returned empty response'); return null; }
-const data = JSON.parse(text);
-const slack = data?.result || data;
-if (slack?.ok && slack?.ts) return slack.ts;
-console.warn('Slack post failed:', JSON.stringify(slack));
-return null;
+    const rawText = await res.text();
+    if (!rawText) { console.warn('Boltic returned empty response'); return null; }
+    const data = JSON.parse(rawText);
+    const slack = data?.result || data;
+    if (slack?.ok && slack?.ts) return slack.ts;
+    console.warn('Slack post failed:', JSON.stringify(slack));
+    return null;
   } catch (e) {
     console.error('Slack error:', e);
     return null;
@@ -141,13 +134,14 @@ function buildMessage(event, form, extra = {}) {
   return text;
 }
 
-export async function notifySlack(event, form, extra = {}, onTs = null) {
+export async function notifySlack(event, form, extra = {}) {
   const channel   = getChannel(form);
   const text      = buildMessage(event, form, extra);
-  const thread_ts = (form.slack_thread_ts && form.slack_thread_ts !== 'undefined') ? form.slack_thread_ts : null;
-  
+  const thread_ts = (form.slack_thread_ts && form.slack_thread_ts !== 'undefined')
+    ? form.slack_thread_ts
+    : null;
+
   const ts = await postToSlack({ channel, text, thread_ts });
-  if (ts && !thread_ts && onTs) onTs(ts);
   return ts;
 }
 
