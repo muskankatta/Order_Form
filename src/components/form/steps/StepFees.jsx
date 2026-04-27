@@ -175,7 +175,7 @@ function GaasSKUBlock({ svc, onChange, ro, currency }) {
   );
 }
 
-// ── Fee row (unchanged) ───────────────────────────────────────────────────────
+// ── Fee row ───────────────────────────────────────────────────────────────────
 function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
   const u   = (k,v) => onChange({ ...fee, [k]:v });
   const sym = getSym(currency || 'INR');
@@ -407,14 +407,55 @@ function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency }) {
                 {selected.length > 0 && <p className="text-[10px] mt-2 text-brand-faint">Selected: {selected.join(' · ')}</p>}
               </div>
             )}
+
+            {/* ── Read-only fee display ── */}
             {(svc.fees||[]).map((fee,fi)=>(
               ro
                 ? <div key={fee.id} className="border rounded-xl p-3 mb-2 text-xs bg-slate-50" style={{borderColor:'#e2e8f0'}}>
-                    <span className="font-semibold" style={{color:NAVY}}>{fee.feeType}</span> · {fee.billingCycle} · {fee.isLogistics?'As per rate card':fee.pricingModel==='graduated'?'Variable':fee.commercialValue||'—'}
-                    {fee.inclusions&&<span className="text-brand-muted"> · Inclusions: {fee.inclusions}</span>}
+                    <div className="flex flex-wrap gap-x-2 gap-y-1 items-baseline">
+                      <span className="font-semibold" style={{color:NAVY}}>{fee.feeType}</span>
+                      {fee.billingCycle && <span className="text-brand-muted">· {fee.billingCycle}</span>}
+
+                      {fee.isLogistics
+                        ? <span className="text-brand-muted">
+                            · As per rate card
+                            {fee.logisticsRateCard && <> (<a href={fee.logisticsRateCard} target="_blank" rel="noreferrer" className="underline" style={{color:T}}>link</a>)</>}
+                          </span>
+
+                        : fee.pricingModel === 'graduated'
+                          ? <span className="text-brand-muted">
+                              · Slabs:&nbsp;
+                              {(fee.slabs||[]).map((sl,si) => (
+                                <span key={sl.id||si} className="font-mono">
+                                  {sl.from}–{sl.to||'∞'} @ {sl.rate} {sl.rateType==='Others' ? sl.rateTypeCustom : sl.rateType}
+                                  {si < (fee.slabs||[]).length - 1 ? ',  ' : ''}
+                                </span>
+                              ))}
+                            </span>
+
+                          : fee.stepUpPricing && (fee.stepUpValues||[]).length > 0
+                            ? <span className="text-brand-muted">
+                                · Step-up:&nbsp;
+                                {(fee.stepUpValues||[]).map((sv,si) => (
+                                  <span key={sv.id||si} className="font-mono">
+                                    {sv.label}: {sv.value}
+                                    {si < (fee.stepUpValues||[]).length - 1 ? ',  ' : ''}
+                                  </span>
+                                ))}
+                              </span>
+
+                            : <span className="font-mono font-semibold" style={{color:NAVY}}>
+                                · {fee.commercialValue||'—'}
+                              </span>
+                      }
+
+                      {fee.inclusions && <span className="text-brand-muted">· Inclusions: {fee.inclusions}</span>}
+                      {fee.unitMetric  && <span className="text-brand-muted">· {fee.unitMetric}</span>}
+                    </div>
                   </div>
                 : <FeeRow key={fee.id} fee={fee} idx={fi} onChange={u=>updFee(fi,u)} onRemove={()=>remFee(fi)} termMonths={termMonths} currency={currency}/>
             ))}
+
             {!ro && (
               <button type="button" onClick={addFee}
                 className="w-full text-sm font-medium py-2.5 rounded-xl border-2 border-dashed transition-all border-slate-200 text-slate-500 hover:border-teal hover:text-teal">
@@ -440,7 +481,6 @@ export default function StepFees({ form, set, ro }) {
 
   useEffect(() => {
     if (ro) return;
-    // For GaaS: revenue = sum of gaas_total across all GaaS services
     const gaasRevenue = services.filter(s=>s.name==='GaaS').reduce((sum,s)=>sum+(s.gaas_total||0),0);
     if (isGaaSForm) {
       if (form.committed_revenue !== String(gaasRevenue) && form.committed_revenue !== gaasRevenue) {
