@@ -44,7 +44,7 @@ export default function FormDetail({ form: initial }) {
   const canEdit = user?.isUniversal
     || (user?.role==='sales' && ['draft','revops_rejected'].includes(form.status) && form.sales_rep_email===user.email)
     || (user?.role==='revops' && form.status==='submitted')
-    || (user?.role==='finance' && ['revops_approved','signed'].includes(form.status));
+    || (user?.role==='finance');
 
   const canDelete = (user?.isUniversal) || (user?.role==='sales'&&form.status==='draft') || (user?.role==='revops'&&form.status==='submitted') || (user?.role==='finance'&&form.status==='revops_approved');
 
@@ -154,6 +154,20 @@ export default function FormDetail({ form: initial }) {
                 📎 Ref: {form.sow_reference_document.name}
               </a>
             )}
+          </div>
+        </Card>
+      )}
+
+      {/* Finance / Universal — save edits at any stage (except where stage-specific save already exists) */}
+      {edit && (user?.role==='finance' || user?.isUniversal) && !['draft','revops_rejected','revops_approved','signed'].includes(form.status) && (
+        <Card className="mt-4 p-4">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg flex-1">
+              ✏️ Editing — save to persist changes
+            </span>
+            <Btn variant="navy" onClick={async () => { await updateDraft(form.id, ef); setEdit(false); show('Edits saved ✓'); }}>
+              💾 Save edits
+            </Btn>
           </div>
         </Card>
       )}
