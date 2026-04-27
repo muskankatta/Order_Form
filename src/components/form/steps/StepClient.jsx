@@ -7,6 +7,11 @@ import { useAuth } from '../../../context/AuthContext.jsx';
 
 const REGIONS = ['MEA', 'SEA & RoW'];
 
+const ENTITIES = [
+  { value: 'fynd', label: 'Shopsense Retail Technologies Limited (Fynd)' },
+  { value: 'yavi', label: 'Yavi Technologies FZCO' },
+];
+
 // Validate tax number: alphanumeric only, 3–30 chars
 function isValidTaxNumber(val) {
   return /^[A-Z0-9\-]{3,30}$/.test(val);
@@ -24,10 +29,10 @@ export default function StepClient({ form, set, ro }) {
   const sortedReps = [...teamReps].sort((a,b) => a.name.localeCompare(b.name));
   const isGlobal = form.sales_team === 'Global';
 
-  // Country-based tax field logic
-  // India (or no country selected): PAN mandatory, GSTIN optional, no Tax Number
-  // Any other country: PAN optional, GSTIN optional, Tax Number mandatory
-  const isIndia = !form.country || form.country === 'India';
+  const isYavi = form.entity === 'yavi';
+  // For Yavi OFs: tax_number mandatory (non-India entity), GSTIN/PAN optional
+  // For Fynd OFs: country-based logic (India = PAN mandatory, others = tax_number mandatory)
+  const isIndia = !isYavi && (!form.country || form.country === 'India');
 
   const handleRepSelect = email => {
     const rep = SALES_REPS.find(r => r.email === email);
@@ -50,13 +55,25 @@ export default function StepClient({ form, set, ro }) {
     }
   };
 
+  const handleEntityChange = v => {
+    u('entity', v);
+    // Yavi OFs default to Global team & USD currency
+    if (v === 'yavi') {
+      if (!form.sales_team) u('sales_team', 'Global');
+      if (!form.committed_currency) u('committed_currency', 'USD');
+      // Clear India-specific tax fields
+      u('gstin', '');
+      u('pan', '');
+    }
+    if (v === 'fynd') {
+      u('tax_number', '');
+    }
+  };
+
   const handleCountryChange = v => {
     u('country', v);
-    // Clear tax fields when switching country type to avoid stale data
     if (v === 'India') {
       u('tax_number', '');
-    } else {
-      // Optionally clear PAN/GSTIN when switching away from India
     }
   };
 
@@ -74,6 +91,38 @@ export default function StepClient({ form, set, ro }) {
 
   return (
     <div>
+      {/* ── Entity selector — must be filled first ── */}
+      <SHdr c="Entity"/>
+      <div className="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs">
+        Select the entity issuing this Order Form. This controls the letterhead, T&amp;C, and signatory on the generated document.
+      </div>
+      <div className="grid grid-cols-2 gap-x-6 mb-2">
+        <Sel
+          label="Issuing Entity"
+          req
+          value={form.entity || ''}
+          onChange={handleEntityChange}
+          options={ENTITIES}
+          disabled={ro}
+          hint={form.entity === 'yavi' ? 'Yavi Technologies FZCO · Dubai CommerCity' : form.entity === 'fynd' ? 'Shopsense Retail Technologies Ltd. · Mumbai' : ''}
+        />
+        {/* Entity badge */}
+        <div className="flex items-end pb-4">
+          {form.entity === 'yavi' && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200">
+              <span className="text-xs font-bold text-indigo-700">YAVI</span>
+              <span className="text-xs text-indigo-500">OF series: OFYT-XXXX</span>
+            </div>
+          )}
+          {form.entity === 'fynd' && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-teal-50 border border-teal-200">
+              <span className="text-xs font-bold text-teal-700">FYND</span>
+              <span className="text-xs text-teal-500">OF series: OFFY-XXXX</span>
+            </div>
+          )}
+        </div>
+      </div>
+
       <SHdr c="Customer information"/>
       <div className="grid grid-cols-2 gap-x-6">
         <Inp label="Customer name (legal entity)" req value={form.customer_name} onChange={v=>u('customer_name',v)} disabled={ro}/>
@@ -82,64 +131,70 @@ export default function StepClient({ form, set, ro }) {
           <TA label="Customer billing address" req value={form.billing_address} onChange={v=>u('billing_address',v)} disabled={ro} rows={2}/>
         </div>
 
-        {/* Country — controls which tax fields appear below */}
-        <Sel label="Country" req value={form.country} onChange={handleCountryChange} options={COUNTRIES} disabled={ro}/>
+        {/* Country — only shown for Fynd OFs (controls tax field type) */}
+        {!isYavi && (
+          <Sel label="Country" req value={form.country} onChange={handleCountryChange} options={COUNTRIES} disabled={ro}/>
+        )}
 
-        {/* GSTIN — optional for India, optional for others */}
-        <div className="mb-4">
-          <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
-            Customer GSTIN <span className="text-slate-400">(optional)</span>
-          </label>
-          <input
-            value={form.gstin||''}
-            onChange={e => { const val=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,15); u('gstin',val); }}
-            placeholder="27AADCB2230M1ZT"
-            className="field-input font-mono"
-            style={{ borderColor: form.gstin
-              ? (/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) ? '#4ade80' : '#fca5a5')
-              : '#e2e8f0' }}
-            maxLength={15} disabled={ro}
-          />
-          {form.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) && (
-            <p className="text-xs mt-1 text-red-500">Format: 2 digits + 5 letters + 4 digits + 1 letter + 1 digit + Z + 1 alphanumeric</p>
-          )}
-          {form.gstin && /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) && (
-            <p className="text-xs mt-1 text-green-600">✓ Valid GSTIN format</p>
-          )}
-        </div>
-
-        {/* PAN — mandatory for India, optional for others */}
-        <div className="mb-4">
-          <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
-            Customer PAN
-            {isIndia
-              ? <span className="text-red-400 ml-1">*</span>
-              : <span className="text-slate-400 ml-1">(optional)</span>
-            }
-          </label>
-          <input
-            value={form.pan||''}
-            onChange={e => { const val=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,10); u('pan',val); }}
-            placeholder="AADCB2230M"
-            className="field-input font-mono"
-            style={{ borderColor: form.pan
-              ? (/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) ? '#4ade80' : '#fca5a5')
-              : '#e2e8f0' }}
-            maxLength={10} disabled={ro}
-          />
-          {form.pan && !/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) && (
-            <p className="text-xs mt-1 text-red-500">Format: 5 letters + 4 digits + 1 letter</p>
-          )}
-          {form.pan && /^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) && (
-            <p className="text-xs mt-1 text-green-600">✓ Valid PAN format</p>
-          )}
-        </div>
-
-        {/* Tax / VAT Number — mandatory for non-India countries */}
-        {!isIndia && (
-          <div className="mb-4 col-span-2">
+        {/* GSTIN — optional for both; hidden for Yavi */}
+        {!isYavi && (
+          <div className="mb-4">
             <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
-              Tax / VAT Number <span className="text-red-400">*</span>
+              Customer GSTIN <span className="text-slate-400">(optional)</span>
+            </label>
+            <input
+              value={form.gstin||''}
+              onChange={e => { const val=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,15); u('gstin',val); }}
+              placeholder="27AADCB2230M1ZT"
+              className="field-input font-mono"
+              style={{ borderColor: form.gstin
+                ? (/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) ? '#4ade80' : '#fca5a5')
+                : '#e2e8f0' }}
+              maxLength={15} disabled={ro}
+            />
+            {form.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) && (
+              <p className="text-xs mt-1 text-red-500">Format: 2 digits + 5 letters + 4 digits + 1 letter + 1 digit + Z + 1 alphanumeric</p>
+            )}
+            {form.gstin && /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) && (
+              <p className="text-xs mt-1 text-green-600">✓ Valid GSTIN format</p>
+            )}
+          </div>
+        )}
+
+        {/* PAN — mandatory for Fynd/India, optional for Fynd/non-India, hidden for Yavi */}
+        {!isYavi && (
+          <div className="mb-4">
+            <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
+              Customer PAN
+              {isIndia
+                ? <span className="text-red-400 ml-1">*</span>
+                : <span className="text-slate-400 ml-1">(optional)</span>
+              }
+            </label>
+            <input
+              value={form.pan||''}
+              onChange={e => { const val=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,10); u('pan',val); }}
+              placeholder="AADCB2230M"
+              className="field-input font-mono"
+              style={{ borderColor: form.pan
+                ? (/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) ? '#4ade80' : '#fca5a5')
+                : '#e2e8f0' }}
+              maxLength={10} disabled={ro}
+            />
+            {form.pan && !/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) && (
+              <p className="text-xs mt-1 text-red-500">Format: 5 letters + 4 digits + 1 letter</p>
+            )}
+            {form.pan && /^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) && (
+              <p className="text-xs mt-1 text-green-600">✓ Valid PAN format</p>
+            )}
+          </div>
+        )}
+
+        {/* Tax / VAT Number — mandatory for Yavi, mandatory for Fynd non-India */}
+        {(isYavi || !isIndia) && (
+          <div className={`mb-4 ${!isYavi ? 'col-span-2' : ''}`}>
+            <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
+              {isYavi ? 'Tax / VAT / TRN Number' : 'Tax / VAT Number'} <span className="text-red-400">*</span>
             </label>
             <input
               value={form.tax_number||''}
@@ -147,7 +202,7 @@ export default function StepClient({ form, set, ro }) {
                 const val = e.target.value.toUpperCase().replace(/[^A-Z0-9\-]/g,'').slice(0,30);
                 u('tax_number', val);
               }}
-              placeholder="e.g. AE100234567, GB123456789, MY-1234567890"
+              placeholder={isYavi ? 'e.g. 104789269800003' : 'e.g. AE100234567, GB123456789'}
               className="field-input font-mono"
               style={{ borderColor: form.tax_number
                 ? (isValidTaxNumber(form.tax_number) ? '#4ade80' : '#fca5a5')
@@ -160,9 +215,14 @@ export default function StepClient({ form, set, ro }) {
             {form.tax_number && isValidTaxNumber(form.tax_number) && (
               <p className="text-xs mt-1 text-green-600">✓ Valid tax number format</p>
             )}
-            <p className="text-xs mt-1 text-brand-faint">
-              Enter the applicable local tax identifier — VAT, TRN, GST, etc. · Country: {form.country}
-            </p>
+            {isYavi && (
+              <p className="text-xs mt-1 text-brand-faint">VAT / TRN number for Yavi Technologies FZCO client</p>
+            )}
+            {!isYavi && (
+              <p className="text-xs mt-1 text-brand-faint">
+                Enter the applicable local tax identifier — VAT, TRN, GST, etc. · Country: {form.country}
+              </p>
+            )}
           </div>
         )}
       </div>
