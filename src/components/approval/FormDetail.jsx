@@ -35,18 +35,17 @@ export default function FormDetail({ form: initial }) {
   const live = edit ? ef : form;
   const set  = (k,v) => setEf(prev => ({...prev,[k]:v}));
 
-  // Primary DRI logic — first person in the approvers array is the primary
   const revopsPrimaryEmail  = (form.revops_approvers||[])[0];
   const financePrimaryEmail = (form.finance_approvers||[])[0];
   const isRevopsPrimary  = user?.email === revopsPrimaryEmail || user?.isUniversal;
   const isFinancePrimary = user?.email === financePrimaryEmail || user?.isUniversal;
 
+  // ── canEdit: added 'signed' for Finance/Universal ─────────────────────────
   const canEdit = user?.isUniversal
-  || (user?.role==='sales' && ['draft','revops_rejected'].includes(form.status) && form.sales_rep_email===user.email)
-  || (user?.role==='revops' && form.status==='submitted')
-  || (user?.role==='finance' && form.status==='revops_approved');
+    || (user?.role==='sales' && ['draft','revops_rejected'].includes(form.status) && form.sales_rep_email===user.email)
+    || (user?.role==='revops' && form.status==='submitted')
+    || (user?.role==='finance' && ['revops_approved','signed'].includes(form.status));
 
-  const universalCanSave = user?.isUniversal;
   const canDelete = (user?.isUniversal) || (user?.role==='sales'&&form.status==='draft') || (user?.role==='revops'&&form.status==='submitted') || (user?.role==='finance'&&form.status==='revops_approved');
 
   const tabContent = {
@@ -78,6 +77,12 @@ export default function FormDetail({ form: initial }) {
     if (!sigDate) { alert('Enter signing date.'); return; }
     await markSigned(form.id, sigDate, signedLink);
     show('Marked as signed ✓');
+  };
+
+  const handleSaveSignedEdits = async () => {
+    await updateDraft(form.id, ef);
+    setEdit(false);
+    show('Edits saved ✓');
   };
 
   const handleClone = async () => {
@@ -368,6 +373,19 @@ export default function FormDetail({ form: initial }) {
             </div>
             <Btn variant="ghost" size="sm" onClick={() => openPDF(live)}>👁 Preview PDF</Btn>
           </div>
+
+          {/* Save form edits — Finance/Universal only */}
+          {edit && (user?.role==='finance' || user?.isUniversal) && (
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
+                  ✏️ Editing signed form — changes will be saved directly
+                </span>
+              </div>
+              <Btn variant="navy" onClick={handleSaveSignedEdits}>💾 Save edits</Btn>
+            </div>
+          )}
+
           {(user?.role==='finance'||user?.isUniversal) && (
             <div className="mt-4 pt-4 border-t border-slate-100">
               <Lbl c="Signed PDF link (Google Drive)"/>
