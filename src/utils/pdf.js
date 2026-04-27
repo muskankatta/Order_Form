@@ -325,12 +325,10 @@ export const openPDF = form => {
   const inject = () => {
     const bar = w.document.getElementById('actionBar');
     if (!bar) { setTimeout(inject, 100); return; }
-
-    if (attachments.length === 0) {
-      bar.innerHTML = '<button onclick="window.print()" style="background:#1B2B4B;color:#fff;border:none;padding:10px 28px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">\uD83D\uDDB6 Print / Save as PDF</button>';
-      return;
-    }
-
+    bar.innerHTML = '<button onclick="window.print()" style="background:#1B2B4B;color:#fff;border:none;padding:10px 28px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">\uD83D\uDDB6 Print / Save as PDF</button>';
+  };
+  setTimeout(inject, 300);
+};
     bar.innerHTML =
       '<button id="combineBtn" style="background:#1B2B4B;color:#fff;border:none;padding:10px 28px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">' +
       '\u2B07 Download Combined PDF (OF + ' + attachments.length + ' attachment' + (attachments.length > 1 ? 's' : '') + ')</button>' +
