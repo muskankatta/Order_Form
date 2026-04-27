@@ -125,11 +125,23 @@ export function SignedOFs() {
     return true;
   };
 
-  const baseFilter = arr => {
-    let res = arr;
-    if (q) res = res.filter(f=>[f.customer_name,f.of_number,f.brand_name,f.sales_rep_name].some(v=>v?.toLowerCase().includes(q.toLowerCase())));
-    return res.filter(f => matchesRegion(f, regionFilter));
-  };
+ const baseFilter = arr => {
+  let res = arr;
+  if (q) res = res.filter(f=>[f.customer_name,f.of_number,f.brand_name,f.sales_rep_name].some(v=>v?.toLowerCase().includes(q.toLowerCase())));
+  res = res.filter(f => matchesRegion(f, regionFilter));
+  // Deduplicate by of_number — sum committed_revenue across entries sharing the same OF#
+  const seen = new Map();
+  res.forEach(f => {
+    const key = f.of_number || f.id;
+    if (!seen.has(key)) {
+      seen.set(key, { ...f });
+    } else {
+      const existing = seen.get(key);
+      existing.committed_revenue = Number(existing.committed_revenue||0) + Number(f.committed_revenue||0);
+    }
+  });
+  return [...seen.values()];
+};
 
   // All approved+unsigned
   const allApproved = baseFilter(forms.filter(f => f.status==='approved' && !f.signed_date));
