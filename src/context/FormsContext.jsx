@@ -44,6 +44,10 @@ const fromFirestore = snap => {
     if (ARRAY_FIELDS.has(key) && !Array.isArray(d[key])) d[key] = [];
   });
   return d;
+  // Auto-tag existing OFYT OFs as Yavi entity
+if (!d.entity && d.of_number && d.of_number.startsWith('OF-YT')) {
+  d.entity = 'Yavi';
+}
 };
 
 // ── RENEWAL HELPERS ───────────────────────────────────────────────────────────
