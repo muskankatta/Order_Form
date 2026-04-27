@@ -3,6 +3,26 @@ import { GAAS_PAYMENT_TRIGGERS, GAAS_PAYMENT_NETS } from '../../../constants/for
 
 const NAVY = '#1B2B4B'; const T = '#00C3B5';
 
+// ── Entity signatory configs ──────────────────────────────────────────────────
+const ENTITY_SIGNATORIES = {
+  yavi: {
+    label:       'Yavi Technologies FZCO signatory (pre-filled)',
+    labelColor:  'text-indigo-800',
+    bgColor:     'bg-indigo-50 border border-indigo-200',
+    name:        'Vishesh Kumar',
+    designation: 'Founding Director',
+    email:       'accounts@yavitechnologies.com',
+  },
+  fynd: {
+    label:       'Fynd signatory (pre-filled)',
+    labelColor:  'text-green-800',
+    bgColor:     'bg-green-50 border border-green-200',
+    name:        'Sreeraman Mohan Girija',
+    designation: 'Whole-time Director',
+    email:       'legal@gofynd.com',
+  },
+};
+
 function isGaaSForm(form) {
   return (form.services_fees || []).some(s => s.name === 'GaaS');
 }
@@ -83,7 +103,7 @@ export function StepTerms({ form, set, ro }) {
         <>
           <SHdr c="Special terms & comments"/>
           <div className="mb-4 p-4 rounded-xl text-sm bg-amber-50 border border-amber-200 text-amber-800">
-            <strong>Note:</strong> Appears in the PDF between Section B (Service Details) and Terms &amp; Conditions.
+            <strong>Note:</strong> Appears in the PDF/Word document between Service Details and the Terms &amp; Conditions.
           </div>
           <TA label="Special terms" value={form.special_terms} onChange={v=>u('special_terms',v)} disabled={ro} rows={8}/>
         </>
@@ -94,6 +114,11 @@ export function StepTerms({ form, set, ro }) {
 
 export function StepSignatory({ form, set, ro }) {
   const u = (k,v) => !ro && set(k,v);
+
+  // Determine entity signatory — default to Fynd if not set
+  const entityKey = form.entity === 'yavi' ? 'yavi' : 'fynd';
+  const sig = ENTITY_SIGNATORIES[entityKey];
+
   return (
     <div>
       <SHdr c="Authorised signatory (customer)"/>
@@ -115,10 +140,14 @@ export function StepSignatory({ form, set, ro }) {
           </div>
         ))}
       </div>
-      <div className="mt-2 p-4 rounded-xl bg-green-50 border border-green-200">
-        <div className="text-xs font-bold uppercase tracking-wider mb-3 text-green-800">Fynd signatory (pre-filled)</div>
+
+      {/* Entity-aware issuer signatory */}
+      <div className={`mt-2 p-4 rounded-xl ${sig.bgColor}`}>
+        <div className={`text-xs font-bold uppercase tracking-wider mb-3 ${sig.labelColor}`}>
+          {sig.label}
+        </div>
         <div className="grid grid-cols-3 gap-x-4">
-          {[['Name','Sreeraman Mohan Girija'],['Designation','Whole-time Director'],['Email','legal@gofynd.com']].map(([l,v]) => (
+          {[['Name', sig.name], ['Designation', sig.designation], ['Email', sig.email]].map(([l,v]) => (
             <div key={l} className="mb-4">
               <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">{l}</label>
               <input value={v} readOnly className="field-input" style={{ background:'#f8fafc', color:'#64748b', borderColor:'#e2e8f0' }}/>
@@ -126,6 +155,13 @@ export function StepSignatory({ form, set, ro }) {
           ))}
         </div>
       </div>
+
+      {/* Entity badge reminder */}
+      {form.entity === 'yavi' && (
+        <div className="mt-3 p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs">
+          <strong>Yavi OF</strong> — The generated PDF and Word document will use the Yavi Technologies FZCO letterhead and T&amp;C.
+        </div>
+      )}
     </div>
   );
 }
