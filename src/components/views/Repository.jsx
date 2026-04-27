@@ -12,6 +12,25 @@ import { generateRepositoryReport } from '../../utils/reports.js';
 
 const NAVY='#1B2B4B'; const T='#00C3B5';
 
+// ── Entity helpers ────────────────────────────────────────────────────────────
+const ENTITY_META = {
+  yavi: { label:'Yavi', color:'#4f46e5', bg:'#eef2ff', border:'#c7d2fe' },
+  fynd: { label:'Fynd', color:'#0f766e', bg:'#f0fdfa', border:'#99f6e4' },
+};
+function getEntityMeta(form) {
+  return form.entity === 'yavi' ? ENTITY_META.yavi : ENTITY_META.fynd;
+}
+function EntityBadge({ form, size='sm' }) {
+  const m = getEntityMeta(form);
+  const pad = size === 'xs' ? 'px-1.5 py-0' : 'px-2 py-0.5';
+  return (
+    <span className={`inline-block text-[10px] font-bold rounded-full border ${pad} whitespace-nowrap`}
+      style={{ color: m.color, background: m.bg, borderColor: m.border }}>
+      {m.label.toUpperCase()}
+    </span>
+  );
+}
+
 function getSigningQuarter(dateStr) {
   if (!dateStr) return null;
   const d = new Date(dateStr), m = d.getMonth()+1, y = d.getFullYear();
@@ -29,6 +48,7 @@ const ALL_COLUMNS = [
   { id:'index',      label:'#',                 default:true,  alwaysOn:true },
   { id:'of_number',  label:'OF Number',          default:true,  alwaysOn:true },
   { id:'customer',   label:'Customer',           default:true,  alwaysOn:true },
+  { id:'entity',     label:'Entity',             default:false },   // new
   { id:'services',   label:'Services',           default:true  },
   { id:'revenue',    label:'Committed Revenue',  default:true  },
   { id:'period',     label:'Period',             default:true  },
@@ -37,8 +57,8 @@ const ALL_COLUMNS = [
   { id:'rep',        label:'Sales Rep',          default:true  },
   { id:'team',       label:'Team',               default:false },
   { id:'status',     label:'Status',             default:true  },
-  { id:'signed_date',label:'Signing Date',       default:true  },  // now default on
-  { id:'live_date',  label:'Live Date',          default:false },   // new
+  { id:'signed_date',label:'Signing Date',       default:true  },
+  { id:'live_date',  label:'Live Date',          default:false },
   { id:'sale_type',  label:'Sale Type',          default:false },
   { id:'segment',    label:'Segment',            default:false },
 ];
@@ -124,23 +144,23 @@ export default function Repository() {
   const navigate  = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const [q,             setQ]           = useState('');
-  const [st,            setSt]          = useState(searchParams.get('status') || 'all');
-  const [teamFilter,    setTeamFilter]  = useState('all');
-  const [repFilter,     setRepFilter]   = useState('all');
-  const [dateFrom,      setDateFrom]    = useState('');
-  const [dateTo,        setDateTo]      = useState('');
-  const [qtrFilter,     setQtrFilter]   = useState('all');
-  const [fyFilter,      setFyFilter]    = useState('all');
-  // Signing date range — new
-  const [signedFrom,    setSignedFrom]  = useState('');
-  const [signedTo,      setSignedTo]    = useState('');
+  const [q,             setQ]             = useState('');
+  const [st,            setSt]            = useState(searchParams.get('status') || 'all');
+  const [teamFilter,    setTeamFilter]    = useState('all');
+  const [repFilter,     setRepFilter]     = useState('all');
+  const [entityFilter,  setEntityFilter]  = useState('all');   // ← new
+  const [dateFrom,      setDateFrom]      = useState('');
+  const [dateTo,        setDateTo]        = useState('');
+  const [qtrFilter,     setQtrFilter]     = useState('all');
+  const [fyFilter,      setFyFilter]      = useState('all');
+  const [signedFrom,    setSignedFrom]    = useState('');
+  const [signedTo,      setSignedTo]      = useState('');
   const [channelFilter, setChannelFilter] = useState('all');
   const [leadCatFilter, setLeadCatFilter] = useState('all');
-  const [tab,           setTab]         = useState('of');
-  const [statusModal,   setStatusModal] = useState(null);
-  const [sortBy,        setSortBy]      = useState('approved_desc');
-  const [visibleCols,   setVisibleCols] = useState(() =>
+  const [tab,           setTab]           = useState('of');
+  const [statusModal,   setStatusModal]   = useState(null);
+  const [sortBy,        setSortBy]        = useState('approved_desc');
+  const [visibleCols,   setVisibleCols]   = useState(() =>
     ALL_COLUMNS.filter(c => c.default).map(c => c.id)
   );
 
@@ -158,21 +178,22 @@ export default function Repository() {
 
   const filtered = forms.filter(f => {
     if (isSales && f.sales_rep_email !== user.email) return false;
-    const m  = !q || [f.customer_name, f.of_number, f.sales_rep_name, f.brand_name].some(v => v?.toLowerCase().includes(q.toLowerCase()));
-    const s  = st==='all'         || f.status===st;
-    const t  = teamFilter==='all' || f.sales_team===teamFilter;
-    const r  = repFilter==='all'  || f.sales_rep_email===repFilter;
-    const df = !dateFrom || (f.start_date && f.start_date >= dateFrom);
-    const dt = !dateTo   || (f.start_date && f.start_date <= dateTo);
+    const m   = !q || [f.customer_name, f.of_number, f.sales_rep_name, f.brand_name].some(v => v?.toLowerCase().includes(q.toLowerCase()));
+    const s   = st==='all'           || f.status===st;
+    const t   = teamFilter==='all'   || f.sales_team===teamFilter;
+    const r   = repFilter==='all'    || f.sales_rep_email===repFilter;
+    // Entity filter: 'yavi' → entity==='yavi'; 'fynd' → entity!=='yavi' (covers undefined/null/fynd)
+    const ent = entityFilter==='all' || (entityFilter==='yavi' ? f.entity==='yavi' : f.entity!=='yavi');
+    const df  = !dateFrom || (f.start_date && f.start_date >= dateFrom);
+    const dt  = !dateTo   || (f.start_date && f.start_date <= dateTo);
     const qInfo = getSigningQuarter(f.signed_date);
-    const qm = qtrFilter==='all' || (qInfo && qInfo.q===qtrFilter);
-    const fm = fyFilter==='all'  || (qInfo && String(qInfo.fy)===String(fyFilter));
-    // Signing date range filter
-    const sf = !signedFrom || (f.signed_date && f.signed_date >= signedFrom);
-    const st2 = !signedTo  || (f.signed_date && f.signed_date <= signedTo);
-    const ch = channelFilter==='all' || f.lead_type===channelFilter;
-    const lc = leadCatFilter==='all' || f.lead_category===leadCatFilter;
-    return m && s && t && r && df && dt && qm && fm && sf && st2 && ch && lc;
+    const qm  = qtrFilter==='all'    || (qInfo && qInfo.q===qtrFilter);
+    const fm  = fyFilter==='all'     || (qInfo && String(qInfo.fy)===String(fyFilter));
+    const sf  = !signedFrom || (f.signed_date && f.signed_date >= signedFrom);
+    const st2 = !signedTo   || (f.signed_date && f.signed_date <= signedTo);
+    const ch  = channelFilter==='all' || f.lead_type===channelFilter;
+    const lc  = leadCatFilter==='all' || f.lead_category===leadCatFilter;
+    return m && s && t && r && ent && df && dt && qm && fm && sf && st2 && ch && lc;
   });
 
   const sorted = [...filtered].sort((a,b) => {
@@ -216,7 +237,6 @@ export default function Repository() {
     setStatusModal(null);
   };
 
-  // Inline live date save
   const handleLiveDateChange = async (formId, date) => {
     await applyDealStatus(formId, { live_date: date || null });
   };
@@ -224,10 +244,23 @@ export default function Repository() {
   const TO_USD = { USD:v=>v, INR:v=>v/91, AED:v=>v/3.6725, MYR:v=>v/4.30, IDR:v=>v/16950, GBP:v=>v/0.80, EUR:v=>v/0.90, SGD:v=>v/1.35, SAR:v=>v/3.75, AUD:v=>v/1.55 };
   const toUSD = (amt, cur) => (TO_USD[cur] || (v=>v))(Number(amt||0));
 
-  const summaryINR = filtered.filter(f => f.sales_team === 'India').reduce((s,f) => s + Number(f.committed_revenue||0), 0);
-  const summaryUSD = filtered.filter(f => f.sales_team !== 'India').reduce((s,f) => s + toUSD(f.committed_revenue, f.committed_currency||'USD'), 0);
+  // ── Summary stats — split by entity ──────────────────────────────────────
+  const fyndIndia  = filtered.filter(f => f.entity!=='yavi' && f.sales_team==='India');
+  const fyndGlobal = filtered.filter(f => f.entity!=='yavi' && f.sales_team!=='India');
+  const yaviOFs    = filtered.filter(f => f.entity==='yavi');
 
-  const hasActiveFilters = qtrFilter!=='all' || fyFilter!=='all' || dateFrom || dateTo || channelFilter!=='all' || leadCatFilter!=='all' || signedFrom || signedTo;
+  const summaryFyndINR = fyndIndia.reduce((s,f)  => s + Number(f.committed_revenue||0), 0);
+  const summaryFyndUSD = fyndGlobal.reduce((s,f) => s + toUSD(f.committed_revenue, f.committed_currency||'USD'), 0);
+  const summaryYaviUSD = yaviOFs.reduce((s,f)    => s + toUSD(f.committed_revenue, f.committed_currency||'USD'), 0);
+
+  const clearAllFilters = () => {
+    setDateFrom(''); setDateTo(''); setQtrFilter('all'); setFyFilter('all');
+    setChannelFilter('all'); setLeadCatFilter('all');
+    setSignedFrom(''); setSignedTo(''); setEntityFilter('all');
+  };
+
+  const hasActiveFilters = qtrFilter!=='all' || fyFilter!=='all' || dateFrom || dateTo ||
+    channelFilter!=='all' || leadCatFilter!=='all' || signedFrom || signedTo || entityFilter!=='all';
 
   return (
     <div>
@@ -272,7 +305,7 @@ export default function Repository() {
         </select>
       </div>
 
-      {/* Row 2: team/rep + quarter + FY + channel */}
+      {/* Row 2: team/rep + entity + quarter + FY + channel */}
       <div className="grid grid-cols-4 gap-3 mb-3">
         {!isSales && (
           <>
@@ -286,6 +319,16 @@ export default function Repository() {
             </select>
           </>
         )}
+
+        {/* ── Entity filter ── */}
+        <select value={entityFilter} onChange={e=>setEntityFilter(e.target.value)}
+          className="text-sm border rounded-xl px-3 py-2.5 bg-white border-slate-200"
+          style={entityFilter!=='all' ? { borderColor: entityFilter==='yavi'?'#4f46e5':'#0f766e', boxShadow:`0 0 0 2px ${entityFilter==='yavi'?'#c7d2fe':'#99f6e4'}` } : {}}>
+          <option value="all">All entities</option>
+          <option value="fynd">Fynd (Shopsense)</option>
+          <option value="yavi">Yavi Technologies FZCO</option>
+        </select>
+
         <select value={qtrFilter} onChange={e=>setQtrFilter(e.target.value)}
           className="text-sm border rounded-xl px-3 py-2.5 bg-white border-slate-200"
           style={qtrFilter!=='all'?{borderColor:T,boxShadow:`0 0 0 2px ${T}33`}:{}}>
@@ -327,7 +370,7 @@ export default function Repository() {
         <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="text-sm border rounded-xl px-3 py-2 bg-white border-slate-200"/>
       </div>
 
-      {/* Row 4: Signing date range — new */}
+      {/* Row 4: Signing date range */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <span className="text-xs text-brand-faint whitespace-nowrap font-medium">Signing date:</span>
         <input type="date" value={signedFrom} onChange={e=>setSignedFrom(e.target.value)}
@@ -342,32 +385,52 @@ export default function Repository() {
             Signing date filter active
           </span>
         )}
-        {hasActiveFilters && (
-          <button onClick={()=>{setDateFrom('');setDateTo('');setQtrFilter('all');setFyFilter('all');setChannelFilter('all');setLeadCatFilter('all');setSignedFrom('');setSignedTo('');}}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-all">
-            ✕ Clear all filters
-          </button>
+        {entityFilter !== 'all' && (
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full border"
+            style={entityFilter==='yavi'
+              ? { background:'#eef2ff', color:'#4f46e5', borderColor:'#c7d2fe' }
+              : { background:'#f0fdfa', color:'#0f766e', borderColor:'#99f6e4' }}>
+            {entityFilter==='yavi' ? 'Yavi OFs only' : 'Fynd OFs only'}
+          </span>
         )}
         {(qtrFilter!=='all'||fyFilter!=='all') && (
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background:'#e0f7f5', color:'#00897b' }}>
             Quarter/FY filter active
           </span>
         )}
+        {hasActiveFilters && (
+          <button onClick={clearAllFilters}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-all">
+            ✕ Clear all filters
+          </button>
+        )}
       </div>
 
-      {/* Summary stats */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      {/* Summary stats — entity-split */}
+      <div className="grid grid-cols-4 gap-3 mb-4">
         <div className="bg-white rounded-xl border px-4 py-3" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
           <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">OFs shown</div>
           <div className="text-2xl font-black" style={{color:NAVY}}>{filtered.length}</div>
+          <div className="text-[10px] text-brand-faint mt-1">
+            <span className="font-semibold" style={{color:ENTITY_META.fynd.color}}>{filtered.filter(f=>f.entity!=='yavi').length} Fynd</span>
+            {' · '}
+            <span className="font-semibold" style={{color:ENTITY_META.yavi.color}}>{yaviOFs.length} Yavi</span>
+          </div>
         </div>
         <div className="bg-white rounded-xl border px-4 py-3" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-          <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">Committed Revenue · India (INR)</div>
-          <div className="text-xl font-black" style={{color:T}}>₹{Math.round(summaryINR).toLocaleString('en-IN')}</div>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">Fynd · India (INR)</div>
+          <div className="text-xl font-black" style={{color:T}}>₹{Math.round(summaryFyndINR).toLocaleString('en-IN')}</div>
+          <div className="text-[10px] text-brand-faint mt-1">{fyndIndia.length} OFs</div>
         </div>
         <div className="bg-white rounded-xl border px-4 py-3" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-          <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">Committed Revenue · Global + AI/SaaS (USD)</div>
-          <div className="text-xl font-black" style={{color:'#7c3aed'}}>${Math.round(summaryUSD).toLocaleString('en-US')}</div>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">Fynd · Global + AI/SaaS (USD)</div>
+          <div className="text-xl font-black" style={{color:'#7c3aed'}}>${Math.round(summaryFyndUSD).toLocaleString('en-US')}</div>
+          <div className="text-[10px] text-brand-faint mt-1">{fyndGlobal.length} OFs</div>
+        </div>
+        <div className="bg-white rounded-xl border px-4 py-3" style={{borderColor:'#c7d2fe',boxShadow:'0 1px 4px rgba(79,70,229,0.08)'}}>
+          <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{color:ENTITY_META.yavi.color}}>Yavi Technologies (USD eq.)</div>
+          <div className="text-xl font-black" style={{color:ENTITY_META.yavi.color}}>${Math.round(summaryYaviUSD).toLocaleString('en-US')}</div>
+          <div className="text-[10px] mt-1" style={{color:ENTITY_META.yavi.color}}>{yaviOFs.length} OFs</div>
         </div>
       </div>
 
@@ -381,6 +444,7 @@ export default function Repository() {
                     {show('index')      && <th className={thCls}>#</th>}
                     {show('of_number')  && <th className={thCls}>OF Number</th>}
                     {show('customer')   && <th className={thCls}>Customer</th>}
+                    {show('entity')     && <th className={thCls}>Entity</th>}
                     {show('services')   && <th className={thCls}>Services</th>}
                     {show('revenue')    && <th className={thCls}>Committed Revenue</th>}
                     {show('period')     && <th className={thCls}>Period</th>}
@@ -405,13 +469,18 @@ export default function Repository() {
                     const daysSinceSent = f.approved_at ? Math.floor((new Date()-new Date(f.approved_at))/86400000) : null;
                     const overdue = f.status==='approved' && !f.signed_date && daysSinceSent>=30;
                     const signingQtr = fmtQtr(f.signed_date);
+                    const isYavi = f.entity === 'yavi';
                     return (
                       <tr key={f.id} onClick={()=>navigate(`/form/${f.id}`)}
                         className={`cursor-pointer hover:bg-slate-50 border-b border-slate-50 last:border-0 ${overdue?'bg-red-50':''}`}>
                         {show('index')     && <td className="px-4 py-3.5 text-xs text-slate-300">{i+1}</td>}
                         {show('of_number') && (
                           <td className="px-4 py-3.5 whitespace-nowrap">
-                            <span className="font-mono font-bold text-sm" style={{ color:f.of_number?NAVY:'#cbd5e1' }}>{f.of_number||'—'}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-sm" style={{ color:f.of_number?NAVY:'#cbd5e1' }}>{f.of_number||'—'}</span>
+                              {/* Always-visible entity badge on OF number */}
+                              {isYavi && <EntityBadge form={f} size="xs"/>}
+                            </div>
                             {overdue && <div className="text-[10px] text-red-600 font-bold mt-0.5">{daysSinceSent}d unsigned</div>}
                           </td>
                         )}
@@ -419,6 +488,12 @@ export default function Repository() {
                           <td className="px-4 py-3.5">
                             <div className="font-semibold text-sm" style={{ color:NAVY }}>{f.customer_name}</div>
                             <div className="text-xs text-brand-faint">{f.brand_name}</div>
+                          </td>
+                        )}
+                        {/* Entity column — only when toggled on */}
+                        {show('entity') && (
+                          <td className="px-4 py-3.5">
+                            <EntityBadge form={f}/>
                           </td>
                         )}
                         {show('services')  && (
@@ -469,7 +544,6 @@ export default function Repository() {
                               : <span className="text-slate-300">—</span>}
                           </td>
                         )}
-                        {/* Live Date — inline editable, stops row navigation */}
                         {show('live_date') && (
                           <td className="px-4 py-3.5" onClick={e=>e.stopPropagation()}>
                             <input
@@ -520,21 +594,29 @@ export default function Repository() {
               <>
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
-                    {['#','OF Number','Customer','Service','Fee summary','Period','Rep','Status'].map(h=>(
+                    {['#','OF Number','Customer','Entity','Service','Fee summary','Period','Rep','Status'].map(h=>(
                       <th key={h} className={thCls}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {svcRows.length===0 && <tr><td colSpan={8} className="text-center py-16 text-slate-300">No rows.</td></tr>}
+                  {svcRows.length===0 && <tr><td colSpan={9} className="text-center py-16 text-slate-300">No rows.</td></tr>}
                   {svcRows.map(({f,svc},i)=>(
                     <tr key={`${f.id}-${svc.id}`} onClick={()=>navigate(`/form/${f.id}`)}
                       className="cursor-pointer hover:bg-slate-50 border-b border-slate-50 last:border-0">
                       <td className="px-4 py-3.5 text-xs text-slate-300">{i+1}</td>
-                      <td className="px-4 py-3.5 whitespace-nowrap font-mono font-bold text-sm" style={{ color:f.of_number?NAVY:'#cbd5e1' }}>{f.of_number||'—'}</td>
+                      <td className="px-4 py-3.5 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-sm" style={{ color:f.of_number?NAVY:'#cbd5e1' }}>{f.of_number||'—'}</span>
+                          {f.entity==='yavi' && <EntityBadge form={f} size="xs"/>}
+                        </div>
+                      </td>
                       <td className="px-4 py-3.5">
                         <div className="font-semibold text-xs" style={{ color:NAVY }}>{f.customer_name}</div>
                         <div className="text-xs text-brand-faint">{f.brand_name}</div>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <EntityBadge form={f}/>
                       </td>
                       <td className="px-4 py-3.5">
                         <span className="text-xs px-2 py-0.5 rounded-full bg-teal-light text-teal-dark font-semibold">{svc.name||'—'}</span>
