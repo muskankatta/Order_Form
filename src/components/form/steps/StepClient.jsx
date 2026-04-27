@@ -111,7 +111,7 @@ export default function StepClient({ form, set, ro }) {
           {form.entity === 'yavi' && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200">
               <span className="text-xs font-bold text-indigo-700">YAVI</span>
-              <span className="text-xs text-indigo-500">OF series: OFYT-XXXX</span>
+              <span className="text-xs text-indigo-500">OF series: OF-YT-XXXX</span>
             </div>
           )}
           {form.entity === 'fynd' && (
