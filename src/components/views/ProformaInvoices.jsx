@@ -127,7 +127,7 @@ function printPI(pi) {
          Account No: 643805051548<br/>IFSC code: ICIC0006438<br/>
          Bank Name: ICICI Bank<br/>Branch: Sakinaka, Andheri (E), Mumbai, Maharashtra 400072
        </p>`
-    : `<p style="margin:0;font-size:11px;color:#334155"><strong>Bank Details:</strong> Please contact your Fynd Point of Contact (POC) for bank details.</p>`;
+    : `<p style="margin:0;font-size:11px;color:#334155"><strong>Bank Details:</strong> Please contact your Point of Contact (POC) for bank details.</p>`;
 
   const payable = isYavi ? 'Yavi Technologies FZCO' : 'Shopsense Retail Technologies Limited';
   const rcm     = (!isYavi && inIndia) ? `<li style="margin-bottom:4px">Reverse Charge Mechanism (RCM): No</li>` : '';
