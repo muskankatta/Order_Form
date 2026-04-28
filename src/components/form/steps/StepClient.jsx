@@ -111,7 +111,7 @@ export default function StepClient({ form, set, ro }) {
           {form.entity === 'yavi' && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200">
               <span className="text-xs font-bold text-indigo-700">YAVI</span>
-              <span className="text-xs text-indigo-500">OF series: OF-YT-XXXX</span>
+              <span className="text-xs text-indigo-500">OF series: OFYT-XXXX</span>
             </div>
           )}
           {form.entity === 'fynd' && (
@@ -131,10 +131,16 @@ export default function StepClient({ form, set, ro }) {
           <TA label="Customer billing address" req value={form.billing_address} onChange={v=>u('billing_address',v)} disabled={ro} rows={2}/>
         </div>
 
-        {/* Country — only shown for Fynd OFs (controls tax field type) */}
-        {!isYavi && (
-          <Sel label="Country" req value={form.country} onChange={handleCountryChange} options={COUNTRIES} disabled={ro}/>
-        )}
+        {/* Country — shown for all entities. For Fynd it controls tax field type; for Yavi it's informational */}
+        <Sel
+          label="Country"
+          req={!isYavi}
+          value={form.country}
+          onChange={handleCountryChange}
+          options={COUNTRIES}
+          disabled={ro}
+          hint={isYavi ? 'Client country (for records)' : ''}
+        />
 
         {/* GSTIN — optional for both; hidden for Yavi */}
         {!isYavi && (
