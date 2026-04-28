@@ -40,6 +40,8 @@ export default function AppShell({ children }) {
       badge:overdueCount>0?overdueCount:null, badgeColor:'#ef4444'
     }] : []),
     ...(user?.role==='sales'||user?.role==='revops'||user?.isUniversal ? [{ to:'/churn-void', lbl:'Churn / Void' }] : []),
+    // Proforma Invoices — visible to all roles
+    { to:'/proforma-invoices', lbl:'Proforma Invoices' },
     ...(user?.isUniversal ? [
       { to:'/audit-log',   lbl:'Audit Log' },
       { to:'/admin-users', lbl:'User Management' },
