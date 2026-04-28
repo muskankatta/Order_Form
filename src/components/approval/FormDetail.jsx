@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/firestore';
+import { db } from '../../firebase.js';
+import { collection, getDocs, addDoc, updateDoc, doc, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
 import { Card, Btn, StatusPill, Lbl, TA, MultiSelect, Toast } from '../ui/index.jsx';
 import StepClient from '../form/steps/StepClient.jsx';
 import StepCommercial from '../form/steps/StepCommercial.jsx';
@@ -42,9 +42,9 @@ const CH      = {India:'C0AQTCE3PNY',Global:'C08CBBNRAKZ','AI/SaaS':'C0978TZNGM8
 function getCurrentFY(){const n=new Date();const y=n.getMonth()>=3?n.getFullYear()+1:n.getFullYear();return String(y).slice(-2);}
 
 async function genPINum(ent){
-  const db=firebase.firestore(); const fy=getCurrentFY();
+  const fy=getCurrentFY();
   const re=ent==='yavi'?/^PI-YT-(\d{5})-FY/:/^PI-A(\d{5})-FY/;
-  const snap=await db.collection('proforma_invoices').get();
+  const snap=await getDocs(collection(db,'proforma_invoices'));
   let max=0; snap.forEach(d=>{const m=(d.data().pi_number||'').match(re);if(m)max=Math.max(max,parseInt(m[1]));});
   const n=String(max+1).padStart(5,'0');
   return ent==='yavi'?`PI-YT-${n}-FY${fy}`:`PI-A${n}-FY${fy}`;
@@ -101,7 +101,6 @@ function PICreateForm({ form, user, onSubmitted }) {
     }
     setSub(true);
     try {
-      const db=firebase.firestore();
       const ent=entityOf(form);
       const piNum=await genPINum(ent);
       const lineItems=items.map(li=>({
@@ -123,12 +122,12 @@ function PICreateForm({ form, user, onSubmitted }) {
         tax_rate:tr, tax_amount:ta, grand_total:grand,
         created_by_name:user.name||'', created_by_email:user.email,
         sales_rep_slack_id:form.slack_id||'',
-        created_at:firebase.firestore.FieldValue.serverTimestamp(),
+        created_at:serverTimestamp(),
         revops_reviewer:'', revops_comment:'', revops_reviewed_at:null, slack_thread_ts:null,
       };
-      const ref=await db.collection('proforma_invoices').add(docData);
+      const ref=await addDoc(collection(db,'proforma_invoices'),docData);
       const ts=await slackPI({...docData,id:ref.id},'submitted');
-      if(ts) await ref.update({slack_thread_ts:ts});
+      if(ts) await updateDoc(doc(db,'proforma_invoices',ref.id),{slack_thread_ts:ts});
       onSubmitted(piNum);
     } catch(e){
       alert('Error creating PI: '+e.message);
@@ -318,10 +317,9 @@ export default function FormDetail({ form: initial }) {
     if (!form.id) return;
     setPILoading(true);
     try {
-      const db = firebase.firestore();
       let snap;
-      try   { snap = await db.collection('proforma_invoices').where('of_id','==',form.id).orderBy('created_at','desc').get(); }
-      catch { snap = await db.collection('proforma_invoices').where('of_id','==',form.id).get(); }
+      try   { snap = await getDocs(query(collection(db,'proforma_invoices'),where('of_id','==',form.id),orderBy('created_at','desc'))); }
+      catch { snap = await getDocs(query(collection(db,'proforma_invoices'),where('of_id','==',form.id))); }
       const all = [];
       snap.forEach(d => all.push({ id:d.id, ...d.data() }));
       setPIs(all);
