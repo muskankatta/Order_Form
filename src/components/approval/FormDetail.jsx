@@ -49,12 +49,19 @@ async function genPINum(ent){
   return ent==='yavi'?`PI-YT-${n}-FY${fy}`:`PI-A${n}-FY${fy}`;
 }
 
+const PI_PLATFORM_URL = 'https://muskankatta.github.io/Order_Form/#/proforma-invoices';
+
 async function slackPI(pi,event){
   if(!BOLTIC) return null;
   try{
     const ch=CH[pi.sales_team]||CH['India'];
+    const primarySlack = pi.revops_approvers_slack_ids?.[0];
+    const revopsTag = primarySlack
+      ? `*Assigned to:* <@${primarySlack}>`
+      : pi.revops_approvers_names?.[0]
+        ? `*Assigned to:* ${pi.revops_approvers_names[0]}` : '';
     const msgs={
-      submitted:`🧾 *Proforma Invoice Raised* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*By:* ${pi.created_by_name}  |  *Amount:* ${fmtAmt(pi.grand_total,pi.currency)}\n⏳ Awaiting RevOps Approval`,
+      submitted:`🧾 *Proforma Invoice Raised* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*By:* ${pi.created_by_name}  |  *Amount:* ${fmtAmt(pi.grand_total,pi.currency)}${revopsTag?'\n'+revopsTag:''}\n⏳ Awaiting RevOps Approval\n🔗 <${PI_PLATFORM_URL}|Review on OF Platform>`,
     };
     const body={channel:ch,text:msgs[event]||''};
     if(pi.slack_thread_ts) body.thread_ts=pi.slack_thread_ts;
@@ -65,8 +72,8 @@ async function slackPI(pi,event){
   return null;
 }
 
-const PI_STATUS_STYLE={submitted:{bg:'#fef3c7',fg:'#92400e'},approved:{bg:'#d1fae5',fg:'#065f46'},rejected:{bg:'#fee2e2',fg:'#991b1b'}};
-const PI_STATUS_LBL={submitted:'Pending Approval',approved:'Approved',rejected:'Rejected'};
+const PI_STATUS_STYLE={submitted:{bg:'#fef3c7',fg:'#92400e'},approved:{bg:'#d1fae5',fg:'#065f46'},rejected:{bg:'#fee2e2',fg:'#991b1b'},cancelled:{bg:'#f1f5f9',fg:'#64748b'}};
+const PI_STATUS_LBL={submitted:'Pending Approval',approved:'Approved',rejected:'Rejected',cancelled:'Cancelled'};
 function PIPill({status}){
   const s=PI_STATUS_STYLE[status]||{bg:'#f1f5f9',fg:'#475569'};
   return <span style={{background:s.bg,color:s.fg,display:'inline-block',padding:'2px 10px',borderRadius:'9999px',fontSize:'11px',fontWeight:600}}>{PI_STATUS_LBL[status]||status}</span>;
@@ -74,10 +81,11 @@ function PIPill({status}){
 
 // ── Inline PI Create Form ─────────────────────────────────────────────────────
 function PICreateForm({ form, user, onSubmitted }) {
-  const [items,   setItems]   = useState([blankLI()]);
-  const [taxType, setTaxType] = useState('');
-  const [taxRate, setTaxRate] = useState('');
-  const [submitting, setSub]  = useState(false);
+  const [items,       setItems]       = useState([blankLI()]);
+  const [taxType,     setTaxType]     = useState('');
+  const [taxRate,     setTaxRate]     = useState('');
+  const [piRevops,    setPiRevops]    = useState([]);
+  const [submitting,  setSub]         = useState(false);
   const fixed = fixedTax(form);
   const cur   = form.committed_currency||'INR';
   // Only show services present in this OF; fall back to master list if none
@@ -98,6 +106,7 @@ function PICreateForm({ form, user, onSubmitted }) {
       alert('Fill at least one complete line item (Service + Fee Type + Rate).');
       return;
     }
+    if(!piRevops.length){ alert('Please select at least one RevOps reviewer.'); return; }
     setSub(true);
     try {
       const ent=entityOf(form);
@@ -122,6 +131,9 @@ function PICreateForm({ form, user, onSubmitted }) {
         created_by_name:user.name||'', created_by_email:user.email,
         sales_rep_slack_id:form.slack_id||'',
         created_at:serverTimestamp(),
+        revops_approvers: piRevops,
+        revops_approvers_names: piRevops.map(e=>(REVOPS_USERS.find(u=>u.email===e)||{}).name||e),
+        revops_approvers_slack_ids: piRevops.map(e=>(REVOPS_USERS.find(u=>u.email===e)||{}).slack||''),
         revops_reviewer:'', revops_comment:'', revops_reviewed_at:null, slack_thread_ts:null,
       };
       const ref=await addDoc(collection(db,'proforma_invoices'),docData);
@@ -253,8 +265,26 @@ function PICreateForm({ form, user, onSubmitted }) {
         </div>
       </div>
 
+      {/* RevOps selector */}
+      <div>
+        <MultiSelect
+          label="Assign RevOps reviewer(s) — first selected is Primary DRI"
+          req
+          options={REVOPS_USERS.map(u=>({value:u.email,label:u.name}))}
+          value={piRevops}
+          onChange={setPiRevops}
+        />
+        {piRevops.length > 0 && (
+          <div className="mt-2 p-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
+            <strong>Primary DRI:</strong> {(REVOPS_USERS.find(u=>u.email===piRevops[0])||{}).name||piRevops[0]}
+            {piRevops.length > 1 && <span className="ml-2 text-blue-500">· CC: {piRevops.slice(1).map(e=>(REVOPS_USERS.find(u=>u.email===e)||{}).name||e).join(', ')}</span>}
+          </div>
+        )}
+        {!piRevops.length && <p className="text-xs text-amber-600 mt-1">Select at least one RevOps reviewer to submit.</p>}
+      </div>
+
       <div className="flex justify-end gap-3 pt-2">
-        <Btn variant="ghost" size="sm" onClick={()=>{ setItems([blankLI()]); setTaxType(''); setTaxRate(''); }}>Reset</Btn>
+        <Btn variant="ghost" size="sm" onClick={()=>{ setItems([blankLI()]); setTaxType(''); setTaxRate(''); setPiRevops([]); }}>Reset</Btn>
         <Btn onClick={handleSubmit} disabled={submitting}>{submitting?'Submitting…':'Submit for RevOps Approval →'}</Btn>
       </div>
     </div>
