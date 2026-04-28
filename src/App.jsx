@@ -12,6 +12,7 @@ import AdminUsers from './components/views/AdminUsers.jsx';
 import Settings from './components/views/Settings.jsx';
 import PendingRequests from './components/views/PendingRequests.jsx';
 import SalesTargets from './components/views/SalesTargets.jsx';
+import ProformaInvoices from './components/views/ProformaInvoices.jsx';
 import AuditLog from './components/views/AuditLog.jsx';
 import { useForms } from './context/FormsContext.jsx';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -63,6 +64,7 @@ function ProtectedApp() {
           <Route path="/form/:id"    element={<FormDetailRoute/>}/>
           <Route path="/signed"      element={<SignedOFs/>}/>
           <Route path="/churn-void"  element={<ChurnVoidRequest/>}/>
+          <Route path="/proforma-invoices" element={<ProformaInvoices/>}/>
           <Route path="/admin-users" element={<AdminUsers/>}/>
           <Route path="/settings"    element={<Settings/>}/>
           <Route path="*"            element={<Navigate to="/dashboard" replace/>}/>
