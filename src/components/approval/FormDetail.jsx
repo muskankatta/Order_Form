@@ -20,7 +20,7 @@ const TABS = [{id:'client',lbl:'Client'},{id:'commercial',lbl:'Commercial'},{id:
 // ── PI helpers (self-contained, no extra imports needed) ──────────────────────
 let _SERVICES = null;
 try { _SERVICES = require('../../constants/formOptions.js').SERVICES; } catch(_) {}
-const PI_SERVICES = _SERVICES || [
+const PI_SERVICES_FALLBACK = _SERVICES || [
   'Fynd Store OS','Fynd OMS','Fynd Commerce','Fynd Marketplace',
   'Kaily (CoPilot)','Boltic','Pixelbin','GlamAR','ratl.ai',
   'Gauze','Fynd Managed Logistics','Fynd WMS','Other',
@@ -81,6 +81,9 @@ function PICreateForm({ form, user, onSubmitted }) {
   const [submitting, setSub]  = useState(false);
   const fixed = fixedTax(form);
   const cur   = form.committed_currency||'INR';
+  // Only show services present in this OF; fall back to master list if none
+  const ofServices = (form.services_fees||[]).map(s=>s.name).filter(Boolean);
+  const availableServices = ofServices.length > 0 ? ofServices : PI_SERVICES_FALLBACK;
   const sub   = subtot(items);
   const tr    = fixed ? 18 : (parseFloat(taxRate)||0);
   const ta    = sub * tr / 100;
@@ -172,7 +175,7 @@ function PICreateForm({ form, user, onSubmitted }) {
                     <select value={li.service} onChange={e=>updItem(i,'service',e.target.value)}
                       className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-teal-400">
                       <option value="">Service…</option>
-                      {PI_SERVICES.map(s=><option key={s} value={s}>{s}</option>)}
+                      {availableServices.map(s=><option key={s} value={s}>{s}</option>)}
                     </select>
                   </td>
                   <td className="px-2 py-2">
