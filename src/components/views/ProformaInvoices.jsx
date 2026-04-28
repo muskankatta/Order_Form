@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/firestore';
+import { db } from '../../firebase.js';
+import { collection, getDocs, updateDoc, doc, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Card, Btn, Lbl, TA, Toast } from '../ui/index.jsx';
 import { useToast } from '../../hooks/useToast.js';
@@ -38,10 +38,9 @@ function getCurrentFY() {
 }
 
 async function genPINumber(ent) {
-  const db = firebase.firestore();
   const fy = getCurrentFY();
   const re = ent==='yavi'?/^PI-YT-(\d{5})-FY/:/^PI-A(\d{5})-FY/;
-  const snap = await db.collection('proforma_invoices').get();
+  const snap = await getDocs(collection(db,'proforma_invoices'));
   let max = 0;
   snap.forEach(d=>{ const m=(d.data().pi_number||'').match(re); if(m) max=Math.max(max,parseInt(m[1])); });
   const n = String(max+1).padStart(5,'0');
@@ -210,8 +209,6 @@ function printPI(pi) {
 export default function ProformaInvoices() {
   const { user } = useAuth();
   const { toast, show, hide } = useToast();
-  const db = firebase.firestore();
-
   const [pis,      setPIs]      = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [selPI,    setSelPI]    = useState(null);   // PI being viewed in detail panel
@@ -242,11 +239,11 @@ export default function ProformaInvoices() {
   // ── approve ──
   const doApprove = async () => {
     try {
-      await db.collection('proforma_invoices').doc(showModal.piId).update({
+      await updateDoc(doc(db,'proforma_invoices',showModal.piId),{
         status:'approved',
         revops_reviewer: user.name||user.email,
         revops_comment: cmt,
-        revops_reviewed_at: firebase.firestore.FieldValue.serverTimestamp(),
+        revops_reviewed_at: serverTimestamp(),
       });
       await loadPIs();
       const pi = pis.find(p=>p.id===showModal.piId);
@@ -261,11 +258,11 @@ export default function ProformaInvoices() {
   const doReject = async () => {
     if (!cmt.trim()) { alert('Rejection reason is required.'); return; }
     try {
-      await db.collection('proforma_invoices').doc(showModal.piId).update({
+      await updateDoc(doc(db,'proforma_invoices',showModal.piId),{
         status:'rejected',
         revops_reviewer: user.name||user.email,
         revops_comment: cmt,
-        revops_reviewed_at: firebase.firestore.FieldValue.serverTimestamp(),
+        revops_reviewed_at: serverTimestamp(),
       });
       await loadPIs();
       const pi = pis.find(p=>p.id===showModal.piId);
