@@ -45,6 +45,7 @@ async function notifyPI(pi, event) {
     const ch = CH[pi.sales_team]||CH['India'];
     const msgs = {
       submitted: `🧾 *Proforma Invoice Raised* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*By:* ${pi.created_by_name}  |  *Amount:* ${fmtAmt(pi.grand_total,pi.currency)}\n⏳ Awaiting RevOps Approval`,
+      cancelled: `🚫 *Proforma Invoice Cancelled* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*Cancelled by:* ${pi.revops_reviewer}\n*Reason:* ${pi.revops_comment||'Not specified'}`,
       approved:  `✅ *Proforma Invoice Approved* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *Amount:* ${fmtAmt(pi.grand_total,pi.currency)}\n*Approved by:* ${pi.revops_reviewer}\n📥 Sales Rep can now download the PI PDF`,
       rejected:  `❌ *Proforma Invoice Rejected* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*Rejected by:* ${pi.revops_reviewer}\n*Reason:* ${pi.revops_comment||'Not specified'}`,
     };
@@ -62,8 +63,9 @@ const STATUS_STYLE = {
   submitted: { background:'#fef3c7', color:'#92400e' },
   approved:  { background:'#d1fae5', color:'#065f46' },
   rejected:  { background:'#fee2e2', color:'#991b1b' },
+  cancelled: { background:'#f1f5f9', color:'#64748b' },
 };
-const STATUS_LABEL = { submitted:'Pending Approval', approved:'Approved', rejected:'Rejected' };
+const STATUS_LABEL = { submitted:'Pending Approval', approved:'Approved', rejected:'Rejected', cancelled:'Cancelled' };
 
 function PIPill({ status }) {
   return (
@@ -265,9 +267,28 @@ export default function ProformaInvoices() {
     } catch(e) { show('Error: '+e.message,'error'); }
   };
 
-  const pending  = pis.filter(p=>p.status==='submitted').length;
-  const approved = pis.filter(p=>p.status==='approved').length;
-  const rejected = pis.filter(p=>p.status==='rejected').length;
+  const doCancel = async () => {
+    if (!cmt.trim()) { alert('Please provide a reason for cancellation.'); return; }
+    try {
+      await updateDoc(doc(db,'proforma_invoices',showModal.piId),{
+        status:'cancelled',
+        revops_reviewer: user.name||user.email,
+        revops_comment: cmt,
+        revops_reviewed_at: serverTimestamp(),
+      });
+      await loadPIs();
+      const pi = pis.find(p=>p.id===showModal.piId);
+      if (pi) { const updated={...pi,status:'cancelled',revops_reviewer:user.name||user.email,revops_comment:cmt}; await notifyPI(updated,'cancelled'); }
+      if (selPI?.id===showModal.piId) setSelPI(prev=>({...prev,status:'cancelled',revops_reviewer:user.name||user.email,revops_comment:cmt}));
+      setShowModal(null); setCmt('');
+      show('PI Cancelled');
+    } catch(e) { show('Error: '+e.message,'error'); }
+  };
+
+  const pending   = pis.filter(p=>p.status==='submitted').length;
+  const approved  = pis.filter(p=>p.status==='approved').length;
+  const rejected  = pis.filter(p=>p.status==='rejected').length;
+  const cancelled = pis.filter(p=>p.status==='cancelled').length;
 
   // ── DETAIL PANEL ──
   const DetailPanel = ({ pi }) => (
@@ -293,6 +314,13 @@ export default function ProformaInvoices() {
               <Btn variant="success" size="sm" onClick={()=>{setShowModal({piId:pi.id,action:'approve'});setCmt('');}}>✓ Approve</Btn>
               <Btn variant="danger"  size="sm" onClick={()=>{setShowModal({piId:pi.id,action:'reject'});setCmt('');}}>✕ Reject</Btn>
             </>
+          )}
+          {canApprove && ['submitted','approved'].includes(pi.status) && (
+            <Btn variant="ghost" size="sm"
+              style={{color:'#64748b',borderColor:'#e2e8f0'}}
+              onClick={()=>{setShowModal({piId:pi.id,action:'cancel'});setCmt('');}}>
+              🚫 Cancel PI
+            </Btn>
           )}
           <Btn variant="ghost" size="sm" onClick={()=>setSelPI(null)}>✕ Close</Btn>
         </div>
@@ -377,11 +405,12 @@ export default function ProformaInvoices() {
       </div>
 
       {/* Summary tiles */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-4 gap-4 mb-6">
         {[
-          ['Pending Approval', pending,  '#fef3c7','#92400e'],
-          ['Approved',         approved, '#d1fae5','#065f46'],
-          ['Rejected',         rejected, '#fee2e2','#991b1b'],
+          ['Pending Approval', pending,   '#fef3c7','#92400e'],
+          ['Approved',         approved,  '#d1fae5','#065f46'],
+          ['Rejected',         rejected,  '#fee2e2','#991b1b'],
+          ['Cancelled',        cancelled, '#f1f5f9','#64748b'],
         ].map(([lbl,val,bg,fg])=>(
           <Card key={lbl} className="p-4" style={{borderColor:bg}}>
             <div className="text-2xl font-bold" style={{color:fg}}>{val}</div>
@@ -440,32 +469,40 @@ export default function ProformaInvoices() {
       {/* Detail panel */}
       {selPI && <DetailPanel pi={selPI}/>}
 
-      {/* Approve / Reject modal */}
+      {/* Approve / Reject / Cancel modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <Card className="shadow-2xl w-full max-w-md p-6">
             <div className="text-center mb-5">
-              <div className="text-4xl mb-3">{showModal.action==='approve'?'✅':'❌'}</div>
+              <div className="text-4xl mb-3">
+                {showModal.action==='approve'?'✅':showModal.action==='cancel'?'🚫':'❌'}
+              </div>
               <div className="text-lg font-bold text-slate-800 mb-1">
-                {showModal.action==='approve'?'Approve Proforma Invoice?':'Reject Proforma Invoice?'}
+                {showModal.action==='approve'?'Approve Proforma Invoice?':showModal.action==='cancel'?'Cancel Proforma Invoice?':'Reject Proforma Invoice?'}
               </div>
               <div className="text-sm text-slate-400">
-                {showModal.action==='approve'?'Sales Rep will be able to download the PDF.':'Sales Rep will be notified with the reason.'}
+                {showModal.action==='approve'
+                  ? 'Sales Rep will be able to download the PDF.'
+                  : showModal.action==='cancel'
+                  ? 'This PI will be marked as Cancelled. The record is kept for audit purposes.'
+                  : 'Sales Rep will be notified with the reason.'}
               </div>
             </div>
             <div className="mb-5">
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                {showModal.action==='approve'?'Comments (optional)':'Rejection Reason *'}
+                {showModal.action==='approve'?'Comments (optional)':'Reason *'}
               </label>
               <textarea value={cmt} onChange={e=>setCmt(e.target.value)} rows={3}
                 placeholder={showModal.action==='approve'?'Any notes…':'Please provide a reason…'}
                 className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-400"/>
             </div>
             <div className="flex gap-3">
-              <Btn variant="ghost" onClick={()=>{setShowModal(null);setCmt('');}}>Cancel</Btn>
-              <Btn variant={showModal.action==='approve'?'success':'danger'}
-                onClick={showModal.action==='approve'?doApprove:doReject}>
-                {showModal.action==='approve'?'Confirm Approval':'Confirm Rejection'}
+              <Btn variant="ghost" onClick={()=>{setShowModal(null);setCmt('');}}>Close</Btn>
+              <Btn
+                variant={showModal.action==='approve'?'success':showModal.action==='cancel'?'ghost':'danger'}
+                style={showModal.action==='cancel'?{background:'#475569',color:'#fff',borderRadius:'10px',padding:'8px 18px',fontSize:'14px',fontWeight:600}:{}}
+                onClick={showModal.action==='approve'?doApprove:showModal.action==='cancel'?doCancel:doReject}>
+                {showModal.action==='approve'?'Confirm Approval':showModal.action==='cancel'?'Confirm Cancellation':'Confirm Rejection'}
               </Btn>
             </div>
           </Card>
