@@ -17,7 +17,7 @@ const CH        = { India:'C0AQTCE3PNY', Global:'C08CBBNRAKZ', 'AI/SaaS':'C0978T
 const BOLTIC    = import.meta.env.VITE_BOLTIC_SLACK_URL || '';
 
 const getSAC    = ft => SAC_MAP[ft] || '998314';
-const symOf     = cur => cur==='USD'?'$':cur==='AED'?'AED\u00A0':'\u20B9';
+const symOf = cur => ({ USD:'$', AED:'AED ', GBP:'£', EUR:'€', SGD:'SGD ', SAR:'SAR ', QAR:'QAR ', OMR:'OMR ', KWD:'KWD ' }[cur] || (cur ? cur+' ' : '₹'));
 const fmtAmt    = (n,cur) => symOf(cur)+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const entityOf  = of => { const n=of?.of_number||''; return (n.startsWith('OFYT')||n.startsWith('OF-YT-'))?'yavi':'fynd'; };
 const isIndia   = of => of?.sales_team==='India'||(of?.country||'').toLowerCase()==='india';
