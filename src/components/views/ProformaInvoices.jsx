@@ -214,11 +214,12 @@ export default function ProformaInvoices() {
 
   // ── load ──
   const loadPIs = useCallback(async () => {
+    if (!db) { setLoading(false); return; }
     setLoading(true);
     try {
       let snap;
-      try   { snap = await db.collection('proforma_invoices').orderBy('created_at','desc').get(); }
-      catch { snap = await db.collection('proforma_invoices').get(); }
+      try   { snap = await getDocs(query(collection(db,'proforma_invoices'),orderBy('created_at','desc'))); }
+      catch { snap = await getDocs(collection(db,'proforma_invoices')); }
       const all = [];
       snap.forEach(d => all.push({ id:d.id, ...d.data() }));
       setPIs(user?.role==='sales'
