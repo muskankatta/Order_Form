@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
 import { Card, Btn, StatusPill, Lbl, TA, MultiSelect, Toast } from '../ui/index.jsx';
 import StepClient from '../form/steps/StepClient.jsx';
 import StepCommercial from '../form/steps/StepCommercial.jsx';
@@ -29,7 +30,7 @@ const PI_SAC = {'Setup Fee':'998314','One Time Fee':'998314','Subscription Fee':
 const getSAC  = ft => PI_SAC[ft]||'998314';
 const symOf   = cur => cur==='USD'?'$':cur==='AED'?'AED\u00A0':'\u20B9';
 const fmtAmt  = (n,cur) => symOf(cur)+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
-const entityOf= of => (of?.of_number||'').startsWith('OFYT')?'yavi':'fynd';
+const entityOf= of => { const n=of?.of_number||''; return (n.startsWith('OFYT')||n.startsWith('OF-YT-'))?'yavi':'fynd'; };
 const isIndia = of => of?.sales_team==='India'||(of?.country||'').toLowerCase()==='india';
 const fixedTax= of => entityOf(of)==='fynd'&&isIndia(of);
 const subtot  = items => items.reduce((s,li)=>s+((parseFloat(li.qty)||0)*(parseFloat(li.rate)||0)),0);
