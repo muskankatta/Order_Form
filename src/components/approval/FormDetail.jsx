@@ -13,14 +13,13 @@ import { FINANCE_USERS, REVOPS_USERS } from '../../constants/users.js';
 import { fmtDate, fmtShort } from '../../utils/dates.js';
 import { openPDF } from '../../utils/pdf.js';
 import { useToast } from '../../hooks/useToast.js';
+import { SERVICES as PI_SERVICES_FALLBACK_IMPORT } from '../../constants/formOptions.js';
 
 const NAVY='#1B2B4B'; const T='#00C3B5';
 const TABS = [{id:'client',lbl:'Client'},{id:'commercial',lbl:'Commercial'},{id:'fees',lbl:'Fees'},{id:'terms',lbl:'Terms'},{id:'signatory',lbl:'Signatory'}];
 
-// ── PI helpers (self-contained, no extra imports needed) ──────────────────────
-let _SERVICES = null;
-try { _SERVICES = require('../../constants/formOptions.js').SERVICES; } catch(_) {}
-const PI_SERVICES_FALLBACK = _SERVICES || [
+// ── PI helpers ───────────────────────────────────────────────────────────────
+const PI_SERVICES_FALLBACK = PI_SERVICES_FALLBACK_IMPORT || [
   'Fynd Store OS','Fynd OMS','Fynd Commerce','Fynd Marketplace',
   'Kaily (CoPilot)','Boltic','Pixelbin','GlamAR','ratl.ai',
   'Gauze','Fynd Managed Logistics','Fynd WMS','Other',
