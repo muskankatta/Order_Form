@@ -12,7 +12,6 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { FINANCE_USERS, REVOPS_USERS } from '../../constants/users.js';
 import { fmtDate, fmtShort } from '../../utils/dates.js';
 import { openPDF } from '../../utils/pdf.js';
-import { downloadDOCX } from '../../utils/docx.js';
 import { useToast } from '../../hooks/useToast.js';
 import { SERVICES as PI_SERVICES_FALLBACK_IMPORT } from '../../constants/formOptions.js';
 
@@ -28,7 +27,7 @@ const PI_SERVICES_FALLBACK = PI_SERVICES_FALLBACK_IMPORT || [
 const PI_FEE_TYPES = ['Setup Fee','One Time Fee','Subscription Fee'];
 const PI_SAC = {'Setup Fee':'998314','One Time Fee':'998314','Subscription Fee':'998599'};
 const getSAC  = ft => PI_SAC[ft]||'998314';
-const symOf   = cur => cur==='USD'?'$':cur==='AED'?'AED\u00A0':'\u20B9';
+const symOf = cur => ({ USD:'$', AED:'AED ', GBP:'£', EUR:'€', SGD:'SGD ', SAR:'SAR ', QAR:'QAR ', OMR:'OMR ', KWD:'KWD ' }[cur] || (cur ? cur+' ' : '₹'));
 const fmtAmt  = (n,cur) => symOf(cur)+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const entityOf= of => { const n=of?.of_number||''; return (n.startsWith('OFYT')||n.startsWith('OF-YT-'))?'yavi':'fynd'; };
 const isIndia = of => of?.sales_team==='India'||(of?.country||'').toLowerCase()==='india';
@@ -319,7 +318,6 @@ export default function FormDetail({ form: initial }) {
 
   const live = edit ? ef : form;
   const set  = (k,v) => setEf(prev => ({...prev,[k]:v}));
-  const ofPrefix = form.entity === 'yavi' ? 'OF-YT-' : 'OF-FY-';
 
   const revopsPrimaryEmail  = (form.revops_approvers||[])[0];
   const financePrimaryEmail = (form.finance_approvers||[])[0];
@@ -635,9 +633,9 @@ export default function FormDetail({ form: initial }) {
                 <div>
                   <Lbl c="OF Number" req/>
                   <div className="flex items-center border-2 rounded-lg overflow-hidden font-mono font-bold text-base" style={{ borderColor:T }}>
-                    <span className="px-3 py-2 text-slate-400 bg-slate-50 border-r border-slate-200 select-none whitespace-nowrap">{ofPrefix}</span>
-                    <input value={ofNum.replace(new RegExp('^' + ofPrefix), '')}
-                      onChange={e=>{ const val=e.target.value.replace(/[^0-9]/g,''); setOfNum(val ? ofPrefix + val : ''); }}
+                    <span className="px-3 py-2 text-slate-400 bg-slate-50 border-r border-slate-200 select-none whitespace-nowrap">OF-FY-</span>
+                    <input value={ofNum.replace(/^OF-FY-/,'')}
+                      onChange={e=>{ const val=e.target.value.replace(/[^0-9]/g,''); setOfNum(val?'OF-FY-'+val:''); }}
                       placeholder="0001" maxLength={6}
                       className="flex-1 px-3 py-2 focus:outline-none font-mono font-bold"
                       style={{ color:NAVY }}/>
@@ -675,7 +673,6 @@ export default function FormDetail({ form: initial }) {
           <div className="flex gap-3">
             <Btn variant="success" onClick={handleMarkSigned}>✍️ Mark as signed</Btn>
             <Btn variant="ghost" size="sm" onClick={() => openPDF(live)}>👁 Preview PDF</Btn>
-            <Btn variant="ghost" size="sm" onClick={() => downloadDOCX(live)}>⬇ Word (.docx)</Btn>
           </div>
         </Card>
       )}
