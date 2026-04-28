@@ -6,15 +6,7 @@ import { Card, Btn, Lbl, TA, Toast } from '../ui/index.jsx';
 import { useToast } from '../../hooks/useToast.js';
 import { fmtDate } from '../../utils/dates.js';
 
-// ── adjust this import to match whatever your formOptions exports ──
-// if SERVICES isn't exported, the inline fallback below is used
-let IMPORTED_SERVICES = null;
-try { IMPORTED_SERVICES = require('../../constants/formOptions.js').SERVICES; } catch (_) {}
-const SERVICES = IMPORTED_SERVICES || [
-  'Fynd Store OS','Fynd OMS','Fynd Commerce','Fynd Marketplace',
-  'Kaily (CoPilot)','Boltic','Pixelbin','GlamAR','ratl.ai',
-  'Gauze','Fynd Managed Logistics','Fynd WMS','Other',
-];
+import { SERVICES } from '../../constants/formOptions.js';
 
 const NAVY = '#1B2B4B';
 const T    = '#00C3B5';
