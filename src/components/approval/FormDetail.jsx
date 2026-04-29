@@ -122,7 +122,7 @@ function PICreateForm({ form, user, onSubmitted }) {
         of_id:form.id, of_number:form.of_number||'',
         status:'submitted',
         customer_name:form.customer_name||'', billing_address:form.billing_address||'',
-        gstin:form.gstin||'', pan:form.pan||'',
+        gstin:form.gstin||'', pan:form.pan||'', tax_number:form.tax_number||'',
         country:form.country||'', sales_team:form.sales_team||'',
         currency:cur, line_items:lineItems,
         subtotal:sub,
@@ -149,7 +149,7 @@ function PICreateForm({ form, user, onSubmitted }) {
     <div className="mt-4 space-y-4">
       {/* Customer info pills */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[['Customer',form.customer_name||'—'],['Entity',entityOf(form)==='yavi'?'Yavi':'Fynd'],['Currency',cur],['GSTIN/Tax',form.gstin||form.pan||'—']].map(([k,v])=>(
+        {[['Customer',form.customer_name||'—'],['Entity',entityOf(form)==='yavi'?'Yavi':'Fynd'],['Currency',cur],form.tax_number?['Tax / VAT',form.tax_number]:['GSTIN/PAN',form.gstin||form.pan||'—']].map(([k,v])=>(
           <div key={k} className="bg-slate-50 rounded-xl p-3">
             <div className="text-xs text-slate-400 mb-1">{k}</div>
             <div className="text-xs font-semibold text-slate-700 truncate">{v}</div>
