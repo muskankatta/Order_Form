@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Lbl, SHdr } from '../../ui/index.jsx';
 import { SERVICES, FEE_TYPES, FEE_RULES, UNIT_METRICS, PAY_TRIGGERS,
          GRADUATED_ELIGIBLE, STEP_UP_ELIGIBLE, SLAB_RATE_UNITS } from '../../../constants/formOptions.js';
@@ -15,7 +15,67 @@ const SUB_SERVICES = {
   'GlamAR':  ['3D Model Creation','3D Configurator','3D Virtual Photography','360 Degree Product Viewer','Virtual Try-On (VTO)','AR Ads','AI Skin Analysis'],
 };
 
-// ── GaaS SKU block ────────────────────────────────────────────────────────────
+// ── Inclusions helpers ────────────────────────────────────────────────────────
+// Normalize legacy string or array to array
+function toIncArray(val) {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  return val.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function InclusionsField({ value, onChange }) {
+  const items = toIncArray(value);
+  const [draft, setDraft] = useState('');
+
+  const add = () => {
+    const v = draft.trim();
+    if (!v) return;
+    onChange([...items, v]);
+    setDraft('');
+  };
+
+  const remove = (i) => onChange(items.filter((_,j) => j !== i));
+
+  const handleKey = (e) => {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(); }
+  };
+
+  return (
+    <div>
+      <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">Inclusions</div>
+      {items.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {items.map((item, i) => (
+            <span key={i} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium"
+              style={{background:'#e0f7f5', color:'#00897b', border:'1px solid #99f6e4'}}>
+              {item}
+              <button type="button" onClick={() => remove(i)}
+                className="text-[10px] font-bold hover:text-red-500 transition-colors ml-0.5">✕</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-1.5">
+        <input
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={handleKey}
+          placeholder={items.length === 0 ? 'e.g. 6,000 bags' : 'Add another…'}
+          className="flex-1 text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white"
+          style={{borderColor:'#e2e8f0'}}
+        />
+        <button type="button" onClick={add}
+          className="text-xs px-2 py-1.5 rounded-lg border font-semibold transition-all"
+          style={{borderColor: T, color: T}}>
+          + Add
+        </button>
+      </div>
+      <p className="text-[10px] mt-1 text-brand-faint">Press Enter or comma to add · click ✕ to remove</p>
+    </div>
+  );
+}
+
+
 function GaasSKUBlock({ svc, onChange, ro, currency }) {
   const lines = svc.gaas_lines || [];
   const sym   = getSym(currency || 'INR');
@@ -332,8 +392,14 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
           </div>
         </div>
       )}
-      <div className="grid grid-cols-3 gap-3">
-        {[['inclusions','Inclusions','e.g. 6,000 bags'],['unitMetric','Unit / metric',null,UNIT_METRICS],['paymentTrigger','Payment trigger',null,PAY_TRIGGERS]].map(([key,lbl,ph,opts])=>(
+      <div className="mb-3">
+        <InclusionsField
+          value={fee.inclusions}
+          onChange={arr => u('inclusions', arr)}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[['unitMetric','Unit / metric',null,UNIT_METRICS],['paymentTrigger','Payment trigger',null,PAY_TRIGGERS]].map(([key,lbl,ph,opts])=>(
           <div key={key}>
             <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">{lbl}</div>
             {opts
@@ -450,7 +516,11 @@ function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency }) {
                               </span>
                       }
 
-                      {fee.inclusions && <span className="text-brand-muted">· Inclusions: {fee.inclusions}</span>}
+                      {toIncArray(fee.inclusions).length > 0 && (
+                        <span className="text-brand-muted">
+                          · Inclusions: {toIncArray(fee.inclusions).join(', ')}
+                        </span>
+                      )}
                       {fee.unitMetric  && <span className="text-brand-muted">· {fee.unitMetric}</span>}
                     </div>
                   </div>
