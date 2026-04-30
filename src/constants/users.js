@@ -65,6 +65,7 @@ export const FINANCE_USERS = [
   { id:'2751', name:'Somay Dugar',      slack:'U07H3FK41U0', email:'somaydugar@gofynd.com' },
   { id:'1052', name:'Viky Sangoi',      slack:'U3JUC5YNS',   email:'vikysangoi@gofynd.com' },
   { id:'1122', name:'Roshani Mohanan',  slack:'UBZ21KS66',   email:'roshanimohan@gofynd.com' },
+  { id:'3009', name:'Aditi Sinha',      slack:'U092K3G6PRQ', email:'aditisinha@gofynd.com' }
 ];
 
 export const UNIVERSAL_EMAIL = 'muskankatta2@gofynd.com';
