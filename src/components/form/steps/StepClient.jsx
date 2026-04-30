@@ -117,7 +117,7 @@ export default function StepClient({ form, set, ro }) {
           {form.entity === 'fynd' && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-teal-50 border border-teal-200">
               <span className="text-xs font-bold text-teal-700">FYND</span>
-              <span className="text-xs text-teal-500">OF series: OFFY-XXXX</span>
+              <span className="text-xs text-teal-500">OF series: OF-FY-XXXX</span>
             </div>
           )}
         </div>
