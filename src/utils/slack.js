@@ -60,6 +60,7 @@ const SLACK_IDS = {
   'vikysangoi@gofynd.com':      'U3JUC5YNS',
   'roshanimohan@gofynd.com':    'UBZ21KS66',
   'jaykaria@gofynd.com':        'U01T33X34UU',
+  'aditisinha@gofynd.com':      'U092K3G6PRQ',
 };
 
 function slackMention(email) {
