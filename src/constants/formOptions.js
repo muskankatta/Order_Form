@@ -54,7 +54,7 @@ export const STEP_UP_ELIGIBLE   = ['Subscription Fee','Platform Fee','Licensing 
 
 // Slab rate unit options for graduated pricing
 export const SLAB_RATE_UNITS = [
-  'per Item','per Bag','per Shipment','per Order','per SKU',
+  'per Item','per Bag','per Shipment','per Order','per SKU','per Location',
   'per Store','per Warehouse','per Rider','per User',
   'per AI Video','per Image','per Tech Pack',
   '% of BCA','% of VOG',
