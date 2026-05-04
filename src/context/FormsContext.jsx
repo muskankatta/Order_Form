@@ -240,7 +240,7 @@ export function FormsProvider({ children }) {
       submitted_at: new Date().toISOString(), revops_approvers: revopsApprovers,
     };
     await persistOne(f);
-    sendEmail(
+    false && sendEmail(
       [f.sales_rep_email, ...revopsApprovers].filter(Boolean).join(','),
       threadSubject(f.customer_name),
       '📋 New Submission — Pending RevOps Review\n\n' +
@@ -265,7 +265,7 @@ return f;
       revops_reviewer: user?.name, finance_approvers: financeApprovers,
     };
     await persistOne(f);
-    sendEmail(
+    false && sendEmail(
       [f.sales_rep_email, ...financeApprovers].filter(Boolean).join(','),
       threadSubject(f.customer_name),
       '✅ Approved by RevOps — Pending Finance Approval\n\n' +
@@ -287,7 +287,7 @@ return f;
       revops_comment: comment, revops_reviewer: user?.name,
     };
     await persistOne(f);
-    sendEmail(
+    false && sendEmail(
       f.sales_rep_email,
       threadSubject(f.customer_name),
       '❌ Action Required — Order Form Returned\n\n' +
@@ -309,7 +309,7 @@ return f;
     await persistOne(f);
     const revopsEmails = (f.revops_approvers || []).filter(Boolean);
     const financeEmails = (f.finance_approvers || []).filter(Boolean);
-    sendEmail(
+    false && sendEmail(
       [f.sales_rep_email, ...revopsEmails, ...financeEmails].filter(Boolean).join(','),
       threadSubject(f.customer_name),
       '🎉 Finance Approved — OF# ' + ofNumber + '\n\n' +
@@ -329,7 +329,7 @@ return f;
     const base = forms.find(f => f.id === id) || {};
     const f = { ...base, status: 'submitted', finance_comment: comment };
     await persistOne(f);
-    sendEmail(
+    false && sendEmail(
       f.sales_rep_email,
       threadSubject(f.customer_name),
       '❌ Action Required — Returned by Finance\n\n' +
