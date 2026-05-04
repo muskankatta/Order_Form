@@ -1,406 +1,645 @@
-import { fmtDate } from './dates.js';
-import { getSym } from './formatting.js';
-import { YAVI_HEADER_IMG } from './yaviHeader.js';
+import { useEffect, useState } from 'react';
+import { Lbl, SHdr } from '../../ui/index.jsx';
+import { SERVICES, FEE_TYPES, FEE_RULES, UNIT_METRICS, PAY_TRIGGERS,
+         GRADUATED_ELIGIBLE, STEP_UP_ELIGIBLE, SLAB_RATE_UNITS } from '../../../constants/formOptions.js';
+import { uid } from '../../../utils/dates.js';
+import { cyclesInTerm, getSym } from '../../../utils/formatting.js';
+import { calcMetrics, calcOFValue } from '../../../utils/calculations.js';
+import { newFee } from '../../../hooks/useFormWizard.js';
 
-// ── Number to Indian words ────────────────────────────────────────────────────
-function numToWordsIN(amount) {
-  const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
-  const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
-  function conv(n) {
-    if (n < 20) return ones[n];
-    if (n < 100) return tens[Math.floor(n/10)] + (n%10 ? ' '+ones[n%10] : '');
-    if (n < 1000) return ones[Math.floor(n/100)] + ' Hundred' + (n%100 ? ' '+conv(n%100) : '');
-    return '';
-  }
-  let n = Math.floor(Math.abs(amount)), r = '';
-  if (n >= 10000000) { r += conv(Math.floor(n/10000000))+' Crore '; n %= 10000000; }
-  if (n >= 100000)   { r += conv(Math.floor(n/100000))+' Lakh '; n %= 100000; }
-  if (n >= 1000)     { r += conv(Math.floor(n/1000))+' Thousand '; n %= 1000; }
-  if (n > 0)         { r += conv(n); }
-  return r.trim() ? 'Rupees ' + r.trim() + ' Only' : 'Zero Only';
-}
+const T = '#00C3B5'; const NAVY = '#1B2B4B';
 
-// ── Normalize inclusions — handles legacy string or new array ─────────────────
-function fmtInclusions(val) {
-  if (!val) return '';
-  if (Array.isArray(val)) return val.join(', ');
-  return val;
-}
-
-const FYND_SVG_SMALL = '<svg width="120" height="42" viewBox="0 0 1480 500" xmlns="http://www.w3.org/2000/svg"><path fill="#1B2B4B" d="M486.63,66.3l-60.2-50.01c-26.11-21.7-63.99-21.7-90.09,0l-72.83,60.49-72.77-60.49c-26.11-21.7-63.93-21.73-90.06-.06l-60.35,50.07C17.46,85.27,4.25,113.43,4.25,143.15v124.55c0,29.66,13.19,57.79,36,76.75l159.36,132.49c37,30.75,90.68,30.75,127.65,0l159.36-132.49c22.83-18.98,36.03-47.13,36.03-76.81v-124.54c0-29.66-13.21-57.82-36.03-76.79ZM475.67,259.41c0,20.94-9.34,40.82-25.43,54.21l-141.74,117.84c-26.11,21.7-63.99,21.7-90.12,0l-141.74-117.84c-16.09-13.39-25.4-33.27-25.4-54.21v-108c0-20.97,9.34-40.85,25.49-54.24l42.7-35.41c15.24-12.66,37.32-12.63,52.53.03l54.79,45.55-79.96,66.39c-19.76,16.44-19.79,46.78-.03,63.22l90.24,75.2c15.24,12.69,37.35,12.72,52.59.03l90.5-75.23c19.76-16.44,19.76-46.78,0-63.22l-43.94-36.52c-2.18-1.81-5.33-1.81-7.51,0l-27.57,22.9c-2.83,2.35-2.83,6.69,0,9.03l32.68,27.17c5.67,4.7,5.67,13.36,0,18.06l-62.9,52.33c-4.38,3.61-10.69,3.61-15.04-.03l-62.72-52.27c-5.64-4.7-5.64-13.36.03-18.06l50.77-42.17,12.1-10.04,44.25-36.76,35.15-29.19,19.7-16.39c15.24-12.66,37.32-12.66,52.53,0l42.61,35.38c16.09,13.39,25.43,33.24,25.43,54.21v108.03Z"/><g fill="#1B2B4B"><path d="M707.33,52.27h113c2.89,0,5.23,2.34,5.23,5.23v34.2c0,2.89-2.34,5.23-5.23,5.23h-106.41c-22.39,0-40.55,18.15-40.55,40.55v36.15c0,2.89,2.34,5.23,5.23,5.23h117.67c2.89,0,5.23,2.34,5.23,5.23v31.72c0,2.89-2.34,5.23-5.23,5.23h-117.67c-2.89,0-5.23,2.34-5.23,5.23v120.64c0,2.89-2.34,5.23-5.23,5.23h-36.68c-2.89,0-5.23-2.34-5.23-5.23v-213.55c0-44.79,36.31-81.1,81.1-81.1Z"/><path d="M1219.88,150.75c-13.51-12.13-31.99-18.2-55.42-18.2-.64,0-1.28.01-1.92.03-.62-.01-1.24-.03-1.87-.03-22.97,0-43.83,9.05-59.2,23.78-1.66,1.59-4.42.42-4.42-1.88v-10.88c0-2.89-2.34-5.23-5.23-5.23h-34.2c-2.89,0-5.23,2.34-5.23,5.23v203.35c0,2.89,2.34,5.23,5.23,5.23h36.68c2.89,0,5.23-2.34,5.23-5.23v-120.91c0-7.72,1.24-15.02,3.72-21.92,2.48-6.89,5.93-12.89,10.34-17.99,4.41-5.1,9.78-9.1,16.13-11.99,6.34-2.89,13.51-4.34,21.51-4.34,14.06,0,24.4,3.79,31.02,11.37,6.62,7.59,10.2,19.79,10.75,36.6v129.18c0,2.89,2.34,5.23,5.23,5.23h36.68c2.89,0,5.23-2.34,5.23-5.23v-141.58c0-24.26-6.76-42.46-20.26-54.59Z"/><path d="M1017.79,143.51v227.99c0,44.8-36.31,81.11-81.09,81.11h-90.01c-2.89,0-5.24-2.35-5.24-5.24v-34.19c0-2.89,2.35-5.24,5.24-5.24h83.41c22.4,0,43.02-18.59,43.02-40.99v-30.86c0-2.32-2.78-3.54-4.47-1.93-15.37,14.69-36.21,23.73-59.15,23.73-.63,0-1.25-.01-1.88-.03-.63.01-1.27.03-1.9.03-23.43,0-41.91-6.06-55.43-18.19-13.51-12.15-20.27-30.33-20.27-54.6v-141.59c0-2.88,2.35-5.23,5.24-5.23h36.68c2.89,0,5.23,2.35,5.23,5.23v129.19c.56,16.81,4.14,29.02,10.76,36.59,6.62,7.59,16.96,11.37,31.02,11.37,7.99,0,15.17-1.45,21.5-4.34,6.34-2.89,11.73-6.89,16.13-11.99,4.41-5.11,7.86-11.1,10.34-17.99,2.48-6.9,3.72-14.21,3.72-21.93v-120.91c0-2.88,2.35-5.23,5.23-5.23h36.69c2.88,0,5.23,2.35,5.23,5.23Z"/><path d="M1428.61,57.51v97.02c0,2.3-2.75,3.48-4.41,1.89-7.86-7.55-17.16-13.6-27.44-17.73-.34-.16-.7-.33-1.1-.49-23.44-9.76-53.14-4.57-53.14-4.57v.02c-6.73,1.03-13.4,2.79-20,5.32-11.17,4.28-21.09,10.96-29.78,20.06-8.68,9.1-15.65,20.68-20.89,34.74-5.24,14.06-7.86,30.75-7.86,50.04,0,15.99,2.07,30.95,6.2,44.87,4.14,13.93,10.34,25.99,18.61,36.19,8.27,10.2,18.67,18.27,31.22,24.19,12.54,5.93,27.22,8.89,44.04,8.89.43,0,.85-.03,1.28-.03.69.02,1.38.03,2.07.03,22.98,0,43.85-9.06,59.22-23.8,1.66-1.6,4.42-.43,4.42,1.88v10.9c0,2.89,2.34,5.23,5.23,5.23h34.2c2.89,0,5.23-2.34,5.23-5.23V57.51c0-2.89-2.34-5.23-5.23-5.23h-36.68c-2.89,0-5.23,2.34-5.23,5.23ZM1325.42,297.98c-4.83-6.89-8.41-14.75-10.75-23.57-2.35-8.82-3.52-17.78-3.52-26.88,0-9.65,1.03-19.09,3.1-28.33,2.07-9.23,5.51-17.51,10.34-24.81,4.82-7.3,11.02-13.23,18.61-17.78,7.58-4.55,16.89-6.82,27.92-6.82,18.2,0,32.6,6.62,43.22,19.85,10.61,13.23,15.92,31.71,15.92,55.42,0,9.38-1.18,18.55-3.52,27.5-2.35,8.96-5.93,17.03-10.75,24.19-4.83,7.17-11.03,12.96-18.61,17.37-7.59,4.41-16.61,6.62-27.09,6.62s-19.02-2.07-26.47-6.2c-7.44-4.14-13.58-9.65-18.4-16.54Z"/></g></svg>';
-
-const FYND_SVG_LARGE = '<svg width="140" height="48" viewBox="0 0 1480 500" xmlns="http://www.w3.org/2000/svg" style="display:block;margin-bottom:6px"><path fill="#1B2B4B" d="M486.63,66.3l-60.2-50.01c-26.11-21.7-63.99-21.7-90.09,0l-72.83,60.49-72.77-60.49c-26.11-21.7-63.93-21.73-90.06-.06l-60.35,50.07C17.46,85.27,4.25,113.43,4.25,143.15v124.55c0,29.66,13.19,57.79,36,76.75l159.36,132.49c37,30.75,90.68,30.75,127.65,0l159.36-132.49c22.83-18.98,36.03-47.13,36.03-76.81v-124.54c0-29.66-13.21-57.82-36.03-76.79ZM475.67,259.41c0,20.94-9.34,40.82-25.43,54.21l-141.74,117.84c-26.11,21.7-63.99,21.7-90.12,0l-141.74-117.84c-16.09-13.39-25.4-33.27-25.4-54.21v-108c0-20.97,9.34-40.85,25.49-54.24l42.7-35.41c15.24-12.66,37.32-12.63,52.53.03l54.79,45.55-79.96,66.39c-19.76,16.44-19.79,46.78-.03,63.22l90.24,75.2c15.24,12.69,37.35,12.72,52.59.03l90.5-75.23c19.76-16.44,19.76-46.78,0-63.22l-43.94-36.52c-2.18-1.81-5.33-1.81-7.51,0l-27.57,22.9c-2.83,2.35-2.83,6.69,0,9.03l32.68,27.17c5.67,4.7,5.67,13.36,0,18.06l-62.9,52.33c-4.38,3.61-10.69,3.61-15.04-.03l-62.72-52.27c-5.64-4.7-5.64-13.36.03-18.06l50.77-42.17,12.1-10.04,44.25-36.76,35.15-29.19,19.7-16.39c15.24-12.66,37.32-12.66,52.53,0l42.61,35.38c16.09,13.39,25.43,33.24,25.43,54.21v108.03Z"/><g fill="#1B2B4B"><path d="M707.33,52.27h113c2.89,0,5.23,2.34,5.23,5.23v34.2c0,2.89-2.34,5.23-5.23,5.23h-106.41c-22.39,0-40.55,18.15-40.55,40.55v36.15c0,2.89,2.34,5.23,5.23,5.23h117.67c2.89,0,5.23,2.34,5.23,5.23v31.72c0,2.89-2.34,5.23-5.23,5.23h-117.67c-2.89,0-5.23,2.34-5.23,5.23v120.64c0,2.89-2.34,5.23-5.23,5.23h-36.68c-2.89,0-5.23-2.34-5.23-5.23v-213.55c0-44.79,36.31-81.1,81.1-81.1Z"/><path d="M1219.88,150.75c-13.51-12.13-31.99-18.2-55.42-18.2-.64,0-1.28.01-1.92.03-.62-.01-1.24-.03-1.87-.03-22.97,0-43.83,9.05-59.2,23.78-1.66,1.59-4.42.42-4.42-1.88v-10.88c0-2.89-2.34-5.23-5.23-5.23h-34.2c-2.89,0-5.23,2.34-5.23,5.23v203.35c0,2.89,2.34,5.23,5.23,5.23h36.68c2.89,0,5.23-2.34,5.23-5.23v-120.91c0-7.72,1.24-15.02,3.72-21.92,2.48-6.89,5.93-12.89,10.34-17.99,4.41-5.1,9.78-9.1,16.13-11.99,6.34-2.89,13.51-4.34,21.51-4.34,14.06,0,24.4,3.79,31.02,11.37,6.62,7.59,10.2,19.79,10.75,36.6v129.18c0,2.89,2.34,5.23,5.23,5.23h36.68c2.89,0,5.23-2.34,5.23-5.23v-141.58c0-24.26-6.76-42.46-20.26-54.59Z"/><path d="M1017.79,143.51v227.99c0,44.8-36.31,81.11-81.09,81.11h-90.01c-2.89,0-5.24-2.35-5.24-5.24v-34.19c0-2.89,2.35-5.24,5.24-5.24h83.41c22.4,0,43.02-18.59,43.02-40.99v-30.86c0-2.32-2.78-3.54-4.47-1.93-15.37,14.69-36.21,23.73-59.15,23.73-.63,0-1.25-.01-1.88-.03-.63.01-1.27.03-1.9.03-23.43,0-41.91-6.06-55.43-18.19-13.51-12.15-20.27-30.33-20.27-54.6v-141.59c0-2.88,2.35-5.23,5.24-5.23h36.68c2.89,0,5.23,2.35,5.23,5.23v129.19c.56,16.81,4.14,29.02,10.76,36.59,6.62,7.59,16.96,11.37,31.02,11.37,7.99,0,15.17-1.45,21.5-4.34,6.34-2.89,11.73-6.89,16.13-11.99,4.41-5.11,7.86-11.1,10.34-17.99,2.48-6.9,3.72-14.21,3.72-21.93v-120.91c0-2.88,2.35-5.23,5.23-5.23h36.69c2.88,0,5.23,2.35,5.23,5.23Z"/><path d="M1428.61,57.51v97.02c0,2.3-2.75,3.48-4.41,1.89-7.86-7.55-17.16-13.6-27.44-17.73-.34-.16-.7-.33-1.1-.49-23.44-9.76-53.14-4.57-53.14-4.57v.02c-6.73,1.03-13.4,2.79-20,5.32-11.17,4.28-21.09,10.96-29.78,20.06-8.68,9.1-15.65,20.68-20.89,34.74-5.24,14.06-7.86,30.75-7.86,50.04,0,15.99,2.07,30.95,6.2,44.87,4.14,13.93,10.34,25.99,18.61,36.19,8.27,10.2,18.67,18.27,31.22,24.19,12.54,5.93,27.22,8.89,44.04,8.89.43,0,.85-.03,1.28-.03.69.02,1.38.03,2.07.03,22.98,0,43.85-9.06,59.22-23.8,1.66-1.6,4.42-.43,4.42,1.88v10.9c0,2.89,2.34,5.23,5.23,5.23h34.2c2.89,0,5.23-2.34,5.23-5.23V57.51c0-2.89-2.34-5.23-5.23-5.23h-36.68c-2.89,0-5.23,2.34-5.23,5.23ZM1325.42,297.98c-4.83-6.89-8.41-14.75-10.75-23.57-2.35-8.82-3.52-17.78-3.52-26.88,0-9.65,1.03-19.09,3.1-28.33,2.07-9.23,5.51-17.51,10.34-24.81,4.82-7.3,11.02-13.23,18.61-17.78,7.58-4.55,16.89-6.82,27.92-6.82,18.2,0,32.6,6.62,43.22,19.85,10.61,13.23,15.92,31.71,15.92,55.42,0,9.38-1.18,18.55-3.52,27.5-2.35,8.96-5.93,17.03-10.75,24.19-4.83,7.17-11.03,12.96-18.61,17.37-7.59,4.41-16.61,6.62-27.09,6.62s-19.02-2.07-26.47-6.2c-7.44-4.14-13.58-9.65-18.4-16.54Z"/></g></svg>';
-
-
-// ── Shared popup styles ───────────────────────────────────────────────────────
-var SHARED_STYLES =
-  '*{margin:0;padding:0;box-sizing:border-box}' +
-  'body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;padding:36px 44px}' +
-  '.hdr{margin-bottom:20px;padding-bottom:14px;border-bottom:2.5px solid #1B2B4B}' +
-  'h1{font-size:14px;font-weight:900;text-align:center;margin-bottom:16px;letter-spacing:2px;text-transform:uppercase}' +
-  'h2{font-size:10.5px;font-weight:700;background:#1B2B4B;color:#fff;padding:6px 14px;margin:16px 0 0}' +
-  'table{width:100%;border-collapse:collapse;font-size:10.5px}' +
-  'th{background:#f0f4f8;font-weight:700;text-align:left;padding:6px 10px;border:1px solid #ccc}' +
-  'td{padding:5px 10px;border:1px solid #e0e0e0;vertical-align:top}' +
-  '.kv td:first-child{background:#f8f9fa;font-weight:600;width:33%}' +
-  '.st-block{padding:10px 14px;border:1px solid #ddd;font-size:10.5px;line-height:1.7;white-space:pre-wrap}' +
-  '.sign-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px}' +
-  '.sign-box{border:1px solid #ccc;border-radius:4px;padding:14px}' +
-  '.sign-box h4{font-size:10px;font-weight:700;color:#1B2B4B;text-transform:uppercase;margin-bottom:10px}' +
-  '.sign-line{border-bottom:1px solid #999;margin:24px 0 8px}' +
-  '.footer{margin-top:20px;font-size:9px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:8px}' +
-  '@media print{button,#actionBar{display:none}h2,.sign-box h4,th{-webkit-print-color-adjust:exact;print-color-adjust:exact}}';
-
-// ── Action bar ────────────────────────────────────────────────────────────────
-var makeActionBar = function(ofNum, isYavi) {
-  return '<div id="actionBar" style="text-align:center;margin-top:20px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap">' +
-    '<button onclick="window.print()" style="background:#1B2B4B;color:#fff;border:none;padding:10px 28px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">' +
-    '\uD83D\uDDB6 Print / Save as PDF</button>' +
-    '<button id="wordBtn" onclick="downloadWord()" style="background:#217346;color:#fff;border:none;padding:10px 28px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">' +
-    '\u2B07 Download Word (.docx)</button>' +
-    '</div>' +
-    '<script src="https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.js"><\/script>' +
-    '<script>' +
-    'var _ofNum="' + (ofNum||'DRAFT') + '";' +
-    'function downloadWord(){' +
-    'var btn=document.getElementById("wordBtn");' +
-    'btn.textContent="Generating...";btn.disabled=true;' +
-    'try{' +
-    'var content=document.getElementById("of-content").outerHTML;' +
-    'var full="<!DOCTYPE html><html><head><meta charset=\'UTF-8\'><style>' +
-      'body{font-family:Arial,sans-serif;font-size:11pt;color:#1a1a1a;margin:2cm}' +
-      'table{width:100%;border-collapse:collapse}' +
-      'th{background:#f0f4f8;font-weight:bold;padding:5pt 8pt;border:1pt solid #ccc}' +
-      'td{padding:4pt 8pt;border:1pt solid #ddd}' +
-      'h1{font-size:14pt;font-weight:900;text-align:center;text-transform:uppercase;margin:14pt 0}' +
-      'h2{font-size:10pt;font-weight:bold;background:#1B2B4B;color:white;padding:5pt 12pt;margin:12pt 0 0}' +
-      '</style></head><body>"+content+"</body></html>";' +
-    'var blob=htmlDocx.asBlob(full,{orientation:"portrait",margins:{top:720,right:720,bottom:720,left:720}});' +
-    'var url=URL.createObjectURL(blob);' +
-    'var a=document.createElement("a");a.href=url;a.download="OF_"+_ofNum+".docx";' +
-    'document.body.appendChild(a);a.click();document.body.removeChild(a);' +
-    'setTimeout(function(){URL.revokeObjectURL(url);},2000);' +
-    'btn.textContent="\u2B07 Download Word (.docx)";btn.disabled=false;' +
-    '}catch(e){alert("Word generation failed: "+e.message);btn.textContent="\u2B07 Download Word (.docx)";btn.disabled=false;}' +
-    '}' +
-    '<\/script>';
+const SUB_SERVICES = {
+  'Konnect': ['3P Storefront','3P Marketplace'],
+  'StoreOS': ['Clienteling','POS','In Store Apps','Scan & Go'],
+  'GlamAR':  ['3D Model Creation','3D Configurator','3D Virtual Photography','360 Degree Product Viewer','Virtual Try-On (VTO)','AR Ads','AI Skin Analysis'],
 };
 
-// ── GaaS Order Confirmation PDF ───────────────────────────────────────────────
-export const openGaaSPDF = function(form) {
-  var svcs     = form.services_fees || [];
-  var gaasSvc  = svcs.find(function(s) { return s.name === 'GaaS'; }) || {};
-  var lines    = gaasSvc.gaas_lines || [];
-  var sym      = '\u20b9';
-  var ofNum    = form.of_number || 'DRAFT';
-  var custName = form.customer_name || '\u2014';
-  var sigName  = form.signatory_name || '________________________';
-  var sigDesig = form.signatory_designation || 'Authorised Signatory';
+// ── Inclusions helpers ────────────────────────────────────────────────────────
+function toIncArray(val) {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  return val.split(',').map(s => s.trim()).filter(Boolean);
+}
 
-  var totalQty = lines.reduce(function(s,l) { return s + Number(l.quantity||0); }, 0);
-  var totalAmt = lines.reduce(function(s,l) { return s + Number(l.amount||0); }, 0);
+function InclusionsField({ value, onChange }) {
+  const items = toIncArray(value);
+  const [draft, setDraft] = useState('');
 
-  var delDate = form.expected_delivery_date
-    ? new Date(form.expected_delivery_date).toLocaleDateString('en-IN', {day:'2-digit',month:'2-digit',year:'numeric'})
-    : '\u2014';
-
-  var skuRowsHtml = lines.length === 0
-    ? '<tr><td colspan="7" style="text-align:center;padding:12px;color:#999">No SKU rows</td></tr>'
-    : lines.map(function(l) {
-        return '<tr>' +
-          '<td><strong>' + (l.skuDetails||'\u2014') + '</strong></td>' +
-          '<td>' + (l.styleId||'\u2014') + '</td>' +
-          '<td>' + (l.color||'\u2014') + '</td>' +
-          '<td style="text-align:center">' + (l.size||'\u2014') + '</td>' +
-          '<td style="text-align:center">' + Number(l.quantity||0) + '</td>' +
-          '<td style="text-align:right">' + Number(l.rate||0).toLocaleString('en-IN') + '</td>' +
-          '<td style="text-align:right"><strong>' + sym + Number(l.amount||0).toLocaleString('en-IN') + '</strong></td>' +
-          '</tr>';
-      }).join('');
-
-  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Order Confirmation ' + ofNum + '</title>' +
-    '<style>' +
-    '*{margin:0;padding:0;box-sizing:border-box}' +
-    'body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;padding:30px 40px}' +
-    '.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;padding-bottom:12px;border-bottom:2.5px solid #1B2B4B}' +
-    'h1{font-size:13px;font-weight:900;text-align:center;margin:14px 0;letter-spacing:2px;text-transform:uppercase}' +
-    'h2{font-size:10px;font-weight:700;background:#1B2B4B;color:#fff;padding:5px 12px;margin:14px 0 0}' +
-    'table{width:100%;border-collapse:collapse;font-size:10.5px}' +
-    'th{background:#f0f4f8;font-weight:700;text-align:left;padding:6px 8px;border:1px solid #ccc}' +
-    'td{padding:5px 8px;border:1px solid #e0e0e0;vertical-align:top}' +
-    '.kv td:first-child{background:#f8f9fa;font-weight:600;width:23%}' +
-    '.kv td:nth-child(3){background:#f8f9fa;font-weight:600;width:23%}' +
-    '.tc-section{margin-top:4px;font-size:10px;line-height:1.75;color:#222}' +
-    '.tc-section strong{display:block;margin-top:8px;margin-bottom:2px}' +
-    '.tc-section ul{margin-left:16px}' +
-    '.tc-section li{margin-bottom:2px}' +
-    '.sign-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}' +
-    '.sign-box{border:1px solid #ccc;border-radius:4px;padding:12px}' +
-    '.sign-box h4{font-size:10px;font-weight:700;color:#1B2B4B;text-transform:uppercase;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:4px}' +
-    '.sign-line{border-bottom:1px solid #999;margin:22px 0 6px}' +
-    '.footer{margin-top:16px;font-size:9px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:6px}' +
-    '@media print{button,#actionBar{display:none}h2,.sign-box h4,th{-webkit-print-color-adjust:exact;print-color-adjust:exact}}' +
-    '</style></head><body>' +
-    '<div id="oc-content">' +
-    '<div class="hdr">' +
-    '<div style="display:flex;align-items:center;gap:10px">' + FYND_SVG_SMALL +
-    '<div><div style="font-weight:700;font-size:10px;color:#1B2B4B">Shopsense Retail Technologies Ltd.</div>' +
-    '<div style="font-size:9px;color:#444;line-height:1.65">1st Floor, Wework Vijay Diamond, Opp. SBI Branch, Cross Road B,<br/>Ajit Nagar, Kondivita, Andheri East, Mumbai- 400093<br/>MOB: +91 9321 938 025 | CIN: U52100MH2012PLC236314<br/>GSTN: 27AALCA0442L1ZM | PAN: AALCA0442L</div>' +
-    '</div></div></div>' +
-    '<h1>ORDER CONFIRMATION</h1>' +
-    '<h2>A. Buyer &amp; Order Form Details</h2>' +
-    '<table class="kv" style="margin-bottom:1px">' +
-    '<tr><td>Buyer Name</td><td><strong>' + custName + '</strong></td><td>Order Form No</td><td><strong>' + ofNum + '</strong></td></tr>' +
-    '<tr><td>Brand/Trade Name</td><td>' + (form.brand_name||'\u2014') + '</td><td>Billing Currency</td><td>' + (form.committed_currency||'INR') + '</td></tr>' +
-    '<tr><td>Billing Address</td><td>' + (form.billing_address||'\u2014').replace(/\n/g,'<br/>') + '</td><td>Expected Delivery Date</td><td><strong>' + delDate + '</strong></td></tr>' +
-    '<tr><td>Tax Details</td><td>GST: ' + (form.gstin||'\u2014') + ' \u2022 PAN: ' + (form.pan||'\u2014') + '</td><td>Sales Channel</td><td>' + (form.lead_type||'\u2014') + '</td></tr>' +
-    '<tr><td>Billing Email</td><td>' + (form.billing_email||'\u2014') + '</td><td>Order Form Value</td><td><strong>' + sym + totalAmt.toLocaleString('en-IN') + '</strong></td></tr>' +
-    '<tr><td>Order Form Term</td><td>' + (form.of_term||'\u2014') + '</td><td>Payment Terms</td><td>' + (form.payment_terms||'\u2014') + '</td></tr>' +
-    '<tr><td colspan="4" style="padding:0;border:none"></td></tr>' +
-    '<tr><td colspan="4" style="background:#f8f9fa;padding:6px 8px"><strong>Buyer Representative</strong> &nbsp; Name: <strong>' + (form.client_rep_name||'\u2014') + '</strong> &nbsp;&nbsp; Mobile No.: ' + (form.client_rep_mobile||'\u2014') + ' &nbsp;&nbsp; Email: ' + (form.client_rep_email||'\u2014') + '</td></tr>' +
-    '<tr><td colspan="4" style="background:#f8f9fa;padding:6px 8px"><strong>Sales Representative</strong> &nbsp; Name: <strong>' + (form.sales_rep_name||'\u2014') + '</strong> &nbsp;&nbsp; Email: ' + (form.sales_rep_email||'\u2014') + '</td></tr>' +
-    '</table>' +
-    '<h2>a. Garment Sale</h2>' +
-    '<table>' +
-    '<thead><tr><th style="width:22%">SKU Details</th><th>Style id</th><th>Color</th><th style="text-align:center">Size</th><th style="text-align:center">Quantity</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead>' +
-    '<tbody>' + skuRowsHtml + '</tbody>' +
-    '<tfoot>' +
-    '<tr><td colspan="4" style="text-align:right;font-weight:700;background:#f0f4f8">Total</td>' +
-    '<td style="text-align:center;font-weight:700;background:#f0f4f8">' + totalQty + '</td>' +
-    '<td style="background:#f0f4f8"></td>' +
-    '<td style="text-align:right;font-weight:900;background:#f0f4f8">' + sym + ' ' + totalAmt.toLocaleString('en-IN') + '</td></tr>' +
-    '</tfoot></table>' +
-    '<div style="padding:6px 8px;border:1px solid #e0e0e0;border-top:none;font-size:10px;font-weight:600;background:#fffbeb">' +
-    'In Words: ' + numToWordsIN(totalAmt) +
-    '</div>' +
-    '<div style="margin-top:14px;font-size:11px;font-weight:700;margin-bottom:6px">Terms &amp; Conditions:</div>' +
-    '<div class="tc-section">' +
-    '<strong>\u2022 Products</strong> \u2013 finished garments supplied under this agreement/Order Confirmation.' +
-    '<strong>\u2022 Order</strong> \u2013 Buyer\u2019s written purchase order specifying quantities, designs and delivery terms.' +
-    '<strong>\u2022 Orders and Acceptance</strong>' +
-    '<ul>' +
-    '<li>Buyer shall issue Orders referencing agreed MOQs and delivery timelines.</li>' +
-    '<li>Orders are subject to Fynd\u2019s written acceptance. Upon acceptance, the Order becomes binding.</li>' +
-    '<li>Modifications to Orders (quantities, designs) require mutual written consent.</li>' +
-    '<li>Goods once sold cannot be taken back under any circumstances.</li>' +
-    '<li>Once the goods are delivered, the responsibility of Fynd ceases and any loss or damage thereafter shall be to the account of the buyer.</li>' +
-    '<li>The goods are as per the specification / grade already approved by the buyer and no complaints whatsoever regarding the quality will be entertained.</li>' +
-    '</ul>' +
-    '<strong>\u2022 Claims and Liability</strong>' +
-    '<ul>' +
-    '<li>In case of any claim (Direct/Indirect) by the buyer or by the ultimate consumer, the liability of Fynd will be limited only to the value specified in the Invoice.</li>' +
-    '<li>The goods supplied shall not be subject to any express or implied warranty.</li>' +
-    '<li>Interest @ 21% p. a. will be payable by the buyer on all overdues.</li>' +
-    '</ul>' +
-    '<strong>\u2022 Pricing and Payment Terms</strong>' +
-    '<ul>' +
-    '<li>All fees are exclusive of applicable taxes, which will be charged separately as per prevailing laws. Fynd will charge GST at the rates applicable to services and goods separately.</li>' +
-    '<li>All banking charges at the buyer\u2019s bank are to be borne by the buyer. Payment must be made net of such charges.</li>' +
-    '<li>The Buyer agrees to pay the fees outlined in this Order Confirmation upon its execution and subsequently according to the Billing Frequency specified herein.</li>' +
-    '<li>Until Fynd receives full payment for the goods, Fynd shall continue to have a lien on the goods and ownership shall stand transferred to the buyer only on receipt of full payment.</li>' +
-    '<li>If the Customer is in default of payment, the customer shall be liable for any incidental, legal and/or collection costs incurred by the seller.</li>' +
-    '</ul>' +
-    '<strong>\u2022 Validity</strong>' +
-    '<ul>' +
-    '<li>This Order Confirmation shall remain valid for a period of seven (7) working days from the date of issuance. If not signed and returned within this period, the Order Confirmation shall be deemed null and void unless extended in writing by Fynd.</li>' +
-    '<li>The Expected delivery date mentioned is only tentative and is subject to change in case of unavoidable circumstances or due to a Force Majeure event.</li>' +
-    '<li>Fynd reserves the right to withhold delivery of the goods or terminate the transaction due to a Force Majeure event, or if the customer has exceeded the agreed credit limit (if any) or becomes insolvent.</li>' +
-    '</ul>' +
-    '</div>' +
-    '<div style="margin-top:14px;font-size:11px;font-weight:700;margin-bottom:6px">Authorization:</div>' +
-    '<div class="sign-grid">' +
-    '<div class="sign-box"><h4>For Buyer:</h4>' +
-    '<div style="font-size:10px;color:#555;margin-bottom:4px">Name &amp; Designation</div>' +
-    '<div class="sign-line"></div>' +
-    '<div><strong>' + sigName + '</strong></div>' +
-    '<div style="color:#555;margin-top:3px">' + sigDesig + '</div>' +
-    '<div style="margin-top:10px;color:#999;font-size:9.5px">e- Sign: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>' +
-    '<div style="color:#999;font-size:9.5px;margin-top:6px">Date of Signing: _______________</div>' +
-    '</div>' +
-    '<div class="sign-box"><h4>For Fynd:</h4>' +
-    '<div style="font-size:10px;color:#555;margin-bottom:4px">Name &amp; Designation</div>' +
-    '<div class="sign-line"></div>' +
-    '<div><strong>Sreeraman Mohan Girija</strong></div>' +
-    '<div style="color:#555;margin-top:3px">Whole-time Director</div>' +
-    '<div style="margin-top:10px;color:#999;font-size:9.5px">e- Sign: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>' +
-    '<div style="color:#999;font-size:9.5px;margin-top:6px">Date of Signing: _______________</div>' +
-    '</div>' +
-    '</div>' +
-    '<div class="footer">OF#: ' + ofNum + ' \u00b7 Generated: ' + new Date().toLocaleString('en-IN') + ' \u00b7 Shopsense Retail Technologies Ltd.</div>' +
-    '</div>' +
-    makeActionBar(ofNum, false) +
-    '</body></html>';
-
-  var w = window.open('', '_blank');
-  w.document.write(html);
-  w.document.close();
-};
-
-// ── Order Form PDF (Fynd or Yavi) ─────────────────────────────────────────────
-export const openPDF = function(form) {
-  if ((form.services_fees||[]).some(function(s) { return s.name === 'GaaS'; })) {
-    return openGaaSPDF(form);
-  }
-
-  var isYavi   = form.entity === 'yavi';
-  var sym      = getSym(form.committed_currency || (isYavi ? 'USD' : 'INR'));
-  var svcs     = form.services_fees || [];
-  var isBundle = svcs.length > 1;
-  var ofNum    = form.of_number || 'DRAFT';
-  var custName = form.customer_name || '\u2014';
-  var sigName  = form.signatory_name || '________________________';
-  var sigDesig = form.signatory_designation || 'Authorised Signatory';
-  var sigEmail = form.signatory_email || '';
-
-  var entitySignatoryName  = isYavi ? 'Vishesh Kumar'               : 'Sreeraman Mohan Girija';
-  var entitySignatoryDesig = isYavi ? 'Founding Director'           : 'Whole-time Director';
-  var entitySignatoryLabel = isYavi ? 'For: Yavi Technologies FZCO' : 'For: Shopsense Retail Technologies Limited';
-  var entitySalesRepLabel  = isYavi ? 'Sales Rep (Yavi Technologies)' : 'Sales Rep (Fynd)';
-  var footerEntity         = isYavi ? 'Yavi Technologies FZCO'      : 'Shopsense Retail Technologies Limited';
-
-  var hdrHtml;
-  if (isYavi) {
-    hdrHtml = '<div class="hdr">' +
-      '<img src="' + YAVI_HEADER_IMG + '" style="width:100%;max-width:680px;display:block" alt="Yavi Technologies FZCO"/>' +
-      '</div>';
-  } else {
-    hdrHtml = '<div class="hdr" style="display:flex;justify-content:space-between;align-items:flex-start">' +
-      '<div style="display:flex;align-items:center;gap:14px"><div>' +
-      FYND_SVG_LARGE +
-      '<div style="font-weight:700;font-size:10.5px;color:#1B2B4B">Shopsense Retail Technologies Limited</div>' +
-      '<div style="font-size:9.5px;color:#444;line-height:1.65">1st Floor, Wework Vijay Diamond, Andheri East, Mumbai \u2013 400 093<br/>CIN: U52100MH2012PLC236314 | GSTN: 27AALCA0442L1ZM | PAN: AALCA0442L</div>' +
-      '</div></div>' +
-      '<div style="text-align:right">' +
-      '<div style="font-size:9.5px;font-weight:700;color:#64748b;letter-spacing:1.5px;text-transform:uppercase">Order Form</div>' +
-      '<div style="font-size:20px;font-weight:900;font-family:monospace;color:#1B2B4B">' + ofNum + '</div>' +
-      '<div style="font-size:9.5px;color:#666">Date: ' + fmtDate(form.submitted_at ? form.submitted_at.split('T')[0] : '') + '</div>' +
-      '</div></div>';
-  }
-
-  var tcHtml;
-  if (isYavi) {
-    tcHtml =
-      '<strong>1. Ownership &amp; Licensing</strong> \u2014 Shopsense Retail Technologies Limited (\u201cFynd\u201d) is the owner and licensor of the Software/Platform availed as Service(s) by the Client under this Order Form. Fynd has granted Yavi Technologies with licence to resell the Service(s) in the capacity of an exclusive authorized reseller by way of an independent licence agreement.<br/>' +
-      '<strong>2. Agreement Scope</strong> \u2014 This Order Form shall be read together with schedules, annexures, SOP(s), SoW(s), and/or any written documents executed between the Parties, read along with the online terms and policy documents of Fynd with respect to the Service(s) being availed by the Client and shall constitute the entire understanding and agreement between the parties and replaces all prior understandings, negotiations, discussions, writings and agreements with respect to the subject matter hereof.<br/>' +
-      '<strong>3. Term</strong> \u2014 The Service Period and all applicable Renewal Tenures are collectively referred to herein as the \u201cOrder Form Term\u201d. This Order Form is effective on the date the Service Period commences until the end of the Order Form Term. Renewal will be applicable on then-current list price.<br/>' +
-      '<strong>4. Fees</strong> \u2014 Client will be charged the fees set forth in this Order Form upon its execution and in accordance with the applicable Billing Frequency (as defined above) thereafter. All fees (commercial value) that Client is charged, including the fees set forth in this Order Form, will be exclusive of taxes. If Client terminates this Order Form prior to the expiration of the Initial Term or then-current Renewal Term (except to the extent such termination is due to Fynd\u2019s failure to cure a material breach in accordance with the Agreement (as defined in TOS)), then Client is responsible for paying the fees set forth in this Order Form for the remaining portion of the Initial Term or then-current Renewal Term upon termination. All fees except one time fee will be applicable for a minimal increment of 8% on then-current list price (shared by Fynd to Client) upon Renewal Term.<br/>' +
-      '<strong>5. Validity</strong> \u2014 This Order Form shall remain valid for a period of seven (7) working days from the date of issuance. If not signed and returned within this period, the Order Form shall be deemed null and void unless extended in writing by Fynd.';
-  } else {
-    tcHtml =
-      '<strong>1. Entire Agreement</strong> \u2014 This Order Form, along with its accompanying schedules, annexures, Standard Operating Procedures (SOPs), Terms of Service (TOS), and Privacy Policy, if any, collectively constitute the entire agreement between the Parties (hereinafter \u201cAgreement\u201d). It supersedes and replaces all prior negotiations, discussions, understandings, writings, and agreements related to the subject matter herein. <a href="https://console.fynd.com/terms-and-conditions" style="color:#00897b">T&amp;C</a> \u00b7 <a href="https://console.fynd.com/privacy-policy" style="color:#00897b">Privacy Policy</a><br/>' +
-      '<strong>2. Term</strong> \u2014 The term of this Order Form (hereinafter referred to as the \u201cOrder Form Term\u201d) includes the initial Service Period and all subsequent Renewal Terms (if applicable). The Order Form becomes effective on the commencement date of the Service Period and shall continue until the end of the Order Form Term. Renewal shall be subject to the then-current list price prevailing at the time of renewal.<br/>' +
-      '<strong>3. Extension Fees</strong> \u2014 If the Client avails any of the Extension Service(s), they shall be charged an Extension Fee for that Service(s) over and above the Fees mentioned above in the Order Form. <a href="https://drive.google.com/file/d/1vIHalH7yX1kUFtCxI8xMlSrIRO0wI7SX/view?usp=sharing" style="color:#00897b">Extension Rate Card</a><br/>' +
-      '<strong>4. Fees and Payment Terms</strong> \u2014 <br/>' +
-      'a. The Client agrees to pay the fees outlined in this Order Form upon its execution and subsequently according to the Billing Frequency specified herein.<br/>' +
-      'b. All fees are exclusive of applicable taxes, which will be charged separately as per prevailing laws.<br/>' +
-      'c. Except for one-time fees, all recurring fees will be subject to a minimum increment of 8% on the then-current list price, as notified by Fynd at the time of renewal.<br/>' +
-      'd. In the event that the Client terminates this Order Form before the expiration of the Initial Term or any then-current Renewal Term\u2014except where such termination is due to Fynd\u2019s uncured material breach as defined in the Terms of Service\u2014the Client shall remain liable to pay the remaining fees due for the rest of the respective term, upon termination.<br/>' +
-      '<strong>5. Publicity Rights</strong> \u2014 By signing this Order Form, the Client grants Fynd the right, for the Term of this Order Form and thereafter, to use the Client\u2019s name, logo, trademark(s), and other brand identifiers for the purposes of publicity, public relations (PR), marketing, promotional, or branding activities, or otherwise disclosing its association with the Client, in any medium or format.<br/>' +
-      '<strong>6. Validity</strong> \u2014 This Order Form shall remain valid for a period of seven (7) working days from the date of issuance. If not signed and returned within this period, the Order Form shall be deemed null and void unless extended in writing by Fynd.';
-  }
-
-  // ── Fee row renderer ──────────────────────────────────────────────────────
-  var feeRow = function(fee) {
-    var cv = '';
-    if (fee.isLogistics) {
-      cv = '<a href="' + (fee.logisticsRateCard || '#') + '" style="color:#00897b">As per rate card</a>';
-    } else if (fee.pricingModel === 'graduated') {
-      cv = (fee.slabs || []).map(function(s) {
-        return (s.from||0) + '\u2013' + (s.to||'\u221e') + ': ' +
-          (s.rateType && s.rateType.startsWith('%')
-            ? s.rate + '' + s.rateType
-            : sym + s.rate + ' ' + (s.rateType||'per unit').replace(/^[^\s]+\s/,''));
-      }).join('<br/>');
-    } else if (fee.stepUpPricing && fee.stepUpValues && fee.stepUpValues.length) {
-      cv = fee.stepUpValues.map(function(sv) {
-        return sv.label + ': ' + sym + parseFloat(sv.value||0).toLocaleString('en-IN');
-      }).join('<br/>');
-    } else {
-      cv = fee.commercialValue
-        ? (fee.transactionFeeIsPercent
-            ? fee.commercialValue + '%'
-            : sym + parseFloat(fee.commercialValue||0).toLocaleString('en-IN'))
-        : '\u2014';
-    }
-    return '<tr>' +
-      '<td>' + (fee.feeType||'\u2014') + '</td>' +
-      '<td>' + (fee.billingCycle||'\u2014') + '</td>' +
-      '<td>' + cv + '</td>' +
-      '<td>' + fmtInclusions(fee.inclusions) + '</td>' +
-      '<td>' + ([fee.unitMetric, fee.paymentTrigger].filter(Boolean).join(' \u00b7 ') || '\u2014') + '</td>' +
-      '</tr>';
+  const add = () => {
+    const v = draft.trim();
+    if (!v) return;
+    onChange([...items, v]);
+    setDraft('');
   };
 
-  var svcHtml = svcs.map(function(svc, i) {
-    return '<div style="margin-bottom:18px">' +
-      '<div style="background:#f0f4f8;padding:6px 14px;font-weight:700;font-size:10.5px;border:1px solid #ddd;border-bottom:none">' +
-      String.fromCharCode(97+i) + '. ' + (svc.name||'\u2014') + '</div>' +
-      '<table><thead><tr><th>Fee Type</th><th>Billing Cycle</th><th>Commercial Value</th><th>Inclusions</th><th>Charged On</th></tr></thead>' +
-      '<tbody>' + (svc.fees||[]).map(feeRow).join('') + '</tbody></table></div>';
-  }).join('');
+  const remove = (i) => onChange(items.filter((_,j) => j !== i));
 
-  var allAttachments = [];
-  if (form.sow_document && form.sow_document.data) {
-    allAttachments.push({ name: form.sow_document.name, data: form.sow_document.data });
-  }
-  if (form.sow_reference_document && form.sow_reference_document.data) {
-    allAttachments.push({ name: form.sow_reference_document.name, data: form.sow_reference_document.data });
-  }
+  const handleKey = (e) => {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(); }
+  };
 
-  var attachList = allAttachments.length > 0
-    ? '<div style="margin-top:16px;padding:12px 14px;border:1px solid #ddd;font-size:10px;color:#555">' +
-      '<strong>Attachments:</strong> ' + allAttachments.map(function(a) { return a.name; }).join(', ') +
-      '</div>'
-    : '';
+  return (
+    <div>
+      <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">Inclusions</div>
+      {items.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {items.map((item, i) => (
+            <span key={i} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium"
+              style={{background:'#e0f7f5', color:'#00897b', border:'1px solid #99f6e4'}}>
+              {item}
+              <button type="button" onClick={() => remove(i)}
+                className="text-[10px] font-bold hover:text-red-500 transition-colors ml-0.5">✕</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-1.5">
+        <input
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={handleKey}
+          placeholder={items.length === 0 ? 'e.g. 6,000 bags' : 'Add another…'}
+          className="flex-1 text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white"
+          style={{borderColor:'#e2e8f0'}}
+        />
+        <button type="button" onClick={add}
+          className="text-xs px-2 py-1.5 rounded-lg border font-semibold transition-all"
+          style={{borderColor: T, color: T}}>
+          + Add
+        </button>
+      </div>
+      <p className="text-[10px] mt-1 text-brand-faint">Press Enter or comma to add · click ✕ to remove</p>
+    </div>
+  );
+}
 
-  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
-    '<title>OF ' + ofNum + '</title>' +
-    '<style>' + SHARED_STYLES + '</style></head><body>' +
-    '<div id="of-content">' +
-    hdrHtml +
-    '<h1>ORDER FORM</h1>' +
-    '<h2>A. Client &amp; Order Form Details</h2>' +
-    '<table class="kv" style="margin-bottom:1px">' +
-    '<tr><td>Client Name</td><td><strong>' + custName + '</strong></td><td>OF Number</td><td><strong>' + ofNum + '</strong></td></tr>' +
-    '<tr><td>Brand / Trade Name</td><td>' + (form.brand_name||'\u2014') + '</td><td>Billing Currency</td><td>' + (form.committed_currency||'\u2014') + '</td></tr>' +
-    '<tr><td>Billing Address</td><td>' + (form.billing_address||'\u2014').replace(/\n/g,'<br/>') + '</td><td>OF Value</td><td><strong>' + sym + parseFloat(form.of_value||0).toLocaleString('en-IN') + '</strong></td></tr>' +
-    (isYavi
-      ? '<tr><td>Tax Details</td><td colspan="3">' + (form.tax_number||'\u2014') + '</td></tr>'
-      : '<tr><td>Tax Details</td><td>GST: ' + (form.gstin||'\u2014') + ' \u00b7 PAN: ' + (form.pan||'\u2014') + '</td><td>Sales Channel</td><td>' + (form.lead_type||'\u2014') + '</td></tr>'
-    ) +
-    '<tr><td>Billing Email</td><td>' + (form.billing_email||'\u2014') + '</td><td>Start Date</td><td>' + fmtDate(form.start_date) + '</td></tr>' +
-    '<tr><td>OF Term</td><td>' + (form.of_term || (form.of_term_months ? form.of_term_months+' Months' : '\u2014')) + '</td><td>End Date</td><td>' + fmtDate(form.end_date) + '</td></tr>' +
-    '<tr><td>PO Required</td><td>' + (form.po_required||'No') + '</td><td>Auto Renewal</td><td>' + (form.auto_renewal||'No') + ' (' + (form.renewal_term||'NA') + ')</td></tr>' +
-    '<tr><td>Payment Terms</td><td colspan="3">' + (form.payment_terms||'\u2014') + '</td></tr>' +
-    '<tr><td>Client Rep</td><td>' + (form.client_rep_name||'\u2014') + ' \u00b7 ' + (form.client_rep_mobile||'\u2014') + ' \u00b7 ' + (form.client_rep_email||'\u2014') + '</td>' +
-    '<td>' + entitySalesRepLabel + '</td><td>' + (form.sales_rep_name||'\u2014') + ' \u00b7 ' + (form.sales_rep_email||'\u2014') + '</td></tr>' +
-    '</table>' +
-    '<h2>B. Service Details' + (isBundle ? ' \u2014 Bundle: Yes' : '') + '</h2>' +
-    svcHtml +
-    (form.special_terms ? '<h2>C. Special Terms</h2><div class="st-block">' + form.special_terms + '</div>' : '') +
-    attachList +
-    '<div style="font-size:11px;font-weight:700;margin-top:18px;margin-bottom:6px">Important Notes:</div>' +
-    '<div style="font-size:10px;line-height:1.8;color:#333">' +
-    tcHtml +
-    '</div>' +
-    '<div style="margin-top:18px;font-size:11px;font-weight:700;margin-bottom:6px">Authorization:</div>' +
-    '<div class="sign-grid">' +
-    '<div class="sign-box"><h4>For: ' + custName + '</h4><div class="sign-line"></div>' +
-    '<div><strong>' + sigName + '</strong></div>' +
-    '<div style="color:#555;margin-top:3px">' + sigDesig + '</div>' +
-    '<div style="color:#aaa;font-size:9.5px;margin-top:2px">' + sigEmail + '</div>' +
-    '<div style="margin-top:10px;color:#999;font-size:9.5px">Date: _______________</div></div>' +
-    '<div class="sign-box"><h4>' + entitySignatoryLabel + '</h4><div class="sign-line"></div>' +
-    '<div><strong>' + entitySignatoryName + '</strong></div>' +
-    '<div style="color:#555;margin-top:3px">' + entitySignatoryDesig + '</div>' +
-    '<div style="margin-top:10px;color:#999;font-size:9.5px">Date: _______________</div></div>' +
-    '</div>' +
-    '<div class="footer">OF#: ' + ofNum + ' \u00b7 Generated: ' + new Date().toLocaleString('en-IN') + ' \u00b7 ' + footerEntity + '</div>' +
-    '</div>' +
-    makeActionBar(ofNum, isYavi) +
-    '</body></html>';
+// ── GaaS SKU block ────────────────────────────────────────────────────────────
+function GaasSKUBlock({ svc, onChange, ro, currency }) {
+  const lines = svc.gaas_lines || [];
+  const sym   = getSym(currency || 'INR');
 
-  var w = window.open('', '_blank');
-  w.document.write(html);
-  w.document.close();
-};
+  const recalc = (updated) => {
+    const total = updated.reduce((s,l) => s + (Number(l.amount)||0), 0);
+    onChange({ ...svc, gaas_lines: updated, gaas_total: total });
+  };
+
+  const addLine = () => recalc([...lines, {
+    id:uid(), skuDetails:'', styleId:'', color:'', size:'', quantity:0, rate:0, amount:0,
+  }]);
+
+  const updateLine = (i, field, val) => {
+    recalc(lines.map((l, li) => {
+      if (li !== i) return l;
+      const upd = { ...l, [field]: val };
+      if (field === 'quantity' || field === 'rate') {
+        upd.amount = parseFloat(upd.quantity||0) * parseFloat(upd.rate||0);
+      }
+      return upd;
+    }));
+  };
+
+  const removeLine = i => recalc(lines.filter((_,li) => li !== i));
+
+  const total    = lines.reduce((s,l) => s + (Number(l.amount)||0), 0);
+  const totalQty = lines.reduce((s,l) => s + (Number(l.quantity)||0), 0);
+
+  const downloadTemplate = () => {
+    const csv = 'SKU Details,Style id,Color,Size,Quantity,Rate,Amount\n';
+    const blob = new Blob([csv], {type:'text/csv'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a'); a.href=url; a.download='gaas_sku_template.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const uploadCSV = e => {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const rows = ev.target.result.trim().split('\n').slice(1);
+      const parsed = rows.map(row => {
+        const cols = row.split(',');
+        const qty  = parseFloat(cols[4]||0), rate = parseFloat(cols[5]||0);
+        return { id:uid(), skuDetails:cols[0]?.trim()||'', styleId:cols[1]?.trim()||'',
+                 color:cols[2]?.trim()||'', size:cols[3]?.trim()||'', quantity:qty, rate:rate, amount:qty*rate };
+      }).filter(l => l.skuDetails || l.styleId);
+      recalc(parsed);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const inp = 'w-full text-xs px-1.5 py-1 bg-transparent focus:outline-none focus:bg-white rounded';
+  const thCls = 'text-left px-3 py-2 font-bold text-[10px] uppercase tracking-wider border border-slate-200 bg-slate-100';
+  const tdCls = 'border border-slate-100 px-2 py-1.5';
+
+  return (
+    <div>
+      {!ro && (
+        <div className="flex gap-2 mb-3 flex-wrap items-center">
+          <button type="button" onClick={downloadTemplate}
+            className="text-xs px-3 py-1.5 rounded-lg border font-medium transition-all hover:bg-slate-50"
+            style={{borderColor:'#e2e8f0',color:'#475569'}}>
+            ⬇ Download GaaS Template (CSV)
+          </button>
+          <label className="text-xs px-3 py-1.5 rounded-lg border font-medium cursor-pointer transition-all hover:bg-slate-50"
+            style={{borderColor:'#e2e8f0',color:'#475569'}}>
+            📤 Upload & Preview CSV
+            <input type="file" accept=".csv" className="hidden" onChange={uploadCSV}/>
+          </label>
+          <button type="button" onClick={addLine}
+            className="text-xs px-3 py-1.5 rounded-lg border font-semibold transition-all"
+            style={{borderColor:T,color:T}}>
+            + Add SKU Row
+          </button>
+          {lines.length > 0 && (
+            <button type="button" onClick={()=>recalc([])}
+              className="text-xs px-3 py-1.5 rounded-lg border font-medium text-red-500 border-red-200 hover:bg-red-50">
+              Clear All
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="overflow-x-auto rounded-xl border border-slate-200">
+        <table className="w-full text-xs" style={{minWidth:'700px',borderCollapse:'collapse'}}>
+          <thead>
+            <tr>
+              <th className={thCls} style={{minWidth:'140px'}}>SKU Details</th>
+              <th className={thCls}>Style ID</th>
+              <th className={thCls}>Color</th>
+              <th className={thCls}>Size</th>
+              <th className={thCls + ' text-right'}>Quantity</th>
+              <th className={thCls + ' text-right'}>Rate ({sym})</th>
+              <th className={thCls + ' text-right'}>Amount ({sym})</th>
+              {!ro && <th className={thCls}></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {lines.length === 0 && (
+              <tr>
+                <td colSpan={ro?7:8} className="text-center py-8 text-slate-300 border border-slate-100">
+                  No SKU rows yet — add manually or upload a CSV.
+                </td>
+              </tr>
+            )}
+            {lines.map((l, i) => (
+              <tr key={l.id} style={{background:i%2===0?'#fff':'#f8fafc'}}>
+                {[['skuDetails',l.skuDetails,'SKU name'],['styleId',l.styleId,'Style ID'],['color',l.color,'Color'],['size',l.size,'Size']].map(([field,val,ph])=>(
+                  <td key={field} className={tdCls}>
+                    {ro ? <span>{val||'—'}</span> :
+                      <input value={val} onChange={e=>updateLine(i,field,e.target.value)}
+                        placeholder={ph} className={inp}/>}
+                  </td>
+                ))}
+                {[['quantity',l.quantity],['rate',l.rate]].map(([field,val])=>(
+                  <td key={field} className={tdCls + ' text-right'}>
+                    {ro ? val :
+                      <input type="number" value={val} min="0" onChange={e=>updateLine(i,field,e.target.value)}
+                        className={inp + ' text-right font-mono'}/>}
+                  </td>
+                ))}
+                <td className={tdCls + ' text-right font-mono font-semibold'} style={{color:NAVY}}>
+                  {Number(l.amount||0).toLocaleString('en-IN')}
+                </td>
+                {!ro && (
+                  <td className={tdCls + ' text-center'}>
+                    <button type="button" onClick={()=>removeLine(i)} className="text-red-400 hover:text-red-600 text-xs">✕</button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+          {lines.length > 0 && (
+            <tfoot>
+              <tr style={{background:'#f0f4f8'}}>
+                <td colSpan={4} className="border border-slate-200 px-3 py-2 font-bold text-right text-[11px]" style={{color:NAVY}}>Total</td>
+                <td className="border border-slate-200 px-2 py-2 text-right font-mono font-bold" style={{color:NAVY}}>{totalQty}</td>
+                <td className="border border-slate-200 px-2 py-2"></td>
+                <td className="border border-slate-200 px-2 py-2 text-right font-mono font-bold text-[12px]" style={{color:T}}>
+                  {sym}{total.toLocaleString('en-IN')}
+                </td>
+                {!ro && <td className="border border-slate-200"></td>}
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+
+      {lines.length > 0 && (
+        <div className="mt-2 text-xs text-brand-faint text-right">
+          Order Form Value: <strong style={{color:NAVY}}>{sym}{total.toLocaleString('en-IN')}</strong>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Fee row ───────────────────────────────────────────────────────────────────
+function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
+  const u   = (k,v) => onChange({ ...fee, [k]:v });
+  const sym = getSym(currency || 'INR');
+  const rules    = FEE_RULES[fee.feeType] || {};
+  const cycleOpts= rules.locked ? [] : (rules.opts || ['Monthly','Quarterly','Bi-Annually','Annually','One Time']);
+  const isOT     = fee.billingCycle === 'One Time';
+  const canGrad  = GRADUATED_ELIGIBLE.includes(fee.feeType);
+  const canStep  = STEP_UP_ELIGIBLE.includes(fee.feeType) && !isOT;
+  const cycles   = termMonths && fee.billingCycle && !isOT ? cyclesInTerm(fee.billingCycle, termMonths) : null;
+  const slabRateOpts = [...SLAB_RATE_UNITS.map(u => u.startsWith('%') ? u : `${sym} ${u}`), 'Others'];
+  const s6  = { borderColor:'#e2e8f0' };
+  const inp = 'w-full text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white';
+
+  const handleFeeType = ft => {
+    const r = FEE_RULES[ft] || {};
+    onChange({ ...fee, feeType:ft, billingCycle:r.locked||(r.opts?.[0])||'', billingCycleLocked:!!r.locked, isLogistics:ft==='Logistics Fee', pricingModel:'flat' });
+  };
+
+  const updSlab = (si, field, val) => {
+    const slabs = fee.slabs.map((s,i) => {
+      if (i !== si) return s;
+      const upd = { ...s, [field]:val };
+      if (field === 'rateType' && val !== 'Others') upd.rateTypeCustom = '';
+      return upd;
+    });
+    if (field === 'to' && fee.slabs[si+1]) slabs[si+1] = { ...slabs[si+1], from: String(parseInt(val||0)+1) };
+    u('slabs', slabs);
+  };
+
+  return (
+    <div className="border rounded-xl p-4 mb-3 bg-slate-50" style={{ borderColor:'#e2e8f0' }}>
+      <div className="flex justify-between mb-3">
+        <span className="text-xs font-bold uppercase tracking-wider text-brand-faint">Fee row {idx+1}</span>
+        <button type="button" onClick={onRemove} className="text-xs font-medium text-red-500">✕ Remove</button>
+      </div>
+      <div className="grid grid-cols-3 gap-3 mb-3">
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">Fee type *</div>
+          <select value={fee.feeType} onChange={e=>handleFeeType(e.target.value)} className={inp} style={s6}>
+            <option value="">Select…</option>
+            {FEE_TYPES.map(f=><option key={f}>{f}</option>)}
+          </select>
+        </div>
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">
+            Billing cycle{fee.billingCycleLocked&&<span className="text-green-500 normal-case tracking-normal"> (auto)</span>}
+          </div>
+          {fee.billingCycleLocked
+            ? <input value={fee.billingCycle} readOnly className={inp} style={{...s6,background:'#f8fafc',color:'#64748b'}}/>
+            : <select value={fee.billingCycle} onChange={e=>u('billingCycle',e.target.value)} className={inp} style={s6}>
+                <option value="">Select…</option>
+                {cycleOpts.map(o=><option key={o}>{o}</option>)}
+              </select>}
+        </div>
+        {canGrad && (
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">Pricing model</div>
+            <div className="flex gap-1">
+              {['flat','graduated'].map(pm=>(
+                <button key={pm} type="button" onClick={()=>u('pricingModel',pm)}
+                  className="flex-1 text-xs py-1.5 rounded-lg font-semibold border transition-all"
+                  style={fee.pricingModel===pm?{background:NAVY,color:'#fff',borderColor:NAVY}:{background:'#f8fafc',color:'#64748b',borderColor:'#e2e8f0'}}>
+                  {pm==='flat'?'Flat':'Graduated'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      {fee.isLogistics && (
+        <div className="mb-3">
+          <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">Rate card URL</div>
+          <input value={fee.logisticsRateCard||''} onChange={e=>u('logisticsRateCard',e.target.value)} className={`${inp} w-full`} style={s6}/>
+        </div>
+      )}
+      {!fee.isLogistics && fee.pricingModel==='graduated' && (
+        <div className="mb-3 rounded-lg p-3 bg-slate-100 border border-slate-200">
+          <div className="text-[10px] font-bold uppercase tracking-wider mb-2 text-slate-600">Slab tiers</div>
+          <div className="grid gap-1 mb-1" style={{gridTemplateColumns:'1fr 1fr 1fr 1.4fr 20px'}}>
+            {['From','To','Rate','Rate type',''].map((h,i)=>(
+              <div key={i} className="text-[9px] font-bold uppercase tracking-wider text-brand-faint">{h}</div>
+            ))}
+          </div>
+          {(fee.slabs||[]).map((sl,si)=>(
+            <div key={sl.id}>
+              <div className="grid gap-1 mb-1 items-center" style={{gridTemplateColumns:'1fr 1fr 1fr 1.4fr 20px'}}>
+                <input value={sl.from} readOnly={si>0} onChange={e=>updSlab(si,'from',e.target.value)} className={`${inp} font-mono`} style={{...s6,background:si>0?'#f8fafc':'#fff'}}/>
+                <input value={sl.to} onChange={e=>updSlab(si,'to',e.target.value)} placeholder="∞" className={`${inp} font-mono`} style={s6}/>
+                <input value={sl.rate} onChange={e=>updSlab(si,'rate',e.target.value)} placeholder="0.00" className={`${inp} font-mono`} style={s6}/>
+                <select value={sl.rateType} onChange={e=>updSlab(si,'rateType',e.target.value)} className={inp} style={s6}>
+                  {slabRateOpts.map(o=><option key={o}>{o}</option>)}
+                </select>
+                <button type="button" onClick={()=>{if((fee.slabs||[]).length>1)u('slabs',(fee.slabs||[]).filter((_,i)=>i!==si));}} className="text-xs text-red-500">✕</button>
+              </div>
+              {sl.rateType==='Others' && (
+                <div className="flex items-center gap-2 mb-2 pl-1">
+                  <span className="text-[10px] font-medium text-slate-500 whitespace-nowrap">{sym} per</span>
+                  <input value={sl.rateTypeCustom||''} onChange={e=>updSlab(si,'rateTypeCustom',e.target.value)} placeholder="e.g. AI Video" className="flex-1 text-xs px-2 py-1 rounded-lg border" style={s6}/>
+                </div>
+              )}
+            </div>
+          ))}
+          <button type="button"
+            onClick={()=>u('slabs',[...(fee.slabs||[]),{id:uid(),from:String(parseInt((fee.slabs||[]).at(-1)?.to||'0')+1),to:'',rate:'',rateType:`${sym} per unit`,rateTypeCustom:''}])}
+            className="text-xs font-medium mt-1" style={{color:T}}>+ Add slab tier</button>
+        </div>
+      )}
+      {!fee.isLogistics && fee.pricingModel!=='graduated' && (
+        <div className="mb-3">
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint">Commercial value *</div>
+            {fee.feeType === 'Transaction Fee' && !isOT && (
+              <div className="flex gap-0.5 p-0.5 rounded-lg bg-slate-100">
+                {[['fixed','Fixed'],['percent','%']].map(([mode,lbl])=>(
+                  <button key={mode} type="button"
+                    onClick={()=>u('transactionFeeIsPercent', mode==='percent')}
+                    className="text-[10px] px-2 py-0.5 rounded-md font-bold transition-all"
+                    style={(!fee.transactionFeeIsPercent&&mode==='fixed')||(fee.transactionFeeIsPercent&&mode==='percent')
+                      ?{background:NAVY,color:'#fff'}:{color:'#94a3b8'}}>
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="relative">
+            <input value={fee.commercialValue||''} onChange={e=>u('commercialValue',e.target.value)}
+              placeholder={fee.transactionFeeIsPercent?'e.g. 1.5':isOT?'e.g. 50000':'e.g. 25000 per cycle'}
+              className={`${inp} w-full font-mono`} style={s6}/>
+            {fee.transactionFeeIsPercent && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-brand-faint">%</span>
+            )}
+          </div>
+          {cycles && fee.commercialValue && !fee.transactionFeeIsPercent && (
+            <p className="text-[10px] mt-1 text-green-600">
+              {parseFloat(fee.commercialValue).toLocaleString('en-IN')} × {cycles} cycles = {(parseFloat(fee.commercialValue)*cycles).toLocaleString('en-IN')} over term
+            </p>
+          )}
+          {fee.transactionFeeIsPercent && fee.commercialValue && (
+            <p className="text-[10px] mt-1 text-blue-600">
+              {fee.commercialValue}% per transaction · billed {fee.billingCycle?.toLowerCase()||'as agreed'}
+            </p>
+          )}
+        </div>
+      )}
+      {canStep && !fee.isLogistics && fee.pricingModel==='flat' && (
+        <div className="mb-3">
+          <label className="flex items-center gap-2 text-xs font-medium cursor-pointer mb-2 text-slate-600">
+            <input type="checkbox" checked={fee.stepUpPricing||false} onChange={e=>u('stepUpPricing',e.target.checked)}/> Step-up pricing
+          </label>
+          {fee.stepUpPricing && (
+            <div className="rounded-lg p-3 bg-amber-50 border border-amber-200">
+              {(fee.stepUpValues||[]).map((sv,i)=>(
+                <div key={sv.id||i} className="flex gap-2 mb-2 items-center">
+                  <input value={sv.label} onChange={e=>u('stepUpValues',(fee.stepUpValues||[]).map((s,j)=>j===i?{...s,label:e.target.value}:s))} placeholder="e.g. 1 Jul 2025 – 28 Feb 2026" className="flex-1 text-xs px-2 py-1 rounded border" style={{borderColor:'#fcd34d'}}/>
+                  <input value={sv.value} onChange={e=>u('stepUpValues',(fee.stepUpValues||[]).map((s,j)=>j===i?{...s,value:e.target.value}:s))} placeholder="Amount" className="w-28 text-xs px-2 py-1 rounded border font-mono" style={{borderColor:'#fcd34d'}}/>
+                  <button type="button" onClick={()=>u('stepUpValues',(fee.stepUpValues||[]).filter((_,j)=>j!==i))} className="text-xs text-red-500">✕</button>
+                </div>
+              ))}
+              <button type="button" onClick={()=>u('stepUpValues',[...(fee.stepUpValues||[]),{id:uid(),label:'',value:''}])} className="text-xs font-medium text-amber-800">+ Add period</button>
+            </div>
+          )}
+        </div>
+      )}
+      {!isOT && !fee.isLogistics && (
+        <div className="mb-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
+          <div className="text-[10px] font-bold uppercase tracking-wider mb-2 text-blue-700">Usage cycle</div>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-xs cursor-pointer text-slate-600">
+              <input type="checkbox" checked={fee.usageCycleDiffers||false} onChange={e=>u('usageCycleDiffers',e.target.checked)}/>
+              Usage cycle differs from billing cycle
+            </label>
+            {fee.usageCycleDiffers && (
+              <select value={fee.usageCycle||''} onChange={e=>u('usageCycle',e.target.value)} className="text-xs px-2 py-1 rounded border bg-white" style={{borderColor:'#e2e8f0'}}>
+                <option value="">Select…</option>
+                {['Monthly','Quarterly','Bi-Annually','Annually'].map(o=><option key={o}>{o}</option>)}
+              </select>
+            )}
+          </div>
+        </div>
+      )}
+      <div className="mb-3">
+        <InclusionsField
+          value={fee.inclusions}
+          onChange={arr => u('inclusions', arr)}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[['unitMetric','Unit / metric',null,UNIT_METRICS],['paymentTrigger','Payment trigger',null,PAY_TRIGGERS]].map(([key,lbl,ph,opts])=>(
+          <div key={key}>
+            <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">{lbl}</div>
+            {opts
+              ? <select value={fee[key]||''} onChange={e=>u(key,e.target.value)} className={inp} style={s6}>
+                  {opts.map(o=><option key={o} value={o}>{o||'— None —'}</option>)}
+                </select>
+              : <input value={fee[key]||''} onChange={e=>u(key,e.target.value)} placeholder={ph} className={`${inp} w-full`} style={s6}/>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Service block ─────────────────────────────────────────────────────────────
+function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency }) {
+  const letter     = String.fromCharCode(97 + idx);
+  const subOptions = SUB_SERVICES[svc.name] || [];
+  const selected   = svc.subServices || [];
+  const isGaaS     = svc.name === 'GaaS';
+
+  const addFee     = () => onChange({ ...svc, fees:[...(svc.fees||[]), newFee()] });
+  const updFee     = (fi,u) => onChange({ ...svc, fees:svc.fees.map((f,i)=>i===fi?u:f) });
+  const remFee     = fi => onChange({ ...svc, fees:svc.fees.filter((_,i)=>i!==fi) });
+  const toggleSub  = val => onChange({ ...svc, subServices: selected.includes(val) ? selected.filter(v=>v!==val) : [...selected, val] });
+
+  return (
+    <div className="border rounded-2xl mb-4 overflow-hidden" style={{borderColor: isGaaS ? '#99f6e4' : '#e2e8f0'}}>
+      <div className="flex items-center justify-between px-5 py-3 border-b"
+        style={{background: isGaaS ? '#f0fdfa' : '#f8fafc', borderColor: isGaaS ? '#99f6e4' : '#e2e8f0'}}>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-bold text-brand-faint">{letter}.</span>
+          {ro
+            ? <span className="text-sm font-semibold" style={{color:NAVY}}>{svc.name||'—'}</span>
+            : <select value={svc.name||''} onChange={e=>onChange({...svc,name:e.target.value,subServices:[],gaas_lines:[],gaas_total:0})}
+                className="text-sm font-semibold border-none bg-transparent focus:outline-none cursor-pointer" style={{color:NAVY}}>
+                <option value="">Select service…</option>
+                {SERVICES.map(s=><option key={s}>{s}</option>)}
+              </select>}
+          {isGaaS && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">SKU-based</span>}
+        </div>
+        {!ro && <button type="button" onClick={onRemove} className="text-xs font-medium text-red-500">Remove</button>}
+      </div>
+
+      <div className="p-5">
+        {isGaaS ? (
+          <div>
+            <div className="mb-3 p-3 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-xs">
+              <strong>GaaS (Garment as a Service)</strong> — PDF will show as <strong>"Garment Sale"</strong>. Enter SKU-level commercials below. Revenue is auto-calculated from the SKU total.
+            </div>
+            <GaasSKUBlock svc={svc} onChange={s=>onChange(s)} ro={ro} currency={currency}/>
+          </div>
+        ) : (
+          <>
+            {subOptions.length > 0 && (
+              <div className="mb-4 p-3 rounded-xl border border-slate-200 bg-slate-50">
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-2 text-brand-faint">
+                  Sub-services <span className="text-[9px] font-normal normal-case tracking-normal text-slate-400">(select all that apply)</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {subOptions.map(opt => {
+                    const active = selected.includes(opt);
+                    return (
+                      <button key={opt} type="button" onClick={()=>!ro&&toggleSub(opt)}
+                        className="text-xs px-3 py-1.5 rounded-full font-semibold border transition-all"
+                        style={active?{background:NAVY,color:'#fff',borderColor:NAVY}:{background:'#fff',color:'#64748b',borderColor:'#e2e8f0'}}>
+                        {active?'✓ ':''}{opt}
+                      </button>
+                    );
+                  })}
+                </div>
+                {selected.length > 0 && <p className="text-[10px] mt-2 text-brand-faint">Selected: {selected.join(' · ')}</p>}
+              </div>
+            )}
+
+            {/* ── Read-only fee display ── */}
+            {(svc.fees||[]).map((fee,fi)=>(
+              ro
+                ? <div key={fee.id} className="border rounded-xl p-3 mb-2 text-xs bg-slate-50" style={{borderColor:'#e2e8f0'}}>
+                    <div className="flex flex-wrap gap-x-2 gap-y-1 items-baseline">
+                      <span className="font-semibold" style={{color:NAVY}}>{fee.feeType}</span>
+                      {fee.billingCycle && <span className="text-brand-muted">· {fee.billingCycle}</span>}
+
+                      {fee.isLogistics
+                        ? <span className="text-brand-muted">
+                            · As per rate card
+                            {fee.logisticsRateCard && <> (<a href={fee.logisticsRateCard} target="_blank" rel="noreferrer" className="underline" style={{color:T}}>link</a>)</>}
+                          </span>
+
+                        : fee.pricingModel === 'graduated'
+                          ? <span className="text-brand-muted">
+                              · Slabs:&nbsp;
+                              {(fee.slabs||[]).map((sl,si) => (
+                                <span key={sl.id||si} className="font-mono">
+                                  {sl.from}–{sl.to||'∞'} @ {sl.rate} {sl.rateType==='Others' ? sl.rateTypeCustom : sl.rateType}
+                                  {si < (fee.slabs||[]).length - 1 ? ',  ' : ''}
+                                </span>
+                              ))}
+                            </span>
+
+                          : fee.stepUpPricing && (fee.stepUpValues||[]).length > 0
+                            ? <span className="text-brand-muted">
+                                · Step-up:&nbsp;
+                                {(fee.stepUpValues||[]).map((sv,si) => (
+                                  <span key={sv.id||si} className="font-mono">
+                                    {sv.label}: {sv.value}
+                                    {si < (fee.stepUpValues||[]).length - 1 ? ',  ' : ''}
+                                  </span>
+                                ))}
+                              </span>
+
+                            : <span className="font-mono font-semibold" style={{color:NAVY}}>
+                                · {fee.commercialValue||'—'}{fee.transactionFeeIsPercent?'%':''}
+                              </span>
+                      }
+
+                      {toIncArray(fee.inclusions).length > 0 && (
+                        <span className="text-brand-muted">
+                          · Inclusions: {toIncArray(fee.inclusions).join(', ')}
+                        </span>
+                      )}
+                      {fee.unitMetric && <span className="text-brand-muted">· {fee.unitMetric}</span>}
+                    </div>
+                  </div>
+                : <FeeRow key={fee.id} fee={fee} idx={fi} onChange={u=>updFee(fi,u)} onRemove={()=>remFee(fi)} termMonths={termMonths} currency={currency}/>
+            ))}
+
+            {!ro && (
+              <button type="button" onClick={addFee}
+                className="w-full text-sm font-medium py-2.5 rounded-xl border-2 border-dashed transition-all border-slate-200 text-slate-500 hover:border-teal hover:text-teal">
+                + Add fee row to {svc.name||'service'}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function StepFees({ form, set, ro }) {
+  const services   = form.services_fees || [];
+  const termMonths = form.of_term_months || 12;
+  const isGaaSForm = services.some(s => s.name === 'GaaS');
+
+  const addSvc  = () => set('services_fees', [...services, {id:uid(), name:'', subServices:[], fees:[newFee()], gaas_lines:[], gaas_total:0}]);
+  const updSvc  = (i,s) => set('services_fees', services.map((sv,j)=>j===i?s:sv));
+  const remSvc  = i => set('services_fees', services.filter((_,j)=>j!==i));
+  const isBundle= services.length > 1;
+
+  useEffect(() => {
+    if (ro) return;
+    const gaasRevenue = services.filter(s=>s.name==='GaaS').reduce((sum,s)=>sum+(s.gaas_total||0),0);
+    if (isGaaSForm) {
+      if (form.committed_revenue !== String(gaasRevenue) && form.committed_revenue !== gaasRevenue) {
+        set('committed_revenue', gaasRevenue || '');
+        set('of_value', gaasRevenue || '');
+        set('arr_text', gaasRevenue > 0 ? 'Garment Sale: ' + gaasRevenue.toLocaleString('en-IN') : '');
+      }
+      return;
+    }
+    const { arrText, committed } = calcMetrics(services, termMonths);
+    const ofv = calcOFValue(services, termMonths);
+    if (form.arr_text !== arrText || form.committed_revenue !== committed || form.of_value !== ofv) {
+      set('arr_text', arrText);
+      set('committed_revenue', committed || '');
+      set('of_value', ofv || '');
+    }
+  }, [JSON.stringify(services), termMonths]); // eslint-disable-line
+
+  return (
+    <div>
+      {!isGaaSForm && (
+        <div className={`flex items-center justify-between mb-4 px-4 py-3 rounded-xl border ${isBundle?'bg-green-50 border-green-200':'bg-slate-50 border-slate-200'}`}>
+          <span className={`text-sm font-semibold ${isBundle?'text-green-800':'text-slate-500'}`}>Bundle: <strong>{isBundle?'Yes':'No'}</strong></span>
+          <span className={`text-xs font-bold ${isBundle?'text-green-700':'text-brand-faint'}`}>{services.length} service{services.length!==1?'s':''}</span>
+        </div>
+      )}
+      {isGaaSForm && (
+        <div className="flex items-center gap-2 mb-4 px-4 py-3 rounded-xl bg-teal-50 border border-teal-200">
+          <span className="text-sm font-semibold text-teal-800">GaaS Order — SKU-based pricing</span>
+          <span className="text-xs text-teal-600">PDF will be generated as Order Confirmation</span>
+        </div>
+      )}
+
+      {services.map((svc,i)=>(
+        <SvcBlock key={svc.id} svc={svc} idx={i} termMonths={termMonths} ro={ro} currency={form.committed_currency||'INR'}
+          onChange={s=>!ro&&updSvc(i,s)} onRemove={()=>!ro&&remSvc(i)}/>
+      ))}
+
+      {!ro && (
+        <button type="button" onClick={addSvc}
+          className="w-full py-3 text-sm font-semibold rounded-xl border-2 border-dashed transition-all mb-5"
+          style={{borderColor:T, color:T}}>
+          + Add service
+        </button>
+      )}
+
+      <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200">
+        <SHdr c="Revenue metrics"/>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <Lbl c="OF value (auto)"/>
+            <input value={form.of_value||''} onChange={e=>!ro&&set('of_value',e.target.value)} disabled={ro} className="field-input font-mono"/>
+          </div>
+          <div className="col-span-2">
+            <Lbl c={isGaaSForm ? 'Garment Sale total (auto)' : 'ARR breakdown (auto)'}/>
+            <textarea rows={3} value={form.arr_text||''} onChange={e=>!ro&&set('arr_text',e.target.value)} disabled={ro} className="field-input resize-none text-xs font-mono"/>
+          </div>
+        </div>
+        <div>
+          <Lbl c="Committed revenue (auto)"/>
+          <input value={form.committed_revenue||''} onChange={e=>!ro&&set('committed_revenue',e.target.value)} disabled={ro} className="field-input font-mono"/>
+        </div>
+      </div>
+    </div>
+  );
+}
