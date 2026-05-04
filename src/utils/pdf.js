@@ -20,10 +20,15 @@ function numToWordsIN(amount) {
   return r.trim() ? 'Rupees ' + r.trim() + ' Only' : 'Zero Only';
 }
 
-// ── Normalize inclusions — handles legacy string or new array ─────────────────
+// ── Normalize inclusions — handles legacy string or new { text, metric } array ─
 function fmtInclusions(val) {
   if (!val) return '';
-  if (Array.isArray(val)) return val.join(', ');
+  if (Array.isArray(val)) {
+    return val.map(function(item) {
+      if (typeof item === 'string') return item;
+      return item.metric ? item.text + ' ' + item.metric : item.text;
+    }).filter(Boolean).join('<br/>');
+  }
   return val;
 }
 
