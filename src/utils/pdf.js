@@ -332,7 +332,7 @@ export const openPDF = function(form) {
       '<td>' + (fee.billingCycle||'\u2014') + '</td>' +
       '<td>' + cv + '</td>' +
       '<td>' + fmtInclusions(fee.inclusions) + '</td>' +
-      '<td>' + ([fee.unitMetric, fee.paymentTrigger].filter(Boolean).join(' \u00b7 ') || '\u2014') + '</td>' +
+      '<td>' + (fee.paymentTrigger || '\u2014') + '</td>' +
       '</tr>';
   };
 
