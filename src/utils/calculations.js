@@ -10,9 +10,10 @@ export const calcMetrics = (services = [], termMonths) => {
       if (fee.pricingModel === 'graduated') {
         lines.push(`${fee.feeType} (${svc.name}) = Variable`); return;
       }
-      // Percentage-based transaction fee — variable, no cycle multiplication
-      if (fee.transactionFeeIsPercent) {
-        lines.push(`${fee.feeType} (${svc.name}) = ${fee.commercialValue || 0}% (variable)`); return;
+      // Transaction Fee — always variable, never multiplied by cycles
+      if (fee.feeType === 'Transaction Fee') {
+        lines.push(`${fee.feeType} (${svc.name}) = ${fee.commercialValue || 0}${fee.transactionFeeIsPercent ? '%' : ''} (variable)`);
+        return;
       }
       if (fee.stepUpPricing && fee.stepUpValues?.length) {
         let t = 0, parts = [];
@@ -41,8 +42,8 @@ export const calcMetrics = (services = [], termMonths) => {
 export const calcOFValue = (services = [], termMonths) =>
   services.reduce((sum, svc) => sum + (svc.fees || []).reduce((s2, fee) => {
     if (fee.isLogistics || fee.pricingModel === 'graduated') return s2;
-    // Percentage-based transaction fee — exclude from OF value calculation
-    if (fee.transactionFeeIsPercent) return s2;
+    // Transaction Fee — always variable, exclude from OF value
+    if (fee.feeType === 'Transaction Fee') return s2;
     const val = parseFloat(fee.commercialValue) || 0; if (!val) return s2;
     if (fee.billingCycle === 'One Time') return s2 + val;
     if (fee.stepUpPricing && fee.stepUpValues?.length)
