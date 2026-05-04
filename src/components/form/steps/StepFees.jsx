@@ -83,14 +83,15 @@ function InclusionsField({ value, onChange }) {
             + Add
           </button>
         </div>
-        <input
+        <select
           value={draftMetric}
           onChange={e => setDraftMetric(e.target.value)}
-          onKeyDown={e => { if (e.key==='Enter') { e.preventDefault(); add(); } }}
-          placeholder="Metric (e.g. shipments, Users, Locations)"
           className="w-full text-xs px-2 py-1.5 rounded-md border focus:outline-none bg-white"
           style={{borderColor:'#e2e8f0'}}
-        />
+        >
+          <option value="">— Select metric —</option>
+          {UNIT_METRICS.filter(Boolean).map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
       </div>
       <p className="text-[10px] mt-1 text-brand-faint">Fill value + metric, press Enter or click + Add</p>
     </div>
