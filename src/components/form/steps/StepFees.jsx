@@ -393,14 +393,19 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-brand-faint">%</span>
             )}
           </div>
-          {cycles && fee.commercialValue && !fee.transactionFeeIsPercent && (
+          {cycles && fee.commercialValue && !fee.transactionFeeIsPercent && fee.feeType !== 'Transaction Fee' && (
             <p className="text-[10px] mt-1 text-green-600">
               {parseFloat(fee.commercialValue).toLocaleString('en-IN')} × {cycles} cycles = {(parseFloat(fee.commercialValue)*cycles).toLocaleString('en-IN')} over term
             </p>
           )}
           {fee.transactionFeeIsPercent && fee.commercialValue && (
             <p className="text-[10px] mt-1 text-blue-600">
-              {fee.commercialValue}% per transaction · billed {fee.billingCycle?.toLowerCase()||'as agreed'}
+              {fee.commercialValue}% per transaction · billed {fee.billingCycle?.toLowerCase()||'as agreed'} · variable
+            </p>
+          )}
+          {!fee.transactionFeeIsPercent && fee.feeType === 'Transaction Fee' && fee.commercialValue && (
+            <p className="text-[10px] mt-1 text-blue-600">
+              Variable — excluded from OF value calculation
             </p>
           )}
         </div>
