@@ -39,59 +39,60 @@ function InclusionsField({ value, onChange }) {
   const add = () => {
     const t = draftText.trim();
     if (!t) return;
-    onChange([...items, { text: t, metric: draftMetric.trim() }]);
+    const next = [...items, { text: t, metric: draftMetric.trim() }];
+    onChange(next);
     setDraftText('');
     setDraftMetric('');
   };
 
   const remove = (i) => onChange(items.filter((_,j) => j !== i));
 
-  const handleKey = (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); add(); }
-  };
-
   return (
     <div>
-      <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">Inclusions</div>
+      <div className="text-[10px] font-bold uppercase tracking-wider mb-2 text-brand-faint">Inclusions</div>
+
+      {/* Existing inclusions */}
       {items.length > 0 && (
-        <div className="flex flex-col gap-1.5 mb-2">
+        <div className="flex flex-col gap-1 mb-3">
           {items.map((item, i) => (
-            <div key={i} className="flex items-center gap-2 text-xs px-2.5 py-1.5 rounded-lg font-medium"
+            <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium"
               style={{background:'#e0f7f5', color:'#00897b', border:'1px solid #99f6e4'}}>
               <span className="font-bold">{item.text}</span>
-              {item.metric && <span className="text-teal-600 font-normal">· {item.metric}</span>}
+              {item.metric && <span className="font-normal opacity-75">{item.metric}</span>}
               <button type="button" onClick={() => remove(i)}
-                className="ml-auto text-[10px] font-bold hover:text-red-500 transition-colors">✕</button>
+                className="ml-auto text-[11px] font-bold leading-none hover:text-red-500 transition-colors">✕</button>
             </div>
           ))}
         </div>
       )}
-      <div className="flex gap-1.5 items-start">
-        <div className="flex flex-col gap-1 flex-1">
+
+      {/* Add new row — always visible */}
+      <div className="rounded-lg border p-2 bg-white" style={{borderColor:'#e2e8f0'}}>
+        <div className="flex gap-2 mb-1.5">
           <input
             value={draftText}
             onChange={e => setDraftText(e.target.value)}
-            onKeyDown={handleKey}
+            onKeyDown={e => { if (e.key==='Enter') { e.preventDefault(); add(); } }}
             placeholder="Value (e.g. 3,333)"
-            className="w-full text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white"
+            className="flex-1 text-xs px-2 py-1.5 rounded-md border focus:outline-none bg-white"
             style={{borderColor:'#e2e8f0'}}
           />
-          <input
-            value={draftMetric}
-            onChange={e => setDraftMetric(e.target.value)}
-            onKeyDown={handleKey}
-            placeholder="Metric (e.g. shipments, Users, Locations)"
-            className="w-full text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white"
-            style={{borderColor:'#e2e8f0'}}
-          />
+          <button type="button" onClick={add}
+            className="text-xs px-3 py-1.5 rounded-md font-semibold whitespace-nowrap transition-all"
+            style={{background: T, color:'#fff', border:'none'}}>
+            + Add
+          </button>
         </div>
-        <button type="button" onClick={add}
-          className="text-xs px-2 py-1.5 rounded-lg border font-semibold transition-all mt-0.5"
-          style={{borderColor: T, color: T}}>
-          + Add
-        </button>
+        <input
+          value={draftMetric}
+          onChange={e => setDraftMetric(e.target.value)}
+          onKeyDown={e => { if (e.key==='Enter') { e.preventDefault(); add(); } }}
+          placeholder="Metric (e.g. shipments, Users, Locations)"
+          className="w-full text-xs px-2 py-1.5 rounded-md border focus:outline-none bg-white"
+          style={{borderColor:'#e2e8f0'}}
+        />
       </div>
-      <p className="text-[10px] mt-1 text-brand-faint">Enter value + metric, press Enter to add · click ✕ to remove</p>
+      <p className="text-[10px] mt-1 text-brand-faint">Fill value + metric, press Enter or click + Add</p>
     </div>
   );
 }
@@ -445,8 +446,8 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
           onChange={arr => u('inclusions', arr)}
         />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        {[['unitMetric','Unit / metric',null,UNIT_METRICS],['paymentTrigger','Payment trigger',null,PAY_TRIGGERS]].map(([key,lbl,ph,opts])=>(
+      <div className="grid grid-cols-1 gap-3">
+        {[['paymentTrigger','Payment trigger',null,PAY_TRIGGERS]].map(([key,lbl,ph,opts])=>(
           <div key={key}>
             <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">{lbl}</div>
             {opts
@@ -568,7 +569,7 @@ function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency }) {
                           · Inclusions: {toIncArray(fee.inclusions).map(incLabel).join(', ')}
                         </span>
                       )}
-                      {fee.unitMetric && <span className="text-brand-muted">· {fee.unitMetric}</span>}
+                      {fee.paymentTrigger && <span className="text-brand-muted">· {fee.paymentTrigger}</span>}
                     </div>
                   </div>
                 : <FeeRow key={fee.id} fee={fee} idx={fi} onChange={u=>updFee(fi,u)} onRemove={()=>remFee(fi)} termMonths={termMonths} currency={currency}/>
