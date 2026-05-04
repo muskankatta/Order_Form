@@ -278,7 +278,7 @@ export const openPDF = function(form) {
       '<div style="text-align:right">' +
       '<div style="font-size:9.5px;font-weight:700;color:#64748b;letter-spacing:1.5px;text-transform:uppercase">Order Form</div>' +
       '<div style="font-size:20px;font-weight:900;font-family:monospace;color:#1B2B4B">' + ofNum + '</div>' +
-      '<div style="font-size:9.5px;color:#666">Date: ' + fmtDate(form.submitted_at ? form.submitted_at.split('T')[0] : '') + '</div>' +
+      '<div style="font-size:9.5px;color:#666">Date: ' + (form.signed_date ? fmtDate(form.signed_date) : fmtDate(form.submitted_at ? form.submitted_at.split('T')[0] : '')) + '</div>' +
       '</div></div>';
   }
 
