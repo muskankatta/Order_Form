@@ -344,19 +344,8 @@ export const openPDF = function(form) {
       '<tbody>' + (svc.fees||[]).map(feeRow).join('') + '</tbody></table></div>';
   }).join('');
 
-  var allAttachments = [];
-  if (form.sow_document && form.sow_document.data) {
-    allAttachments.push({ name: form.sow_document.name, data: form.sow_document.data });
-  }
-  if (form.sow_reference_document && form.sow_reference_document.data) {
-    allAttachments.push({ name: form.sow_reference_document.name, data: form.sow_reference_document.data });
-  }
 
-  var attachList = allAttachments.length > 0
-    ? '<div style="margin-top:16px;padding:12px 14px;border:1px solid #ddd;font-size:10px;color:#555">' +
-      '<strong>Attachments:</strong> ' + allAttachments.map(function(a) { return a.name; }).join(', ') +
-      '</div>'
-    : '';
+
 
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
     '<title>OF ' + ofNum + '</title>' +
@@ -383,7 +372,6 @@ export const openPDF = function(form) {
     '<h2>B. Service Details' + (isBundle ? ' \u2014 Bundle: Yes' : '') + '</h2>' +
     svcHtml +
     (form.special_terms ? '<h2>C. Special Terms</h2><div class="st-block">' + form.special_terms + '</div>' : '') +
-    attachList +
     '<div style="font-size:11px;font-weight:700;margin-top:18px;margin-bottom:6px">Important Notes:</div>' +
     '<div style="font-size:10px;line-height:1.8;color:#333">' +
     tcHtml +
