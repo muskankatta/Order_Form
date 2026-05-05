@@ -33,14 +33,16 @@ function signingQtr(dateStr) {
   else if (m>=7&&m<=9)  { q='Q2'; fy=y+1; }
   else if (m>=10&&m<=12){ q='Q3'; fy=y+1; }
   else                  { q='Q4'; fy=y; }
-  return { label:`${q} FY${String(fy).slice(2)}`, sortKey:`${fy}${q}`, fy };
+  return { label:`${q} FY${String(fy).slice(2)}`, sortKey:`${fy}${q}`, fy, q };
 }
+
 function signingMonth(dateStr) {
   if (!dateStr) return null;
   const d = new Date(dateStr), m = d.getMonth()+1, y = d.getFullYear();
   const fy = (m>=4) ? y+1 : y;
-  return { label: d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}), sortKey:`${y}${String(m).padStart(2,'0')}`, fy };
+  return { label: d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}), sortKey:`${y}${String(m).padStart(2,'0')}`, fy, year: y, month: m };
 }
+
 function fmtRev(val, useUSD) {
   return useUSD ? '$' + Math.round(val).toLocaleString('en-US') : '₹' + Math.round(val).toLocaleString('en-IN');
 }
@@ -62,6 +64,7 @@ function StatCard({ label, value, color, onClick, sub }) {
     </div>
   );
 }
+
 function BigStatCard({ label, value, color, onClick }) {
   return (
     <div className={'bg-white rounded-2xl border p-5 transition-all '+(onClick?'cursor-pointer hover:shadow-md hover:-translate-y-0.5 active:scale-95':'')}
@@ -133,10 +136,12 @@ export default function Dashboard() {
       if (!info) return;
       if (chartFY !== 'all' && String(info.fy) !== String(chartFY)) return;
       const rev = useUSD ? toUSD(Number(f.committed_revenue||0), f.committed_currency||'INR') : Number(f.committed_revenue||0);
-      if (!map[info.sortKey]) map[info.sortKey] = { label: info.label, value: 0 };
+      if (!map[info.sortKey]) map[info.sortKey] = { label: info.label, value: 0, meta: info };
       map[info.sortKey].value += rev;
     });
-    return Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0])).map(([,{label,value}]) => ({ name:label, value:Math.round(value) }));
+    return Object.entries(map)
+      .sort((a,b)=>a[0].localeCompare(b[0]))
+      .map(([,{label,value,meta}]) => ({ name:label, value:Math.round(value), meta }));
   }, [signedForms, chartView, chartFY, useUSD]);
 
   const pieData = useMemo(() => {
@@ -172,6 +177,19 @@ export default function Dashboard() {
   const goRepo    = s => navigate(`/repository${s?'?status='+s:''}`);
   const goPending = s => navigate(`/pending${s?'?section='+s:''}`);
   const goSigned  = t => navigate(`/signed${t?'?tab='+t:''}`);
+
+  const handleBarClick = (data) => {
+    if (!data?.meta) { navigate('/repository?status=signed'); return; }
+    if (chartView === 'quarter') {
+      navigate(`/repository?status=signed&qtr=${data.meta.q}&fy=${data.meta.fy}`);
+    } else {
+      const { year: y, month: mo } = data.meta;
+      const lastDay = new Date(y, mo, 0).getDate();
+      const from = `${y}-${String(mo).padStart(2,'0')}-01`;
+      const to   = `${y}-${String(mo).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+      navigate(`/repository?status=signed&signedFrom=${from}&signedTo=${to}`);
+    }
+  };
 
   const FILTERS = [
     { id:'all', lbl:'All' },
@@ -246,10 +264,10 @@ export default function Dashboard() {
           <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
             <div>
               <div className="font-bold text-sm" style={{color:NAVY}}>Committed Revenue</div>
-              <div className="text-xs text-brand-faint">Signed OFs · by signing date</div>
+              <div className="text-xs text-brand-faint">Signed OFs · by signing date · click a bar to filter</div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <button onClick={()=>navigate('/repository?status=signed')} className="text-[11px] font-semibold hover:underline" style={{color:T}}>View →</button>
+              <button onClick={()=>navigate('/repository?status=signed')} className="text-[11px] font-semibold hover:underline" style={{color:T}}>View all →</button>
               <select value={chartFY} onChange={e=>setChartFY(e.target.value)} className="text-xs border rounded-lg px-2 py-1 bg-white border-slate-200">
                 <option value="all">All FYs</option>
                 {availableFYs.map(fy=><option key={fy} value={fy}>FY{String(fy).slice(2)}</option>)}
@@ -269,16 +287,16 @@ export default function Dashboard() {
             ? <div className="h-48 flex items-center justify-center text-slate-300 text-sm">No signed OFs yet</div>
             : <>
                 <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={barData} margin={{top:0,right:0,bottom:0,left:0}} onClick={()=>navigate('/repository?status=signed')} style={{cursor:'pointer'}}>
+                  <BarChart data={barData} margin={{top:0,right:0,bottom:0,left:0}}>
                     <XAxis dataKey="name" tick={{fontSize:10,fill:'#94a3b8'}} axisLine={false} tickLine={false}/>
                     <YAxis tick={{fontSize:10,fill:'#94a3b8'}} axisLine={false} tickLine={false}
                       tickFormatter={v=>useUSD?'$'+(v/1000).toFixed(0)+'K':'₹'+(v/100000).toFixed(0)+'L'}/>
                     <Tooltip formatter={(value)=>[fmtRev(value,useUSD),'Revenue']} contentStyle={{borderRadius:'10px',border:'1px solid #e2e8f0',fontSize:'12px'}}/>
-                    <Bar dataKey="value" fill={T} radius={[4,4,0,0]} cursor="pointer" onClick={()=>navigate('/repository?status=signed')}/>
+                    <Bar dataKey="value" fill={T} radius={[4,4,0,0]} cursor="pointer" onClick={handleBarClick}/>
                   </BarChart>
                 </ResponsiveContainer>
                 <div className="text-center mt-1">
-                  <button onClick={()=>navigate('/repository?status=signed')} className="text-[11px] font-semibold hover:underline" style={{color:T}}>Click to view signed OFs in Repository →</button>
+                  <button onClick={()=>navigate('/repository?status=signed')} className="text-[11px] font-semibold hover:underline" style={{color:T}}>Click a bar to filter by period · or view all signed OFs →</button>
                 </div>
               </>
           }
@@ -362,7 +380,7 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* ── Renewal drafts — header navigates to pending, each row navigates to form ── */}
+      {/* Renewal drafts */}
       {n.renewals > 0 && (
         <div className="mb-6 rounded-2xl border overflow-hidden" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
           <div className="px-6 py-3 bg-purple-50 border-b border-purple-200 flex items-center justify-between cursor-pointer hover:bg-purple-100 transition-all"
@@ -389,7 +407,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── Renewing soon — header navigates to repo, each row navigates to form ── */}
+      {/* Renewing soon */}
       {renewing.length > 0 && (
         <div className="mb-6 rounded-2xl border overflow-hidden" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
           <div className="px-6 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between cursor-pointer hover:bg-amber-100 transition-all"
