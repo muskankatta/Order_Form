@@ -48,7 +48,7 @@ const ALL_COLUMNS = [
   { id:'index',      label:'#',                 default:true,  alwaysOn:true },
   { id:'of_number',  label:'OF Number',          default:true,  alwaysOn:true },
   { id:'customer',   label:'Customer',           default:true,  alwaysOn:true },
-  { id:'entity',     label:'Entity',             default:false },   // new
+  { id:'entity',     label:'Entity',             default:false },
   { id:'services',   label:'Services',           default:true  },
   { id:'revenue',    label:'Committed Revenue',  default:true  },
   { id:'period',     label:'Period',             default:true  },
@@ -148,13 +148,13 @@ export default function Repository() {
   const [st,            setSt]            = useState(searchParams.get('status') || 'all');
   const [teamFilter,    setTeamFilter]    = useState('all');
   const [repFilter,     setRepFilter]     = useState('all');
-  const [entityFilter,  setEntityFilter]  = useState('all');   // ← new
+  const [entityFilter,  setEntityFilter]  = useState('all');
   const [dateFrom,      setDateFrom]      = useState('');
   const [dateTo,        setDateTo]        = useState('');
-  const [qtrFilter,     setQtrFilter]     = useState('all');
-  const [fyFilter,      setFyFilter]      = useState('all');
-  const [signedFrom,    setSignedFrom]    = useState('');
-  const [signedTo,      setSignedTo]      = useState('');
+  const [qtrFilter,     setQtrFilter]     = useState(searchParams.get('qtr')        || 'all');
+  const [fyFilter,      setFyFilter]      = useState(searchParams.get('fy')         || 'all');
+  const [signedFrom,    setSignedFrom]    = useState(searchParams.get('signedFrom') || '');
+  const [signedTo,      setSignedTo]      = useState(searchParams.get('signedTo')   || '');
   const [channelFilter, setChannelFilter] = useState('all');
   const [leadCatFilter, setLeadCatFilter] = useState('all');
   const [tab,           setTab]           = useState('of');
@@ -165,8 +165,16 @@ export default function Repository() {
   );
 
   useEffect(() => {
-    const s = searchParams.get('status');
-    if (s) setSt(s);
+    const s   = searchParams.get('status');
+    const q   = searchParams.get('qtr');
+    const fy  = searchParams.get('fy');
+    const sf  = searchParams.get('signedFrom');
+    const st2 = searchParams.get('signedTo');
+    if (s)   setSt(s);
+    if (q)   setQtrFilter(q);
+    if (fy)  setFyFilter(fy);
+    if (sf)  setSignedFrom(sf);
+    if (st2) setSignedTo(st2);
   }, [searchParams]);
 
   const isSales    = user?.role === 'sales' && !user?.isUniversal;
@@ -182,7 +190,6 @@ export default function Repository() {
     const s   = st==='all'           || f.status===st;
     const t   = teamFilter==='all'   || f.sales_team===teamFilter;
     const r   = repFilter==='all'    || f.sales_rep_email===repFilter;
-    // Entity filter: 'yavi' → entity==='yavi'; 'fynd' → entity!=='yavi' (covers undefined/null/fynd)
     const ent = entityFilter==='all' || (entityFilter==='yavi' ? f.entity==='yavi' : f.entity!=='yavi');
     const df  = !dateFrom || (f.start_date && f.start_date >= dateFrom);
     const dt  = !dateTo   || (f.start_date && f.start_date <= dateTo);
@@ -262,6 +269,17 @@ export default function Repository() {
   const hasActiveFilters = qtrFilter!=='all' || fyFilter!=='all' || dateFrom || dateTo ||
     channelFilter!=='all' || leadCatFilter!=='all' || signedFrom || signedTo || entityFilter!=='all';
 
+  // Active filter summary pill for quarter/FY/month range
+  const activeFilterLabel = (() => {
+    if (signedFrom && signedTo) {
+      return `Signing: ${signedFrom} → ${signedTo}`;
+    }
+    if (qtrFilter!=='all' && fyFilter!=='all') return `${qtrFilter} FY${String(fyFilter).slice(2)}`;
+    if (qtrFilter!=='all') return qtrFilter;
+    if (fyFilter!=='all')  return `FY${String(fyFilter).slice(2)}`;
+    return null;
+  })();
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -269,6 +287,11 @@ export default function Repository() {
           <h2 className="text-xl font-bold" style={{ color:NAVY }}>Repository</h2>
           <p className="text-sm mt-0.5 text-brand-faint">
             {filtered.filter(f=>['approved','signed'].includes(f.status)).length} active · {filtered.length} OFs shown
+            {activeFilterLabel && (
+              <span className="ml-2 font-semibold px-2 py-0.5 rounded-full text-[11px]" style={{ background:'#e0f7f5', color:'#00897b' }}>
+                {activeFilterLabel}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex gap-2 items-center">
@@ -320,7 +343,7 @@ export default function Repository() {
           </>
         )}
 
-        {/* ── Entity filter ── */}
+        {/* Entity filter */}
         <select value={entityFilter} onChange={e=>setEntityFilter(e.target.value)}
           className="text-sm border rounded-xl px-3 py-2.5 bg-white border-slate-200"
           style={entityFilter!=='all' ? { borderColor: entityFilter==='yavi'?'#4f46e5':'#0f766e', boxShadow:`0 0 0 2px ${entityFilter==='yavi'?'#c7d2fe':'#99f6e4'}` } : {}}>
@@ -478,7 +501,6 @@ export default function Repository() {
                           <td className="px-4 py-3.5 whitespace-nowrap">
                             <div className="flex items-center gap-1.5">
                               <span className="font-mono font-bold text-sm" style={{ color:f.of_number?NAVY:'#cbd5e1' }}>{f.of_number||'—'}</span>
-                              {/* Always-visible entity badge on OF number */}
                               {isYavi && <EntityBadge form={f} size="xs"/>}
                             </div>
                             {overdue && <div className="text-[10px] text-red-600 font-bold mt-0.5">{daysSinceSent}d unsigned</div>}
@@ -490,7 +512,6 @@ export default function Repository() {
                             <div className="text-xs text-brand-faint">{f.brand_name}</div>
                           </td>
                         )}
-                        {/* Entity column — only when toggled on */}
                         {show('entity') && (
                           <td className="px-4 py-3.5">
                             <EntityBadge form={f}/>
