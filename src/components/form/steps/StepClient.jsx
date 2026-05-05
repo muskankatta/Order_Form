@@ -12,6 +12,12 @@ const ENTITIES = [
   { value: 'yavi', label: 'Yavi Technologies FZCO' },
 ];
 
+// Categories that require a name field, and their label
+const LEAD_NAME_LABEL = {
+  'Inside Sales/Pre-Sales': 'Rep / Contact name',
+  'Event':                  'Event name',
+};
+
 // Validate tax number: alphanumeric only, 3–30 chars
 function isValidTaxNumber(val) {
   return /^[A-Z0-9\-]{3,30}$/.test(val);
@@ -30,9 +36,9 @@ export default function StepClient({ form, set, ro }) {
   const isGlobal = form.sales_team === 'Global';
 
   const isYavi = form.entity === 'yavi';
-  // For Yavi OFs: tax_number mandatory (non-India entity), GSTIN/PAN optional
-  // For Fynd OFs: country-based logic (India = PAN mandatory, others = tax_number mandatory)
   const isIndia = !isYavi && (!form.country || form.country === 'India');
+
+  const leadNameLabel = LEAD_NAME_LABEL[form.lead_category] || null;
 
   const handleRepSelect = email => {
     const rep = SALES_REPS.find(r => r.email === email);
@@ -57,11 +63,9 @@ export default function StepClient({ form, set, ro }) {
 
   const handleEntityChange = v => {
     u('entity', v);
-    // Yavi OFs default to Global team & USD currency
     if (v === 'yavi') {
       if (!form.sales_team) u('sales_team', 'Global');
       if (!form.committed_currency) u('committed_currency', 'USD');
-      // Clear India-specific tax fields
       u('gstin', '');
       u('pan', '');
     }
@@ -89,9 +93,14 @@ export default function StepClient({ form, set, ro }) {
     u('lead_name', '');
   };
 
+  const handleLeadCategoryChange = v => {
+    u('lead_category', v);
+    u('lead_name', '');
+  };
+
   return (
     <div>
-      {/* ── Entity selector — must be filled first ── */}
+      {/* ── Entity selector ── */}
       <SHdr c="Entity"/>
       <div className="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs">
         Select the entity issuing this Order Form. This controls the letterhead, T&amp;C, and signatory on the generated document.
@@ -106,7 +115,6 @@ export default function StepClient({ form, set, ro }) {
           disabled={ro}
           hint={form.entity === 'yavi' ? 'Yavi Technologies FZCO · Dubai CommerCity' : form.entity === 'fynd' ? 'Shopsense Retail Technologies Ltd. · Mumbai' : ''}
         />
-        {/* Entity badge */}
         <div className="flex items-end pb-4">
           {form.entity === 'yavi' && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200">
@@ -131,7 +139,6 @@ export default function StepClient({ form, set, ro }) {
           <TA label="Customer billing address" req value={form.billing_address} onChange={v=>u('billing_address',v)} disabled={ro} rows={2}/>
         </div>
 
-        {/* Country — shown for all entities. For Fynd it controls tax field type; for Yavi it's informational */}
         <Sel
           label="Country"
           req={!isYavi}
@@ -142,7 +149,6 @@ export default function StepClient({ form, set, ro }) {
           hint={isYavi ? 'Client country (for records)' : ''}
         />
 
-        {/* GSTIN — optional for both; hidden for Yavi */}
         {!isYavi && (
           <div className="mb-4">
             <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
@@ -167,7 +173,6 @@ export default function StepClient({ form, set, ro }) {
           </div>
         )}
 
-        {/* PAN — mandatory for Fynd/India, optional for Fynd/non-India, hidden for Yavi */}
         {!isYavi && (
           <div className="mb-4">
             <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
@@ -196,7 +201,6 @@ export default function StepClient({ form, set, ro }) {
           </div>
         )}
 
-        {/* Tax / VAT Number — mandatory for Yavi, mandatory for Fynd non-India */}
         {(isYavi || !isIndia) && (
           <div className={`mb-4 ${!isYavi ? 'col-span-2' : ''}`}>
             <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
@@ -286,11 +290,32 @@ export default function StepClient({ form, set, ro }) {
             <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
               Lead category <span className="text-red-400">*</span>
             </label>
-            <select value={form.lead_category||''} onChange={e=>u('lead_category',e.target.value)} disabled={ro} className="field-input cursor-pointer">
+            <select value={form.lead_category||''} onChange={e=>handleLeadCategoryChange(e.target.value)} disabled={ro} className="field-input cursor-pointer">
               <option value="">Select…</option>
               {cats.map(c => <option key={c}>{c}</option>)}
             </select>
           </div>
+        )}
+
+        {/* Name field — shown for categories that need it */}
+        {form.lead_type === 'Direct' && leadNameLabel && (
+          <Inp
+            label={leadNameLabel}
+            req
+            value={form.lead_name||''}
+            onChange={v=>u('lead_name',v)}
+            disabled={ro}
+            placeholder={
+              form.lead_category === 'Event'
+                ? 'e.g. Shoptalk 2025'
+                : 'e.g. Priya Sharma'
+            }
+            hint={
+              form.lead_category === 'Event'
+                ? 'Name of the event where the lead was sourced'
+                : 'Name of the inside sales rep or pre-sales contact'
+            }
+          />
         )}
 
         {form.lead_type === 'Indirect' && (
