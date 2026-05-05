@@ -331,7 +331,7 @@ export default function FormDetail({ form: initial }) {
 
   const canDelete = (user?.isUniversal) || (user?.role==='sales'&&form.status==='draft') || (user?.role==='revops'&&form.status==='submitted') || (user?.role==='finance'&&form.status==='revops_approved');
 
-  const canRaisePI = (user?.role==='sales'||user?.isUniversal) && ['approved','signed'].includes(form.status);
+  const canRaisePI = (user?.role==='sales'||user?.isUniversal) && ['revops_approved','approved','signed'].includes(form.status);
 
   const tabContent = {
     client:     <StepClient     form={live} set={set} ro={!edit}/>,
@@ -670,26 +670,9 @@ export default function FormDetail({ form: initial }) {
                 className="field-input" style={{ borderColor:'#e2e8f0' }}/>
             </div>
           </div>
-          <div className="flex gap-3 mb-4">
+          <div className="flex gap-3">
             <Btn variant="success" onClick={handleMarkSigned}>✍️ Mark as signed</Btn>
             <Btn variant="ghost" size="sm" onClick={() => openPDF(live)}>👁 Preview PDF</Btn>
-          </div>
-          <div className="pt-4 border-t border-slate-100">
-            <p className="text-xs font-semibold text-slate-500 mb-1">
-              🕐 Unsigned aging counter started: <span className="font-mono text-slate-700">{fmtDate(form.approved_at?.split('T')[0])}</span>
-            </p>
-            <p className="text-xs text-slate-400 mb-2">Reset this if a revision was sent and you want to restart the aging clock.</p>
-            <div className="flex gap-3 items-center">
-              <input type="date" id="approvedAtOverride"
-                defaultValue={form.approved_at?.split('T')[0]||''}
-                className="field-input text-xs" style={{ borderColor:'#e2e8f0', maxWidth:'180px' }}/>
-              <Btn size="sm" variant="ghost" onClick={async () => {
-                const val = document.getElementById('approvedAtOverride').value;
-                if (!val) return;
-                await applyDealStatus(form.id, { approved_at: val + 'T00:00:00.000Z' });
-                show('Aging date updated ✓');
-              }}>Reset aging date</Btn>
-            </div>
           </div>
         </Card>
       )}
@@ -750,7 +733,7 @@ export default function FormDetail({ form: initial }) {
       )}
 
       {/* ── PROFORMA INVOICES SECTION ─────────────────────────────────────── */}
-      {['approved','signed'].includes(form.status) && (
+      {['revops_approved','approved','signed'].includes(form.status) && (
         <Card className="mt-4 p-5">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
             <div>
