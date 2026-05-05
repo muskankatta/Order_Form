@@ -11,7 +11,7 @@ const ENTITIES = [
   { value: 'fynd', label: 'Shopsense Retail Technologies Limited (Fynd)' },
   { value: 'yavi', label: 'Yavi Technologies FZCO' },
 ];
-
+ 
 // Categories that require a name field, and their label
 const LEAD_NAME_LABEL = {
   'Inside Sales/Pre-Sales': 'Rep / Contact name',
