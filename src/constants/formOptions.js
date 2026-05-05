@@ -61,7 +61,7 @@ export const SLAB_RATE_UNITS = [
 ];
 
 export const UNIT_METRICS = [
-  '','Placed (bag)','Placed (shipment)','Placed (order)','Placed (item)',
+  '','Bag (Placed)','Bag (Invoiced),'Shipment (Placed)','Order (Placed)','Item (placed)',
   'Store','User','Rider','Warehouse','Location','Item','SKU','Credit',
   'Message (WhatsApp)','Image','Video','Tech Pack','Forward Picked',
   'RTO Picked','Return Picked','BCA (Brand Calculated Amount)',
