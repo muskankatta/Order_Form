@@ -371,14 +371,27 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
         <div className="mb-3">
           <div className="flex items-center justify-between mb-1">
             <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint">Commercial value *</div>
-            {fee.feeType === 'Transaction Fee' && !isOT && (
+            {(fee.feeType === 'Transaction Fee' || fee.feeType === 'Resource Fee') && !isOT && (
               <div className="flex gap-0.5 p-0.5 rounded-lg bg-slate-100">
-                {[['fixed','Fixed'],['percent','%']].map(([mode,lbl])=>(
+                {(fee.feeType === 'Transaction Fee'
+                  ? [['fixed','Fixed'],['percent','%']]
+                  : [['fixed','Fixed'],['variable','Variable']]
+                ).map(([mode,lbl])=>(
                   <button key={mode} type="button"
-                    onClick={()=>u('transactionFeeIsPercent', mode==='percent')}
+                    onClick={()=> {
+                      if (fee.feeType === 'Transaction Fee') {
+                        u('transactionFeeIsPercent', mode==='percent');
+                      } else {
+                        u('resourceFeeIsVariable', mode==='variable');
+                      }
+                    }}
                     className="text-[10px] px-2 py-0.5 rounded-md font-bold transition-all"
-                    style={(!fee.transactionFeeIsPercent&&mode==='fixed')||(fee.transactionFeeIsPercent&&mode==='percent')
-                      ?{background:NAVY,color:'#fff'}:{color:'#94a3b8'}}>
+                    style={
+                      (fee.feeType === 'Transaction Fee'
+                        ? ((!fee.transactionFeeIsPercent&&mode==='fixed')||(fee.transactionFeeIsPercent&&mode==='percent'))
+                        : ((!fee.resourceFeeIsVariable&&mode==='fixed')||(fee.resourceFeeIsVariable&&mode==='variable'))
+                      ) ? {background:NAVY,color:'#fff'} : {color:'#94a3b8'}
+                    }>
                     {lbl}
                   </button>
                 ))}
@@ -393,7 +406,7 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-brand-faint">%</span>
             )}
           </div>
-          {cycles && fee.commercialValue && !fee.transactionFeeIsPercent && fee.feeType !== 'Transaction Fee' && (
+          {cycles && fee.commercialValue && !fee.transactionFeeIsPercent && fee.feeType !== 'Transaction Fee' && fee.feeType !== 'Usage Fee' && !(fee.feeType === 'Resource Fee' && fee.resourceFeeIsVariable) && (
             <p className="text-[10px] mt-1 text-green-600">
               {parseFloat(fee.commercialValue).toLocaleString('en-IN')} × {cycles} cycles = {(parseFloat(fee.commercialValue)*cycles).toLocaleString('en-IN')} over term
             </p>
@@ -404,6 +417,11 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
             </p>
           )}
           {!fee.transactionFeeIsPercent && fee.feeType === 'Transaction Fee' && fee.commercialValue && (
+            <p className="text-[10px] mt-1 text-blue-600">
+              Variable — excluded from OF value calculation
+            </p>
+          )}
+          {fee.feeType === 'Resource Fee' && fee.resourceFeeIsVariable && (
             <p className="text-[10px] mt-1 text-blue-600">
               Variable — excluded from OF value calculation
             </p>
@@ -566,7 +584,7 @@ function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency }) {
                               </span>
 
                             : <span className="font-mono font-semibold" style={{color:NAVY}}>
-                                · {fee.commercialValue||'—'}{fee.transactionFeeIsPercent?'%':''}
+                                · {fee.commercialValue||'—'}{fee.transactionFeeIsPercent?'%':''}{fee.resourceFeeIsVariable?' (variable)':''}
                               </span>
                       }
 
