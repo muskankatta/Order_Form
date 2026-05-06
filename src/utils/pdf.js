@@ -360,7 +360,14 @@ export const openPDF = function(form) {
     '<tr><td>Billing Address</td><td>' + (form.billing_address||'\u2014').replace(/\n/g,'<br/>') + '</td><td>OF Value</td><td><strong>' + sym + parseFloat(form.of_value||0).toLocaleString('en-IN') + '</strong></td></tr>' +
     (isYavi
       ? '<tr><td>Tax Details</td><td colspan="3">' + (form.tax_number||'\u2014') + '</td></tr>'
-      : '<tr><td>Tax Details</td><td>GST: ' + (form.gstin||'\u2014') + ' \u00b7 PAN: ' + (form.pan||'\u2014') + '</td><td>Sales Channel</td><td>' + (form.lead_type||'\u2014') + '</td></tr>'
+      : (function() {
+          var parts = [];
+          if (form.gstin)      parts.push('GST: ' + form.gstin);
+          if (form.pan)        parts.push('PAN: ' + form.pan);
+          if (form.tax_number) parts.push('Tax/VAT: ' + form.tax_number);
+          var taxStr = parts.length > 0 ? parts.join(' \u00b7 ') : '\u2014';
+          return '<tr><td>Tax Details</td><td>' + taxStr + '</td><td>Sales Channel</td><td>' + (form.lead_type||'\u2014') + '</td></tr>';
+        })()
     ) +
     '<tr><td>Billing Email</td><td>' + (form.billing_email||'\u2014') + '</td><td>Start Date</td><td>' + fmtDate(form.start_date) + '</td></tr>' +
     '<tr><td>OF Term</td><td>' + (form.of_term || (form.of_term_months ? form.of_term_months+' Months' : '\u2014')) + '</td><td>End Date</td><td>' + fmtDate(form.end_date) + '</td></tr>' +
