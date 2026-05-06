@@ -1,223 +1,352 @@
 import { fmtDate } from './dates.js';
 import { getSym } from './formatting.js';
+import { YAVI_HEADER_IMG } from './yaviHeader.js';
+import {
+  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+  AlignmentType, BorderStyle, WidthType, ShadingType, VerticalAlign,
+} from 'docx';
 
-// ── Load html-docx-js from CDN on demand ─────────────────────────────────────
-function loadHtmlDocx() {
-  return new Promise(function(resolve, reject) {
-    if (window.htmlDocx) { resolve(window.htmlDocx); return; }
-    var s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.js';
-    s.onload  = function() { resolve(window.htmlDocx); };
-    s.onerror = function() { reject(new Error('Failed to load html-docx-js')); };
-    document.head.appendChild(s);
+// ── Layout constants (A4, 720 DXA margins each side) ──────────────────────────
+// Content width = 11906 - 720*2 = 10466
+const CW = 10466;
+const NAVY = '1B2B4B';
+
+const border    = { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' };
+const borders   = { top: border, bottom: border, left: border, right: border };
+const noBorder  = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+const noBorders = { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder };
+const cellPad   = { top: 80, bottom: 80, left: 120, right: 120 };
+
+// ── Text helpers ──────────────────────────────────────────────────────────────
+const run  = (text, opts = {}) => new TextRun({ text: text || '', size: 20, ...opts });
+const navy = (text, size = 22)  => run(text, { bold: true, color: NAVY, size });
+const bold = (text, size = 20)  => run(text, { bold: true, size });
+const grey = (text, size = 18)  => run(text, { color: '555555', size });
+
+// ── Table helpers ─────────────────────────────────────────────────────────────
+// KV table: 4 columns — label/value/label/value
+const KV_WIDTHS = [2200, 3033, 2200, 3033];
+
+function kvCell(text, isLabel, colspan = 1) {
+  return new TableCell({
+    borders,
+    width: { size: isLabel ? 2200 : colspan > 1 ? KV_WIDTHS[1] + KV_WIDTHS[2] + KV_WIDTHS[3] : 3033, type: WidthType.DXA },
+    shading: { fill: isLabel ? 'F8F9FA' : 'FFFFFF', type: ShadingType.CLEAR },
+    margins: cellPad,
+    columnSpan: colspan,
+    children: [new Paragraph({ children: [isLabel ? bold(text || '') : run(text || '\u2014')] })],
   });
 }
 
-// ── Yavi header (base64 PNG embedded) ────────────────────────────────────────
-// Keep in sync with pdf.js YAVI_HEADER_IMG constant
-import { YAVI_HEADER_IMG } from './yaviHeader.js';
-
-// ── Fee row HTML ──────────────────────────────────────────────────────────────
-function feeRowHtml(fee, sym) {
-  var cv = '';
-  if (fee.isLogistics) {
-    cv = 'As per rate card';
-  } else if (fee.pricingModel === 'graduated') {
-    cv = (fee.slabs || []).map(function(s) {
-      return (s.from||0) + '\u2013' + (s.to||'\u221e') + ': ' +
-        (s.rateType && s.rateType.startsWith('%') ? s.rate + s.rateType : sym + s.rate);
-    }).join('; ');
-  } else if (fee.stepUpPricing && fee.stepUpValues && fee.stepUpValues.length) {
-    cv = fee.stepUpValues.map(function(sv) {
-      return sv.label + ': ' + sym + parseFloat(sv.value||0).toLocaleString('en-IN');
-    }).join('; ');
-  } else {
-    cv = fee.commercialValue
-      ? sym + parseFloat(fee.commercialValue||0).toLocaleString('en-IN')
-      : '\u2014';
-  }
-  return '<tr>' +
-    '<td>' + (fee.feeType||'\u2014') + '</td>' +
-    '<td>' + (fee.billingCycle||'\u2014') + '</td>' +
-    '<td>' + cv + '</td>' +
-    '<td>' + (fee.inclusions||'') + '</td>' +
-    '<td>' + ([fee.unitMetric, fee.paymentTrigger].filter(Boolean).join(' \u00b7 ') || '\u2014') + '</td>' +
-    '</tr>';
+function kvRow(l1, v1, l2, v2) {
+  const cells = [kvCell(l1, true), kvCell(v1, false)];
+  if (l2 !== undefined) cells.push(kvCell(l2, true), kvCell(v2, false));
+  return new TableRow({ children: cells });
 }
 
-// ── Build the full HTML document string ──────────────────────────────────────
-function buildDocHtml(form) {
-  var isYavi   = form.entity === 'yavi';
-  var sym      = getSym(form.committed_currency || (isYavi ? 'USD' : 'INR'));
-  var svcs     = form.services_fees || [];
-  var isBundle = svcs.length > 1;
-  var ofNum    = form.of_number || 'DRAFT';
-  var custName = form.customer_name || '\u2014';
-  var sigName  = form.signatory_name || '________________________';
-  var sigDesig = form.signatory_designation || 'Authorised Signatory';
-  var sigEmail = form.signatory_email || '';
+function kvRowSpan(label, val) {
+  return new TableRow({ children: [kvCell(label, true), kvCell(val, false, 3)] });
+}
 
-  var entitySignatoryName  = isYavi ? 'Vishesh Kumar'                : 'Sreeraman Mohan Girija';
-  var entitySignatoryDesig = isYavi ? 'Founding Director'            : 'Whole-time Director';
-  var entitySignatoryLabel = isYavi ? 'For: Yavi Technologies FZCO'  : 'For: Shopsense Retail Technologies Limited';
-  var entitySalesRepLabel  = isYavi ? 'Sales Rep (Yavi Technologies)': 'Sales Rep (Fynd)';
-  var footerEntity         = isYavi ? 'Yavi Technologies FZCO'       : 'Shopsense Retail Technologies Limited';
+function sectionHeader(text) {
+  return new Paragraph({
+    children: [run(text, { bold: true, color: 'FFFFFF', size: 20 })],
+    shading: { fill: NAVY, type: ShadingType.CLEAR },
+    spacing: { before: 160, after: 0 },
+    indent: { left: 120, right: 120 },
+  });
+}
 
-  // ── Letterhead ──────────────────────────────────────────────────────────
-  var hdrHtml;
-  if (isYavi) {
-    hdrHtml =
-      '<div style="border-bottom:2.5pt solid #1B2B4B;margin-bottom:16pt;padding-bottom:10pt">' +
-      '<img src="' + YAVI_HEADER_IMG + '" style="width:100%;max-width:600pt" alt="Yavi Technologies FZCO"/>' +
-      '</div>';
-  } else {
-    hdrHtml =
-      '<table style="width:100%;border:none;margin-bottom:16pt;border-bottom:2.5pt solid #1B2B4B;padding-bottom:10pt"><tr>' +
-      '<td style="border:none;vertical-align:top;width:55%">' +
-      '<p style="font-weight:bold;font-size:11pt;color:#1B2B4B;margin:0">Shopsense Retail Technologies Limited</p>' +
-      '<p style="font-size:8.5pt;color:#444;margin:2pt 0 0">1st Floor, Wework Vijay Diamond, Andheri East, Mumbai \u2013 400 093</p>' +
-      '<p style="font-size:8.5pt;color:#444;margin:1pt 0 0">CIN: U52100MH2012PLC236314 | GSTN: 27AALCA0442L1ZM | PAN: AALCA0442L</p>' +
-      '</td>' +
-      '<td style="border:none;vertical-align:top;text-align:right;width:45%">' +
-      '<p style="font-size:8pt;font-weight:bold;color:#64748b;letter-spacing:1pt;text-transform:uppercase;margin:0">Order Form</p>' +
-      '<p style="font-size:18pt;font-weight:900;color:#1B2B4B;margin:2pt 0;font-family:Courier New">' + ofNum + '</p>' +
-      '<p style="font-size:8.5pt;color:#666;margin:0">Date: ' + fmtDate(form.submitted_at ? form.submitted_at.split('T')[0] : '') + '</p>' +
-      '</td>' +
-      '</tr></table>';
+// Fee table: 5 columns
+const FEE_WIDTHS = [1900, 1500, 2500, 2600, 1966];
+
+function feeHeaderRow() {
+  return new TableRow({
+    tableHeader: true,
+    children: ['Fee Type', 'Billing Cycle', 'Commercial Value', 'Inclusions', 'Charged On'].map((h, i) =>
+      new TableCell({
+        borders,
+        width: { size: FEE_WIDTHS[i], type: WidthType.DXA },
+        shading: { fill: 'F0F4F8', type: ShadingType.CLEAR },
+        margins: cellPad,
+        children: [new Paragraph({ children: [bold(h)] })],
+      })
+    ),
+  });
+}
+
+function feeDataRow(values) {
+  return new TableRow({
+    children: values.map((v, i) => {
+      const lines = (v || '\u2014').split('\n');
+      return new TableCell({
+        borders,
+        width: { size: FEE_WIDTHS[i], type: WidthType.DXA },
+        margins: cellPad,
+        children: lines.map(l => new Paragraph({ children: [run(l || '\u2014')] })),
+      });
+    }),
+  });
+}
+
+// ── Data formatters ───────────────────────────────────────────────────────────
+function fmtFeeCV(fee, sym) {
+  if (fee.isLogistics) return 'As per rate card';
+  if (fee.pricingModel === 'graduated') {
+    return (fee.slabs || []).map(s =>
+      s.from + '\u2013' + (s.to || '\u221e') + ': ' +
+      (s.rateType?.startsWith('%') ? s.rate + s.rateType : sym + s.rate)
+    ).join('\n');
+  }
+  if (fee.stepUpPricing && fee.stepUpValues?.length) {
+    return fee.stepUpValues.map(sv =>
+      sv.label + ': ' + sym + parseFloat(sv.value || 0).toLocaleString('en-IN')
+    ).join('\n');
+  }
+  if (fee.transactionFeeIsPercent) return (fee.commercialValue || '0') + '%';
+  if (fee.resourceFeeIsVariable)   return (fee.commercialValue ? sym + parseFloat(fee.commercialValue).toLocaleString('en-IN') : '\u2014') + ' (variable)';
+  return fee.commercialValue ? sym + parseFloat(fee.commercialValue).toLocaleString('en-IN') : '\u2014';
+}
+
+function fmtInclusions(val) {
+  if (!val) return '\u2014';
+  if (Array.isArray(val)) {
+    const parts = val.map(item =>
+      typeof item === 'string' ? item : item.metric ? item.text + ' ' + item.metric : item.text
+    ).filter(Boolean);
+    return parts.length ? parts.join('\n') : '\u2014';
+  }
+  return val || '\u2014';
+}
+
+function buildTaxDetails(form, isYavi) {
+  if (isYavi) return form.tax_number || '\u2014';
+  const parts = [];
+  if (form.gstin)      parts.push('GST: ' + form.gstin);
+  if (form.pan)        parts.push('PAN: ' + form.pan);
+  if (form.tax_number) parts.push('Tax/VAT: ' + form.tax_number);
+  return parts.length ? parts.join(' \u00b7 ') : '\u2014';
+}
+
+function tcPara(num, title, body) {
+  return new Paragraph({
+    spacing: { before: 100, after: 60 },
+    children: [
+      run(num + '. ' + title + ' \u2014 ', { bold: true, size: 18 }),
+      run(body, { size: 18 }),
+    ],
+  });
+}
+
+// ── Main builder ──────────────────────────────────────────────────────────────
+function buildDoc(form) {
+  const isYavi   = form.entity === 'yavi';
+  const sym      = getSym(form.committed_currency || (isYavi ? 'USD' : 'INR'));
+  const svcs     = form.services_fees || [];
+  const isBundle = svcs.length > 1;
+  const ofNum    = form.of_number || 'DRAFT';
+  const custName = form.customer_name || '\u2014';
+  const sigName  = form.signatory_name || '________________________';
+  const sigDesig = form.signatory_designation || 'Authorised Signatory';
+  const sigEmail = form.signatory_email || '';
+  const taxDetails = buildTaxDetails(form, isYavi);
+
+  const entitySignatoryName  = isYavi ? 'Vishesh Kumar'               : 'Sreeraman Mohan Girija';
+  const entitySignatoryDesig = isYavi ? 'Founding Director'           : 'Whole-time Director';
+  const entitySignatoryLabel = isYavi ? 'For: Yavi Technologies FZCO' : 'For: Shopsense Retail Technologies Limited';
+  const entitySalesRepLabel  = isYavi ? 'Sales Rep (Yavi Technologies)' : 'Sales Rep (Fynd)';
+  const footerEntity         = isYavi ? 'Yavi Technologies FZCO'      : 'Shopsense Retail Technologies Limited';
+
+  const dateStr = form.signed_date
+    ? fmtDate(form.signed_date)
+    : fmtDate(form.submitted_at ? form.submitted_at.split('T')[0] : '');
+
+  const LEFT_W  = Math.round(CW * 0.55);
+  const RIGHT_W = CW - LEFT_W;
+  const SIGN_W  = Math.floor(CW / 2);
+
+  const children = [];
+
+  // ── Letterhead ──────────────────────────────────────────────────────────────
+  children.push(new Table({
+    width: { size: CW, type: WidthType.DXA },
+    columnWidths: [LEFT_W, RIGHT_W],
+    borders: {
+      bottom: { style: BorderStyle.SINGLE, size: 4, color: NAVY },
+      top: noBorder, left: noBorder, right: noBorder, insideH: noBorder, insideV: noBorder,
+    },
+    rows: [new TableRow({ children: [
+      new TableCell({
+        borders: noBorders,
+        width: { size: LEFT_W, type: WidthType.DXA },
+        children: [
+          new Paragraph({ spacing: { after: 40 }, children: [navy('Shopsense Retail Technologies Limited', 24)] }),
+          new Paragraph({ spacing: { after: 20 }, children: [grey('1st Floor, Wework Vijay Diamond, Andheri East, Mumbai \u2013 400 093')] }),
+          new Paragraph({ children: [grey('CIN: U52100MH2012PLC236314 | GSTN: 27AALCA0442L1ZM | PAN: AALCA0442L')] }),
+        ],
+      }),
+      new TableCell({
+        borders: noBorders,
+        width: { size: RIGHT_W, type: WidthType.DXA },
+        children: [
+          new Paragraph({ alignment: AlignmentType.RIGHT, children: [run('ORDER FORM', { bold: true, color: '64748B', size: 16, allCaps: true })] }),
+          new Paragraph({ alignment: AlignmentType.RIGHT, children: [run(ofNum, { bold: true, color: NAVY, size: 32, font: 'Courier New' })] }),
+          new Paragraph({ alignment: AlignmentType.RIGHT, children: [grey('Date: ' + dateStr)] }),
+        ],
+      }),
+    ]}),
+  ]}));
+
+  children.push(new Paragraph({ spacing: { after: 80 } }));
+
+  // Title
+  children.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 80, after: 120 },
+    children: [run('ORDER FORM', { bold: true, size: 28, allCaps: true, characterSpacing: 40 })],
+  }));
+
+  // ── Section A ────────────────────────────────────────────────────────────
+  children.push(sectionHeader('A. Client & Order Form Details'));
+
+  const kvRows = [
+    kvRow('Client Name', custName, 'OF Number', ofNum),
+    kvRow('Brand / Trade Name', form.brand_name || '\u2014', 'Billing Currency', form.committed_currency || '\u2014'),
+    kvRow('Billing Address', (form.billing_address || '\u2014').replace(/\n/g, ' '), 'OF Value', sym + parseFloat(form.of_value || 0).toLocaleString('en-IN')),
+    isYavi
+      ? kvRowSpan('Tax Details', taxDetails)
+      : kvRow('Tax Details', taxDetails, 'Sales Channel', form.lead_type || '\u2014'),
+    kvRow('Billing Email', form.billing_email || '\u2014', 'Start Date', fmtDate(form.start_date)),
+    kvRow('OF Term', form.of_term || (form.of_term_months ? form.of_term_months + ' Months' : '\u2014'), 'End Date', fmtDate(form.end_date)),
+    kvRow('PO Required', form.po_required || 'No', 'Auto Renewal', (form.auto_renewal || 'No') + ' (' + (form.renewal_term || 'NA') + ')'),
+    kvRowSpan('Payment Terms', form.payment_terms || '\u2014'),
+    kvRow('Client Rep',
+      [form.client_rep_name, form.client_rep_mobile, form.client_rep_email].filter(Boolean).join('  \u00b7  ') || '\u2014',
+      entitySalesRepLabel,
+      [form.sales_rep_name, form.sales_rep_email].filter(Boolean).join('  \u00b7  ') || '\u2014'),
+  ];
+
+  children.push(new Table({ width: { size: CW, type: WidthType.DXA }, columnWidths: KV_WIDTHS, rows: kvRows }));
+
+  // ── Section B ────────────────────────────────────────────────────────────
+  children.push(sectionHeader('B. Service Details' + (isBundle ? ' \u2014 Bundle: Yes' : '')));
+
+  svcs.forEach((svc, i) => {
+    children.push(new Paragraph({
+      spacing: { before: 120, after: 0 },
+      children: [run(String.fromCharCode(97 + i) + '. ' + (svc.name || '\u2014'), { bold: true, size: 20, color: NAVY })],
+    }));
+    const feeRows = [feeHeaderRow()];
+    (svc.fees || []).forEach(fee => {
+      feeRows.push(feeDataRow([
+        fee.feeType || '\u2014',
+        fee.billingCycle || '\u2014',
+        fmtFeeCV(fee, sym),
+        fmtInclusions(fee.inclusions),
+        fee.paymentTrigger || '\u2014',
+      ]));
+    });
+    children.push(new Table({ width: { size: CW, type: WidthType.DXA }, columnWidths: FEE_WIDTHS, rows: feeRows }));
+  });
+
+  // ── Section C (Special Terms) ──────────────────────────────────────────────
+  if (form.special_terms) {
+    children.push(sectionHeader('C. Special Terms'));
+    children.push(new Paragraph({
+      spacing: { before: 60, after: 60 },
+      children: [run(form.special_terms, { size: 18 })],
+    }));
   }
 
-  // ── Tax row ─────────────────────────────────────────────────────────────
-  var taxRowHtml = isYavi
-    ? '<tr><td>Tax Details</td><td colspan="3">' + (form.tax_number||'\u2014') + '</td></tr>'
-    : '<tr><td>Tax Details</td><td>GST: ' + (form.gstin||'\u2014') + ' &middot; PAN: ' + (form.pan||'\u2014') + '</td><td>Sales Channel</td><td>' + (form.lead_type||'\u2014') + '</td></tr>';
+  // ── T&C ────────────────────────────────────────────────────────────────────
+  children.push(new Paragraph({ spacing: { before: 200, after: 80 }, children: [bold('Important Notes:', 22)] }));
 
-  // ── Service tables ───────────────────────────────────────────────────────
-  var svcHtml = svcs.map(function(svc, i) {
-    return '<p style="background:#1B2B4B;color:white;padding:4pt 10pt;font-weight:bold;font-size:9.5pt;margin:10pt 0 0">' +
-      String.fromCharCode(97+i) + '. ' + (svc.name||'\u2014') + '</p>' +
-      '<table style="width:100%;border-collapse:collapse;font-size:9.5pt">' +
-      '<thead><tr style="background:#f0f4f8">' +
-      '<th style="border:1pt solid #ccc;padding:4pt 8pt;text-align:left">Fee Type</th>' +
-      '<th style="border:1pt solid #ccc;padding:4pt 8pt;text-align:left">Billing Cycle</th>' +
-      '<th style="border:1pt solid #ccc;padding:4pt 8pt;text-align:left">Commercial Value</th>' +
-      '<th style="border:1pt solid #ccc;padding:4pt 8pt;text-align:left">Inclusions</th>' +
-      '<th style="border:1pt solid #ccc;padding:4pt 8pt;text-align:left">Charged On</th>' +
-      '</tr></thead><tbody>' +
-      (svc.fees||[]).map(function(f) { return feeRowHtml(f, sym); }).join('') +
-      '</tbody></table>';
-  }).join('');
-
-  // ── T&C ─────────────────────────────────────────────────────────────────
-  var tcHtml;
   if (isYavi) {
-    tcHtml =
-      '<p style="font-size:9.5pt;margin:6pt 0 3pt"><strong>1. Ownership &amp; Licensing</strong> &mdash; ' +
-      'Shopsense Retail Technologies Limited (&ldquo;Fynd&rdquo;) is the owner and licensor of the Software/Platform availed as Service(s) by the Client under this Order Form. ' +
-      'Fynd has granted Yavi Technologies with licence to resell the Service(s) in the capacity of an exclusive authorized reseller by way of an independent licence agreement.</p>' +
-      '<p style="font-size:9.5pt;margin:6pt 0 3pt"><strong>2. Agreement Scope</strong> &mdash; ' +
-      'This Order Form shall be read together with schedules, annexures, SOP(s), SoW(s), and/or any written documents executed between the Parties, read along with the online terms and policy documents of Fynd with respect to the Service(s) being availed by the Client and shall constitute the entire understanding and agreement between the parties and replaces all prior understandings, negotiations, discussions, writings and agreements with respect to the subject matter hereof.</p>' +
-      '<p style="font-size:9.5pt;margin:6pt 0 3pt"><strong>3. Term</strong> &mdash; ' +
-      'The Service Period and all applicable Renewal Tenures are collectively referred to herein as the &ldquo;Order Form Term&rdquo;. This Order Form is effective on the date the Service Period commences until the end of the Order Form Term. Renewal will be applicable on then-current list price.</p>' +
-      '<p style="font-size:9.5pt;margin:6pt 0 3pt"><strong>4. Fees</strong> &mdash; ' +
-      'Client will be charged the fees set forth in this Order Form upon its execution and in accordance with the applicable Billing Frequency (as defined above) thereafter. All fees (commercial value) that Client is charged, including the fees set forth in this Order Form, will be exclusive of taxes. If Client terminates this Order Form prior to the expiration of the Initial Term or then-current Renewal Term (except to the extent such termination is due to Fynd&rsquo;s failure to cure a material breach in accordance with the Agreement (as defined in TOS)), then Client is responsible for paying the fees set forth in this Order Form for the remaining portion of the Initial Term or then-current Renewal Term upon termination. All fees except one time fee will be applicable for a minimal increment of 8% on then-current list price (shared by Fynd to Client) upon Renewal Term.</p>' +
-      '<p style="font-size:9.5pt;margin:6pt 0 3pt"><strong>5. Validity</strong> &mdash; ' +
-      'This Order Form shall remain valid for a period of seven (7) working days from the date of issuance. If not signed and returned within this period, the Order Form shall be deemed null and void unless extended in writing by Fynd.</p>';
+    children.push(tcPara('1', 'Ownership & Licensing', 'Shopsense Retail Technologies Limited ("Fynd") is the owner and licensor of the Software/Platform availed as Service(s) by the Client. Fynd has granted Yavi Technologies with licence to resell the Service(s) as an exclusive authorized reseller.'));
+    children.push(tcPara('2', 'Agreement Scope', 'This Order Form shall be read together with schedules, annexures, SOP(s), SoW(s), and/or any written documents executed between the Parties, and shall constitute the entire understanding and agreement between the parties.'));
+    children.push(tcPara('3', 'Term', 'The Service Period and all applicable Renewal Tenures are collectively referred to as the "Order Form Term". This Order Form is effective on the date the Service Period commences. Renewal will be applicable on then-current list price.'));
+    children.push(tcPara('4', 'Fees', 'Client will be charged the fees set forth in this Order Form upon execution and in accordance with the applicable Billing Frequency. All fees will be exclusive of taxes. All fees except one time fee will be applicable for a minimal increment of 8% on then-current list price upon Renewal Term.'));
+    children.push(tcPara('5', 'Validity', 'This Order Form shall remain valid for a period of seven (7) working days from the date of issuance. If not signed and returned within this period, the Order Form shall be deemed null and void unless extended in writing by Fynd.'));
   } else {
-    tcHtml =
-      '<p style="font-size:9.5pt;margin:6pt 0 3pt"><strong>1. Entire Agreement</strong> &mdash; ' +
-      'This Order Form, along with its accompanying schedules, annexures, Standard Operating Procedures (SOPs), Terms of Service (TOS), and Privacy Policy, if any, collectively constitute the entire agreement between the Parties (hereinafter &ldquo;Agreement&rdquo;). It supersedes and replaces all prior negotiations, discussions, understandings, writings, and agreements related to the subject matter herein.</p>' +
-      '<p style="font-size:9.5pt;margin:6pt 0 3pt"><strong>2. Term</strong> &mdash; ' +
-      'The term of this Order Form (hereinafter referred to as the &ldquo;Order Form Term&rdquo;) includes the initial Service Period and all subsequent Renewal Terms (if applicable). The Order Form becomes effective on the commencement date of the Service Period and shall continue until the end of the Order Form Term. Renewal shall be subject to the then-current list price prevailing at the time of renewal.</p>' +
-      '<p style="font-size:9.5pt;margin:6pt 0 3pt"><strong>3. Extension Fees</strong> &mdash; ' +
-      'If the Client avails any of the Extension Service(s), they shall be charged an Extension Fee for that Service(s) over and above the Fees mentioned above in the Order Form. See Extension Rate Card for details.</p>' +
-      '<p style="font-size:9.5pt;margin:6pt 0 3pt"><strong>4. Fees and Payment Terms</strong> &mdash; ' +
-      'a. The Client agrees to pay the fees outlined in this Order Form upon its execution and subsequently according to the Billing Frequency specified herein. ' +
-      'b. All fees are exclusive of applicable taxes, which will be charged separately as per prevailing laws. ' +
-      'c. Except for one-time fees, all recurring fees will be subject to a minimum increment of 8% on the then-current list price, as notified by Fynd at the time of renewal. ' +
-      'd. In the event that the Client terminates this Order Form before the expiration of the Initial Term or any then-current Renewal Term &mdash; except where such termination is due to Fynd&rsquo;s uncured material breach as defined in the Terms of Service &mdash; the Client shall remain liable to pay the remaining fees due for the rest of the respective term, upon termination.</p>' +
-      '<p style="font-size:9.5pt;margin:6pt 0 3pt"><strong>5. Publicity Rights</strong> &mdash; ' +
-      'By signing this Order Form, the Client grants Fynd the right, for the Term of this Order Form and thereafter, to use the Client&rsquo;s name, logo, trademark(s), and other brand identifiers for the purposes of publicity, public relations (PR), marketing, promotional, or branding activities, or otherwise disclosing its association with the Client, in any medium or format.</p>' +
-      '<p style="font-size:9.5pt;margin:6pt 0 3pt"><strong>6. Validity</strong> &mdash; ' +
-      'This Order Form shall remain valid for a period of seven (7) working days from the date of issuance. If not signed and returned within this period, the Order Form shall be deemed null and void unless extended in writing by Fynd.</p>';
+    children.push(tcPara('1', 'Entire Agreement', 'This Order Form, along with its accompanying schedules, annexures, SOPs, Terms of Service (TOS), and Privacy Policy, collectively constitute the entire agreement between the Parties. It supersedes and replaces all prior negotiations, discussions, understandings, writings, and agreements related to the subject matter herein.'));
+    children.push(tcPara('2', 'Term', 'The Order Form Term includes the initial Service Period and all subsequent Renewal Terms. The Order Form becomes effective on the commencement date of the Service Period. Renewal shall be subject to the then-current list price prevailing at the time of renewal.'));
+    children.push(tcPara('3', 'Extension Fees', 'If the Client avails any Extension Service(s), they shall be charged an Extension Fee for that Service(s) over and above the Fees mentioned in the Order Form. See Extension Rate Card for details.'));
+    children.push(tcPara('4', 'Fees and Payment Terms', 'a. The Client agrees to pay the fees upon execution according to the Billing Frequency specified. b. All fees are exclusive of applicable taxes. c. Recurring fees are subject to a minimum 8% increment on then-current list price at renewal. d. Early termination: the Client shall remain liable to pay the remaining fees for the rest of the respective term.'));
+    children.push(tcPara('5', 'Publicity Rights', "By signing this Order Form, the Client grants Fynd the right to use the Client's name, logo, and brand identifiers for publicity, PR, marketing, or branding activities."));
+    children.push(tcPara('6', 'Validity', 'This Order Form shall remain valid for a period of seven (7) working days from the date of issuance. If not signed and returned within this period, the Order Form shall be deemed null and void unless extended in writing by Fynd.'));
   }
 
-  // ── Assemble full HTML ───────────────────────────────────────────────────
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
-    '<style>' +
-    'body{font-family:Arial,sans-serif;font-size:10pt;color:#1a1a1a;margin:2cm}' +
-    'table{width:100%;border-collapse:collapse;font-size:9.5pt}' +
-    'th{background:#f0f4f8;font-weight:bold;padding:5pt 8pt;border:1pt solid #ccc;text-align:left}' +
-    'td{padding:4pt 8pt;border:1pt solid #ddd;vertical-align:top}' +
-    '.kv td:first-child{background:#f8f9fa;font-weight:bold;width:32%}' +
-    'h1{font-size:13pt;font-weight:900;text-align:center;letter-spacing:2pt;text-transform:uppercase;margin:14pt 0}' +
-    'h2{font-size:10pt;font-weight:bold;background:#1B2B4B;color:white;padding:5pt 12pt;margin:12pt 0 0}' +
-    '.sign-table td{border:1pt solid #ccc;padding:14pt;vertical-align:top;width:50%}' +
-    '.sign-line{border-bottom:1pt solid #999;margin:20pt 0 6pt;height:1pt}' +
-    '</style></head><body>' +
-    hdrHtml +
-    '<h1>ORDER FORM</h1>' +
-    '<h2>A. Client &amp; Order Form Details</h2>' +
-    '<table class="kv" style="margin-bottom:1pt">' +
-    '<tr><td>Client Name</td><td><strong>' + custName + '</strong></td><td>OF Number</td><td><strong>' + ofNum + '</strong></td></tr>' +
-    '<tr><td>Brand / Trade Name</td><td>' + (form.brand_name||'\u2014') + '</td><td>Billing Currency</td><td>' + (form.committed_currency||'\u2014') + '</td></tr>' +
-    '<tr><td>Billing Address</td><td>' + (form.billing_address||'\u2014').replace(/\n/g,'<br/>') + '</td><td>OF Value</td><td><strong>' + sym + parseFloat(form.of_value||0).toLocaleString('en-IN') + '</strong></td></tr>' +
-    taxRowHtml +
-    '<tr><td>Billing Email</td><td>' + (form.billing_email||'\u2014') + '</td><td>Start Date</td><td>' + fmtDate(form.start_date) + '</td></tr>' +
-    '<tr><td>OF Term</td><td>' + (form.of_term || (form.of_term_months ? form.of_term_months+' Months' : '\u2014')) + '</td><td>End Date</td><td>' + fmtDate(form.end_date) + '</td></tr>' +
-    '<tr><td>PO Required</td><td>' + (form.po_required||'No') + '</td><td>Auto Renewal</td><td>' + (form.auto_renewal||'No') + ' (' + (form.renewal_term||'NA') + ')</td></tr>' +
-    '<tr><td>Payment Terms</td><td colspan="3">' + (form.payment_terms||'\u2014') + '</td></tr>' +
-    '<tr><td>Client Rep</td><td>' + (form.client_rep_name||'\u2014') + ' &middot; ' + (form.client_rep_mobile||'\u2014') + ' &middot; ' + (form.client_rep_email||'\u2014') + '</td>' +
-    '<td>' + entitySalesRepLabel + '</td><td>' + (form.sales_rep_name||'\u2014') + ' &middot; ' + (form.sales_rep_email||'\u2014') + '</td></tr>' +
-    '</table>' +
-    '<h2>B. Service Details' + (isBundle ? ' &mdash; Bundle: Yes' : '') + '</h2>' +
-    svcHtml +
-    (form.special_terms
-      ? '<h2>C. Special Terms</h2><p style="padding:8pt 12pt;border:1pt solid #ddd;font-size:9.5pt;white-space:pre-wrap">' + form.special_terms + '</p>'
-      : '') +
-    '<p style="font-size:10pt;font-weight:bold;margin:16pt 0 6pt">Important Notes:</p>' +
-    tcHtml +
-    '<p style="font-size:10pt;font-weight:bold;margin:16pt 0 8pt">Authorization:</p>' +
-    '<table class="sign-table"><tr>' +
-    '<td>' +
-    '<p style="font-size:9pt;font-weight:bold;text-transform:uppercase;color:#1B2B4B;margin:0 0 8pt">For: ' + custName + '</p>' +
-    '<div class="sign-line"></div>' +
-    '<p style="margin:4pt 0 0;font-weight:bold">' + sigName + '</p>' +
-    '<p style="margin:2pt 0;color:#555;font-size:9pt">' + sigDesig + '</p>' +
-    '<p style="margin:2pt 0;color:#888;font-size:8.5pt">' + sigEmail + '</p>' +
-    '<p style="margin:12pt 0 0;color:#999;font-size:8.5pt">Date: _______________</p>' +
-    '</td>' +
-    '<td>' +
-    '<p style="font-size:9pt;font-weight:bold;text-transform:uppercase;color:#1B2B4B;margin:0 0 8pt">' + entitySignatoryLabel + '</p>' +
-    '<div class="sign-line"></div>' +
-    '<p style="margin:4pt 0 0;font-weight:bold">' + entitySignatoryName + '</p>' +
-    '<p style="margin:2pt 0;color:#555;font-size:9pt">' + entitySignatoryDesig + '</p>' +
-    '<p style="margin:12pt 0 0;color:#999;font-size:8.5pt">Date: _______________</p>' +
-    '</td>' +
-    '</tr></table>' +
-    '<p style="margin-top:20pt;font-size:8pt;color:#aaa;text-align:center;border-top:1pt solid #eee;padding-top:6pt">' +
-    'OF#: ' + ofNum + ' &middot; Generated: ' + new Date().toLocaleString('en-IN') + ' &middot; ' + footerEntity +
-    '</p>' +
-    '</body></html>';
+  // ── Authorization ──────────────────────────────────────────────────────────
+  children.push(new Paragraph({ spacing: { before: 200, after: 80 }, children: [bold('Authorization:', 22)] }));
+
+  children.push(new Table({
+    width: { size: CW, type: WidthType.DXA },
+    columnWidths: [SIGN_W, CW - SIGN_W],
+    rows: [new TableRow({ children: [
+      new TableCell({
+        borders,
+        width: { size: SIGN_W, type: WidthType.DXA },
+        margins: cellPad,
+        children: [
+          new Paragraph({ children: [bold('For: ' + custName, 18)] }),
+          new Paragraph({ spacing: { before: 200, after: 80 }, children: [run('\u00a0', { underline: {} })] }),
+          new Paragraph({ children: [bold(sigName, 18)] }),
+          new Paragraph({ children: [grey(sigDesig, 18)] }),
+          ...(sigEmail ? [new Paragraph({ children: [grey(sigEmail, 16)] })] : []),
+          new Paragraph({ spacing: { before: 120 }, children: [grey('Date: _______________', 18)] }),
+        ],
+      }),
+      new TableCell({
+        borders,
+        width: { size: CW - SIGN_W, type: WidthType.DXA },
+        margins: cellPad,
+        children: [
+          new Paragraph({ children: [bold(entitySignatoryLabel, 18)] }),
+          new Paragraph({ spacing: { before: 200, after: 80 }, children: [run('\u00a0', { underline: {} })] }),
+          new Paragraph({ children: [bold(entitySignatoryName, 18)] }),
+          new Paragraph({ children: [grey(entitySignatoryDesig, 18)] }),
+          new Paragraph({ spacing: { before: 120 }, children: [grey('Date: _______________', 18)] }),
+        ],
+      }),
+    ]}),
+  ]}));
+
+  // ── Footer ─────────────────────────────────────────────────────────────────
+  children.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 160 },
+    border: { top: { style: BorderStyle.SINGLE, size: 2, color: 'EEEEEE' } },
+    children: [grey('OF#: ' + ofNum + '  \u00b7  Generated: ' + new Date().toLocaleString('en-IN') + '  \u00b7  ' + footerEntity, 16)],
+  }));
+
+  return new Document({
+    styles: { default: { document: { run: { font: 'Arial', size: 20 } } } },
+    sections: [{
+      properties: {
+        page: {
+          size: { width: 11906, height: 16838 },
+          margin: { top: 720, right: 720, bottom: 720, left: 720 },
+        },
+      },
+      children,
+    }],
+  });
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
 export async function downloadDOCX(form) {
-  var ofNum = form.of_number || 'DRAFT';
+  const ofNum = form.of_number || 'DRAFT';
   try {
-    var htmlDocx = await loadHtmlDocx();
-    var htmlContent = buildDocHtml(form);
-    var blob = htmlDocx.asBlob(htmlContent, {
-      orientation: 'portrait',
-      margins: { top: 720, right: 720, bottom: 720, left: 720 },
-    });
-    var url = URL.createObjectURL(blob);
-    var a   = document.createElement('a');
+    const doc    = buildDoc(form);
+    const buffer = await Packer.toBlob(doc);
+    const url    = URL.createObjectURL(buffer);
+    const a      = document.createElement('a');
     a.href     = url;
     a.download = 'OF_' + ofNum + '.docx';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
   } catch (err) {
     console.error('[downloadDOCX] Failed:', err);
     throw err;
