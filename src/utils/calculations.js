@@ -1,5 +1,8 @@
 import { cyclesInTerm } from './formatting.js';
 
+// Fee types that are always variable — never multiplied by billing cycles
+const VARIABLE_FEE_TYPES = new Set(['Transaction Fee', 'Usage Fee']);
+
 export const calcMetrics = (services = [], termMonths) => {
   const lines = []; let total = 0;
   services.forEach(svc => {
@@ -10,9 +13,11 @@ export const calcMetrics = (services = [], termMonths) => {
       if (fee.pricingModel === 'graduated') {
         lines.push(`${fee.feeType} (${svc.name}) = Variable`); return;
       }
-      // Transaction Fee — always variable, never multiplied by cycles
-      if (fee.feeType === 'Transaction Fee') {
-        lines.push(`${fee.feeType} (${svc.name}) = ${fee.commercialValue || 0}${fee.transactionFeeIsPercent ? '%' : ''} (variable)`);
+      if (VARIABLE_FEE_TYPES.has(fee.feeType)) {
+        const display = fee.transactionFeeIsPercent
+          ? `${fee.commercialValue || 0}%`
+          : (fee.commercialValue || 0);
+        lines.push(`${fee.feeType} (${svc.name}) = ${display} (variable)`);
         return;
       }
       if (fee.stepUpPricing && fee.stepUpValues?.length) {
@@ -42,8 +47,7 @@ export const calcMetrics = (services = [], termMonths) => {
 export const calcOFValue = (services = [], termMonths) =>
   services.reduce((sum, svc) => sum + (svc.fees || []).reduce((s2, fee) => {
     if (fee.isLogistics || fee.pricingModel === 'graduated') return s2;
-    // Transaction Fee — always variable, exclude from OF value
-    if (fee.feeType === 'Transaction Fee') return s2;
+    if (VARIABLE_FEE_TYPES.has(fee.feeType)) return s2;
     const val = parseFloat(fee.commercialValue) || 0; if (!val) return s2;
     if (fee.billingCycle === 'One Time') return s2 + val;
     if (fee.stepUpPricing && fee.stepUpValues?.length)
