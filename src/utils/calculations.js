@@ -13,7 +13,7 @@ export const calcMetrics = (services = [], termMonths) => {
       if (fee.pricingModel === 'graduated') {
         lines.push(`${fee.feeType} (${svc.name}) = Variable`); return;
       }
-      if (VARIABLE_FEE_TYPES.has(fee.feeType)) {
+      if (VARIABLE_FEE_TYPES.has(fee.feeType) || (fee.feeType === 'Resource Fee' && fee.resourceFeeIsVariable)) {
         const display = fee.transactionFeeIsPercent
           ? `${fee.commercialValue || 0}%`
           : (fee.commercialValue || 0);
@@ -47,7 +47,7 @@ export const calcMetrics = (services = [], termMonths) => {
 export const calcOFValue = (services = [], termMonths) =>
   services.reduce((sum, svc) => sum + (svc.fees || []).reduce((s2, fee) => {
     if (fee.isLogistics || fee.pricingModel === 'graduated') return s2;
-    if (VARIABLE_FEE_TYPES.has(fee.feeType)) return s2;
+    if (VARIABLE_FEE_TYPES.has(fee.feeType) || (fee.feeType === 'Resource Fee' && fee.resourceFeeIsVariable)) return s2;
     const val = parseFloat(fee.commercialValue) || 0; if (!val) return s2;
     if (fee.billingCycle === 'One Time') return s2 + val;
     if (fee.stepUpPricing && fee.stepUpValues?.length)
