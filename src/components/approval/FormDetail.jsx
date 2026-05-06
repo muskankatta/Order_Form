@@ -318,6 +318,10 @@ export default function FormDetail({ form: initial }) {
 
   const live = edit ? ef : form;
   const set  = (k,v) => setEf(prev => ({...prev,[k]:v}));
+  const isYaviForm = form.entity === 'yavi'
+    || (form.of_number||'').startsWith('OFYT')
+    || (form.of_number||'').startsWith('OF-YT-');
+  const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
 
   const revopsPrimaryEmail  = (form.revops_approvers||[])[0];
   const financePrimaryEmail = (form.finance_approvers||[])[0];
@@ -633,10 +637,9 @@ export default function FormDetail({ form: initial }) {
                 <div>
                   <Lbl c="OF Number" req/>
                   <div className="flex items-center border-2 rounded-lg overflow-hidden font-mono font-bold text-base" style={{ borderColor:T }}>
-                    <span className="px-3 py-2 text-slate-400 bg-slate-50 border-r border-slate-200 select-none whitespace-nowrap">OF-FY-</span>
-                    <input value={ofNum.replace(/^OF-FY-/,'')}
-                      onChange={e=>{ const val=e.target.value.replace(/[^0-9]/g,''); setOfNum(val?'OF-FY-'+val:''); }}
-                      placeholder="0001" maxLength={6}
+                    <span className="px-3 py-2 text-slate-400 bg-slate-50 border-r border-slate-200 select-none whitespace-nowrap">{ofPrefix}</span>
+                      <input value={ofNum.replace(new RegExp('^' + ofPrefix), '')}
+                        onChange={e=>{ const val=e.target.value.replace(/[^0-9]/g,''); setOfNum(val ? ofPrefix + val : ''); }}                      placeholder="0001" maxLength={6}
                       className="flex-1 px-3 py-2 focus:outline-none font-mono font-bold"
                       style={{ color:NAVY }}/>
                   </div>
