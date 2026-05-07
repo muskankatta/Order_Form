@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Inp, Sel, TA, SHdr, FileUpload } from '../../ui/index.jsx';
 import { SEGMENTS, SALES_TEAMS, LEAD_TYPES, LEAD_CATS, SALE_TYPES,
          COUNTRIES, SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES } from '../../../constants/formOptions.js';
@@ -11,14 +11,12 @@ const ENTITIES = [
   { value: 'fynd', label: 'Shopsense Retail Technologies Limited (Fynd)' },
   { value: 'yavi', label: 'Yavi Technologies FZCO' },
 ];
- 
-// Categories that require a name field, and their label
+
 const LEAD_NAME_LABEL = {
   'Inside Sales/Pre-Sales': 'Rep / Contact name',
   'Event':                  'Event name',
 };
 
-// Validate tax number: alphanumeric only, 3–30 chars
 function isValidTaxNumber(val) {
   return /^[A-Z0-9\-]{3,30}$/.test(val);
 }
@@ -31,18 +29,38 @@ export default function StepClient({ form, set, ro }) {
   const needsRef = SOW_REFERENCE_TYPES.has(form.sale_type);
   const cats = LEAD_CATS[form.lead_type] || [];
 
+  // ── Custom country ────────────────────────────────────────────────────────
+  const countriesList = Array.isArray(COUNTRIES)
+    ? COUNTRIES.map(c => typeof c === 'string' ? c : c.value)
+    : [];
+  const isStoredCustomCountry = !!(form.country && !countriesList.includes(form.country));
+  const [customCountry, setCustomCountry] = useState(isStoredCustomCountry);
+
+  // ── Custom sales rep ──────────────────────────────────────────────────────
+  const [customRep, setCustomRep] = useState(form.is_custom_rep === true);
+
   const teamReps = form.sales_team ? SALES_REPS.filter(r => r.team === form.sales_team) : SALES_REPS;
   const sortedReps = [...teamReps].sort((a,b) => a.name.localeCompare(b.name));
   const isGlobal = form.sales_team === 'Global';
 
-  const isYavi = form.entity === 'yavi';
-  const isIndia = !isYavi && (!form.country || form.country === 'India');
+  const isYavi  = form.entity === 'yavi';
+  const isIndia = !isYavi && form.country === 'India';
 
   const leadNameLabel = LEAD_NAME_LABEL[form.lead_category] || null;
 
   const handleRepSelect = email => {
+    if (email === '__custom__') {
+      setCustomRep(true);
+      u('is_custom_rep', true);
+      u('sales_rep_name', '');
+      u('sales_rep_email', '');
+      u('slack_id', '');
+      return;
+    }
     const rep = SALES_REPS.find(r => r.email === email);
     if (!rep) return;
+    setCustomRep(false);
+    u('is_custom_rep', false);
     u('sales_rep_name', rep.name);
     u('sales_rep_email', rep.email);
     u('slack_id', rep.slack);
@@ -53,7 +71,7 @@ export default function StepClient({ form, set, ro }) {
   const handleTeamChange = v => {
     u('sales_team', v);
     if (v !== 'Global') u('region', '');
-    if (form.sales_rep_email) {
+    if (!customRep && form.sales_rep_email) {
       const rep = SALES_REPS.find(r => r.email === form.sales_rep_email);
       if (rep && rep.team !== v) {
         u('sales_rep_name', ''); u('sales_rep_email', ''); u('slack_id', ''); u('region', '');
@@ -75,10 +93,14 @@ export default function StepClient({ form, set, ro }) {
   };
 
   const handleCountryChange = v => {
-    u('country', v);
-    if (v === 'India') {
-      u('tax_number', '');
+    if (v === '__others__') {
+      setCustomCountry(true);
+      u('country', '');
+      return;
     }
+    setCustomCountry(false);
+    u('country', v);
+    if (v === 'India') u('tax_number', '');
   };
 
   useEffect(() => {
@@ -106,15 +128,8 @@ export default function StepClient({ form, set, ro }) {
         Select the entity issuing this Order Form. This controls the letterhead, T&amp;C, and signatory on the generated document.
       </div>
       <div className="grid grid-cols-2 gap-x-6 mb-2">
-        <Sel
-          label="Issuing Entity"
-          req
-          value={form.entity || ''}
-          onChange={handleEntityChange}
-          options={ENTITIES}
-          disabled={ro}
-          hint={form.entity === 'yavi' ? 'Yavi Technologies FZCO · Dubai CommerCity' : form.entity === 'fynd' ? 'Shopsense Retail Technologies Ltd. · Mumbai' : ''}
-        />
+        <Sel label="Issuing Entity" req value={form.entity || ''} onChange={handleEntityChange} options={ENTITIES} disabled={ro}
+          hint={form.entity === 'yavi' ? 'Yavi Technologies FZCO · Dubai CommerCity' : form.entity === 'fynd' ? 'Shopsense Retail Technologies Ltd. · Mumbai' : ''}/>
         <div className="flex items-end pb-4">
           {form.entity === 'yavi' && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200">
@@ -139,31 +154,47 @@ export default function StepClient({ form, set, ro }) {
           <TA label="Customer billing address" req value={form.billing_address} onChange={v=>u('billing_address',v)} disabled={ro} rows={2}/>
         </div>
 
-        <Sel
-          label="Country"
-          req={!isYavi}
-          value={form.country}
-          onChange={handleCountryChange}
-          options={COUNTRIES}
-          disabled={ro}
-          hint={isYavi ? 'Client country (for records)' : ''}
-        />
+        {/* ── Country ── */}
+        <div className="mb-4">
+          <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
+            Country
+            {!isYavi && <span className="text-red-400 ml-1">*</span>}
+            {isYavi  && <span className="text-slate-400 ml-1">(for records)</span>}
+          </label>
+          {ro
+            ? <input value={form.country||''} readOnly className="field-input" style={{background:'#f8fafc',color:'#64748b'}}/>
+            : <>
+                <select
+                  value={customCountry ? '__others__' : (form.country||'')}
+                  onChange={e => handleCountryChange(e.target.value)}
+                  className="field-input cursor-pointer">
+                  <option value="">Select…</option>
+                  {(Array.isArray(COUNTRIES) ? COUNTRIES : []).map(c => {
+                    const val = typeof c === 'string' ? c : c.value;
+                    const lbl = typeof c === 'string' ? c : c.label;
+                    return <option key={val} value={val}>{lbl}</option>;
+                  })}
+                  <option value="__others__">Others…</option>
+                </select>
+                {customCountry && (
+                  <input value={form.country||''} onChange={e => u('country', e.target.value)}
+                    placeholder="Enter country name…" className="field-input mt-1.5"
+                    style={{ borderColor:'#00C3B5' }}/>
+                )}
+              </>
+          }
+        </div>
 
         {!isYavi && (
           <div className="mb-4">
             <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
               Customer GSTIN <span className="text-slate-400">(optional)</span>
             </label>
-            <input
-              value={form.gstin||''}
+            <input value={form.gstin||''}
               onChange={e => { const val=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,15); u('gstin',val); }}
-              placeholder="27AADCB2230M1ZT"
-              className="field-input font-mono"
-              style={{ borderColor: form.gstin
-                ? (/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) ? '#4ade80' : '#fca5a5')
-                : '#e2e8f0' }}
-              maxLength={15} disabled={ro}
-            />
+              placeholder="27AADCB2230M1ZT" className="field-input font-mono"
+              style={{ borderColor: form.gstin ? (/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) ? '#4ade80' : '#fca5a5') : '#e2e8f0' }}
+              maxLength={15} disabled={ro}/>
             {form.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) && (
               <p className="text-xs mt-1 text-red-500">Format: 2 digits + 5 letters + 4 digits + 1 letter + 1 digit + Z + 1 alphanumeric</p>
             )}
@@ -177,21 +208,13 @@ export default function StepClient({ form, set, ro }) {
           <div className="mb-4">
             <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
               Customer PAN
-              {isIndia
-                ? <span className="text-red-400 ml-1">*</span>
-                : <span className="text-slate-400 ml-1">(optional)</span>
-              }
+              {isIndia ? <span className="text-red-400 ml-1">*</span> : <span className="text-slate-400 ml-1">(optional)</span>}
             </label>
-            <input
-              value={form.pan||''}
+            <input value={form.pan||''}
               onChange={e => { const val=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,10); u('pan',val); }}
-              placeholder="AADCB2230M"
-              className="field-input font-mono"
-              style={{ borderColor: form.pan
-                ? (/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) ? '#4ade80' : '#fca5a5')
-                : '#e2e8f0' }}
-              maxLength={10} disabled={ro}
-            />
+              placeholder="AADCB2230M" className="field-input font-mono"
+              style={{ borderColor: form.pan ? (/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) ? '#4ade80' : '#fca5a5') : '#e2e8f0' }}
+              maxLength={10} disabled={ro}/>
             {form.pan && !/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) && (
               <p className="text-xs mt-1 text-red-500">Format: 5 letters + 4 digits + 1 letter</p>
             )}
@@ -206,33 +229,20 @@ export default function StepClient({ form, set, ro }) {
             <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
               {isYavi ? 'Tax / VAT / TRN Number' : 'Tax / VAT Number'} <span className="text-red-400">*</span>
             </label>
-            <input
-              value={form.tax_number||''}
-              onChange={e => {
-                const val = e.target.value.toUpperCase().replace(/[^A-Z0-9\-]/g,'').slice(0,30);
-                u('tax_number', val);
-              }}
+            <input value={form.tax_number||''}
+              onChange={e => { const val = e.target.value.toUpperCase().replace(/[^A-Z0-9\-]/g,'').slice(0,30); u('tax_number', val); }}
               placeholder={isYavi ? 'e.g. 104789269800003' : 'e.g. AE100234567, GB123456789'}
               className="field-input font-mono"
-              style={{ borderColor: form.tax_number
-                ? (isValidTaxNumber(form.tax_number) ? '#4ade80' : '#fca5a5')
-                : '#e2e8f0' }}
-              maxLength={30} disabled={ro}
-            />
+              style={{ borderColor: form.tax_number ? (isValidTaxNumber(form.tax_number) ? '#4ade80' : '#fca5a5') : '#e2e8f0' }}
+              maxLength={30} disabled={ro}/>
             {form.tax_number && !isValidTaxNumber(form.tax_number) && (
               <p className="text-xs mt-1 text-red-500">Alphanumeric only (letters, digits, hyphens) · 3–30 characters</p>
             )}
             {form.tax_number && isValidTaxNumber(form.tax_number) && (
               <p className="text-xs mt-1 text-green-600">✓ Valid tax number format</p>
             )}
-            {isYavi && (
-              <p className="text-xs mt-1 text-brand-faint">VAT / TRN number for Yavi Technologies FZCO client</p>
-            )}
-            {!isYavi && (
-              <p className="text-xs mt-1 text-brand-faint">
-                Enter the applicable local tax identifier — VAT, TRN, GST, etc. · Country: {form.country}
-              </p>
-            )}
+            {isYavi  && <p className="text-xs mt-1 text-brand-faint">VAT / TRN number for Yavi Technologies FZCO client</p>}
+            {!isYavi && <p className="text-xs mt-1 text-brand-faint">Enter the applicable local tax identifier — VAT, TRN, GST, etc. · Country: {form.country}</p>}
           </div>
         )}
       </div>
@@ -242,21 +252,46 @@ export default function StepClient({ form, set, ro }) {
         <Sel label="Segment" req value={form.segment} onChange={v=>u('segment',v)} options={SEGMENTS} disabled={ro}/>
         <Sel label="Sales team" req value={form.sales_team} onChange={handleTeamChange} options={SALES_TEAMS} disabled={ro}
           hint="Selecting a team filters the rep dropdown below"/>
+
+        {/* ── Sales rep ── */}
         <div className="mb-4">
           <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
             Sales rep <span className="text-red-400">*</span>
           </label>
-          <select value={form.sales_rep_email||''} onChange={e=>handleRepSelect(e.target.value)}
-            disabled={ro || (!user?.isUniversal && user?.role === 'sales')} className="field-input cursor-pointer">
-            <option value="">Select rep…</option>
-            {sortedReps.map(r => <option key={r.email} value={r.email}>{r.name}</option>)}
-          </select>
-          {form.sales_team && (
-            <p className="text-xs mt-1 text-brand-faint">
-              Showing {sortedReps.length} rep{sortedReps.length!==1?'s':''} from {form.sales_team} team
-            </p>
+          {ro ? (
+            <input value={form.sales_rep_name||''} readOnly className="field-input" style={{background:'#f8fafc',color:'#64748b'}}/>
+          ) : (
+            <>
+              <select
+                value={customRep ? '__custom__' : (form.sales_rep_email||'')}
+                onChange={e => handleRepSelect(e.target.value)}
+                disabled={!user?.isUniversal && user?.role === 'sales'}
+                className="field-input cursor-pointer">
+                <option value="">Select rep…</option>
+                {sortedReps.map(r => <option key={r.email} value={r.email}>{r.name}</option>)}
+                <option value="__custom__">Others (not in list)…</option>
+              </select>
+              {!customRep && form.sales_team && (
+                <p className="text-xs mt-1 text-brand-faint">
+                  Showing {sortedReps.length} rep{sortedReps.length!==1?'s':''} from {form.sales_team} team
+                </p>
+              )}
+              {customRep && (
+                <div className="mt-2 p-3 rounded-xl border border-teal-200 bg-teal-50 space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-teal-700 mb-1">Custom Sales Rep</p>
+                  <input value={form.sales_rep_name||''} onChange={e=>u('sales_rep_name',e.target.value)}
+                    placeholder="Full name *" className="field-input text-xs" style={{borderColor:'#99f6e4'}}/>
+                  <input type="email" value={form.sales_rep_email||''} onChange={e=>u('sales_rep_email',e.target.value)}
+                    placeholder="Email address *" className="field-input text-xs font-mono" style={{borderColor:'#99f6e4'}}/>
+                  <input value={form.slack_id||''} onChange={e=>u('slack_id',e.target.value)}
+                    placeholder="Slack Member ID (e.g. U01ABCD23EF)" className="field-input text-xs font-mono" style={{borderColor:'#99f6e4'}}/>
+                  <p className="text-[10px] text-teal-600">Slack ID used for notifications. Find it in Slack → Profile → ⋯ → Copy member ID.</p>
+                </div>
+              )}
+            </>
           )}
         </div>
+
         <Inp label="Slack ID (auto)" value={form.slack_id} disabled mono/>
 
         {isGlobal && (
@@ -271,7 +306,7 @@ export default function StepClient({ form, set, ro }) {
             {form.region && (
               <p className="text-xs mt-1 text-brand-faint">
                 {form.region === 'MEA' ? 'Middle East & Africa' : 'South East Asia & Rest of World'}
-                {form.sales_rep_email && SALES_REPS.find(r=>r.email===form.sales_rep_email)?.region !== form.region && (
+                {form.sales_rep_email && !customRep && SALES_REPS.find(r=>r.email===form.sales_rep_email)?.region !== form.region && (
                   <span className="text-amber-600 ml-1">· Manually overridden</span>
                 )}
               </p>
@@ -297,31 +332,15 @@ export default function StepClient({ form, set, ro }) {
           </div>
         )}
 
-        {/* Name field — shown for categories that need it */}
         {form.lead_type === 'Direct' && leadNameLabel && (
-          <Inp
-            label={leadNameLabel}
-            req
-            value={form.lead_name||''}
-            onChange={v=>u('lead_name',v)}
-            disabled={ro}
-            placeholder={
-              form.lead_category === 'Event'
-                ? 'e.g. Shoptalk 2025'
-                : 'e.g. Priya Sharma'
-            }
-            hint={
-              form.lead_category === 'Event'
-                ? 'Name of the event where the lead was sourced'
-                : 'Name of the inside sales rep or pre-sales contact'
-            }
-          />
+          <Inp label={leadNameLabel} req value={form.lead_name||''} onChange={v=>u('lead_name',v)} disabled={ro}
+            placeholder={form.lead_category === 'Event' ? 'e.g. Shoptalk 2025' : 'e.g. Priya Sharma'}
+            hint={form.lead_category === 'Event' ? 'Name of the event where the lead was sourced' : 'Name of the inside sales rep or pre-sales contact'}/>
         )}
 
         {form.lead_type === 'Indirect' && (
           <Inp label="Partner name" req value={form.lead_name} onChange={v=>u('lead_name',v)}
-            disabled={ro} placeholder="e.g. Prince Consulting"
-            hint="Name of the partner who referred this deal"/>
+            disabled={ro} placeholder="e.g. Prince Consulting" hint="Name of the partner who referred this deal"/>
         )}
       </div>
 
