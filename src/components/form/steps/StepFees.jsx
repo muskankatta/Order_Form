@@ -1,692 +1,359 @@
 import { useEffect, useState } from 'react';
-import { Lbl, SHdr } from '../../ui/index.jsx';
-import { SERVICES, FEE_TYPES, FEE_RULES, UNIT_METRICS, PAY_TRIGGERS,
-         GRADUATED_ELIGIBLE, STEP_UP_ELIGIBLE, SLAB_RATE_UNITS } from '../../../constants/formOptions.js';
-import { uid } from '../../../utils/dates.js';
-import { cyclesInTerm, getSym } from '../../../utils/formatting.js';
-import { calcMetrics, calcOFValue } from '../../../utils/calculations.js';
-import { newFee } from '../../../hooks/useFormWizard.js';
+import { Inp, Sel, TA, SHdr, FileUpload } from '../../ui/index.jsx';
+import { SEGMENTS, SALES_TEAMS, LEAD_TYPES, LEAD_CATS, SALE_TYPES,
+         COUNTRIES, SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES } from '../../../constants/formOptions.js';
+import { SALES_REPS } from '../../../constants/users.js';
+import { useAuth } from '../../../context/AuthContext.jsx';
 
-const T = '#00C3B5'; const NAVY = '#1B2B4B';
+const REGIONS = ['MEA', 'SEA & RoW'];
 
-const SUB_SERVICES = {
-  'Konnect': ['3P Storefront','3P Marketplace'],
-  'StoreOS': ['Clienteling','POS','In Store Apps','Scan & Go'],
-  'GlamAR':  ['3D Model Creation','3D Configurator','3D Virtual Photography','360 Degree Product Viewer','Virtual Try-On (VTO)','AR Ads','AI Skin Analysis'],
+const ENTITIES = [
+  { value: 'fynd', label: 'Shopsense Retail Technologies Limited (Fynd)' },
+  { value: 'yavi', label: 'Yavi Technologies FZCO' },
+];
+
+const LEAD_NAME_LABEL = {
+  'Inside Sales/Pre-Sales': 'Rep / Contact name',
+  'Event':                  'Event name',
 };
 
-// ── Inclusions helpers ────────────────────────────────────────────────────────
-// Normalize: each item is { text, metric }. Handles legacy strings.
-function toIncArray(val) {
-  if (!val) return [];
-  if (Array.isArray(val)) return val.map(item =>
-    typeof item === 'string' ? { text: item, metric: '' } : item
-  );
-  return val.split(',').map(s => ({ text: s.trim(), metric: '' })).filter(i => i.text);
+function isValidTaxNumber(val) {
+  return /^[A-Z0-9\-]{3,30}$/.test(val);
 }
 
-function incLabel(item) {
-  if (!item) return '';
-  if (typeof item === 'string') return item;
-  return item.metric ? item.text + ' ' + item.metric : item.text;
-}
+export default function StepClient({ form, set, ro }) {
+  const { user } = useAuth();
+  const u = (k,v) => !ro && set(k,v);
 
-function InclusionsField({ value, onChange }) {
-  const items = toIncArray(value);
-  const [draftText,   setDraftText]   = useState('');
-  const [draftMetric, setDraftMetric] = useState('');
+  const needsSoW = SOW_REQUIRED_TYPES.has(form.sale_type);
+  const needsRef = SOW_REFERENCE_TYPES.has(form.sale_type);
+  const cats = LEAD_CATS[form.lead_type] || [];
 
-  const add = () => {
-    const t = draftText.trim();
-    if (!t) return;
-    const next = [...items, { text: t, metric: draftMetric.trim() }];
-    onChange(next);
-    setDraftText('');
-    setDraftMetric('');
-  };
+  // ── Custom country ────────────────────────────────────────────────────────
+  const countriesList = Array.isArray(COUNTRIES)
+    ? COUNTRIES.map(c => typeof c === 'string' ? c : c.value)
+    : [];
+  const isStoredCustomCountry = !!(form.country && !countriesList.includes(form.country));
+  const [customCountry, setCustomCountry] = useState(isStoredCustomCountry);
 
-  const remove = (i) => onChange(items.filter((_,j) => j !== i));
+  // ── Custom sales rep ──────────────────────────────────────────────────────
+  const [customRep, setCustomRep] = useState(form.is_custom_rep === true);
 
-  return (
-    <div>
-      <div className="text-[10px] font-bold uppercase tracking-wider mb-2 text-brand-faint">Inclusions</div>
+  const teamReps = form.sales_team ? SALES_REPS.filter(r => r.team === form.sales_team) : SALES_REPS;
+  const sortedReps = [...teamReps].sort((a,b) => a.name.localeCompare(b.name));
+  const isGlobal = form.sales_team === 'Global';
 
-      {/* Existing inclusions */}
-      {items.length > 0 && (
-        <div className="flex flex-col gap-1 mb-3">
-          {items.map((item, i) => (
-            <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium"
-              style={{background:'#e0f7f5', color:'#00897b', border:'1px solid #99f6e4'}}>
-              <span className="font-bold">{item.text}</span>
-              {item.metric && <span className="font-normal opacity-75">{item.metric}</span>}
-              <button type="button" onClick={() => remove(i)}
-                className="ml-auto text-[11px] font-bold leading-none hover:text-red-500 transition-colors">✕</button>
-            </div>
-          ))}
-        </div>
-      )}
+  const isYavi  = form.entity === 'yavi';
+  const isIndia = !isYavi && form.country === 'India';
 
-      {/* Add new row — always visible */}
-      <div className="rounded-lg border p-2 bg-white" style={{borderColor:'#e2e8f0'}}>
-        <div className="flex gap-2 mb-1.5">
-          <input
-            value={draftText}
-            onChange={e => setDraftText(e.target.value)}
-            onKeyDown={e => { if (e.key==='Enter') { e.preventDefault(); add(); } }}
-            placeholder="Value (e.g. 3,333)"
-            className="flex-1 text-xs px-2 py-1.5 rounded-md border focus:outline-none bg-white"
-            style={{borderColor:'#e2e8f0'}}
-          />
-          <button type="button" onClick={add}
-            className="text-xs px-3 py-1.5 rounded-md font-semibold whitespace-nowrap transition-all"
-            style={{background: T, color:'#fff', border:'none'}}>
-            + Add
-          </button>
-        </div>
-        <select
-          value={draftMetric}
-          onChange={e => setDraftMetric(e.target.value)}
-          className="w-full text-xs px-2 py-1.5 rounded-md border focus:outline-none bg-white"
-          style={{borderColor:'#e2e8f0'}}
-        >
-          <option value="">— Select metric —</option>
-          {UNIT_METRICS.filter(Boolean).map(o => <option key={o} value={o}>{o}</option>)}
-        </select>
-      </div>
-      <p className="text-[10px] mt-1 text-brand-faint">Fill value + metric, press Enter or click + Add</p>
-    </div>
-  );
-}
+  const leadNameLabel = LEAD_NAME_LABEL[form.lead_category] || null;
 
-// ── GaaS SKU block ────────────────────────────────────────────────────────────
-function GaasSKUBlock({ svc, onChange, ro, currency }) {
-  const lines = svc.gaas_lines || [];
-  const sym   = getSym(currency || 'INR');
-
-  const recalc = (updated) => {
-    const total = updated.reduce((s,l) => s + (Number(l.amount)||0), 0);
-    onChange({ ...svc, gaas_lines: updated, gaas_total: total });
-  };
-
-  const addLine = () => recalc([...lines, {
-    id:uid(), skuDetails:'', styleId:'', color:'', size:'', quantity:0, rate:0, amount:0,
-  }]);
-
-  const updateLine = (i, field, val) => {
-    recalc(lines.map((l, li) => {
-      if (li !== i) return l;
-      const upd = { ...l, [field]: val };
-      if (field === 'quantity' || field === 'rate') {
-        upd.amount = parseFloat(upd.quantity||0) * parseFloat(upd.rate||0);
-      }
-      return upd;
-    }));
-  };
-
-  const removeLine = i => recalc(lines.filter((_,li) => li !== i));
-
-  const total    = lines.reduce((s,l) => s + (Number(l.amount)||0), 0);
-  const totalQty = lines.reduce((s,l) => s + (Number(l.quantity)||0), 0);
-
-  const downloadTemplate = () => {
-    const csv = 'SKU Details,Style id,Color,Size,Quantity,Rate,Amount\n';
-    const blob = new Blob([csv], {type:'text/csv'});
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a'); a.href=url; a.download='gaas_sku_template.csv'; a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const uploadCSV = e => {
-    const file = e.target.files?.[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const rows = ev.target.result.trim().split('\n').slice(1);
-      const parsed = rows.map(row => {
-        const cols = row.split(',');
-        const qty  = parseFloat(cols[4]||0), rate = parseFloat(cols[5]||0);
-        return { id:uid(), skuDetails:cols[0]?.trim()||'', styleId:cols[1]?.trim()||'',
-                 color:cols[2]?.trim()||'', size:cols[3]?.trim()||'', quantity:qty, rate:rate, amount:qty*rate };
-      }).filter(l => l.skuDetails || l.styleId);
-      recalc(parsed);
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
-  const inp = 'w-full text-xs px-1.5 py-1 bg-transparent focus:outline-none focus:bg-white rounded';
-  const thCls = 'text-left px-3 py-2 font-bold text-[10px] uppercase tracking-wider border border-slate-200 bg-slate-100';
-  const tdCls = 'border border-slate-100 px-2 py-1.5';
-
-  return (
-    <div>
-      {!ro && (
-        <div className="flex gap-2 mb-3 flex-wrap items-center">
-          <button type="button" onClick={downloadTemplate}
-            className="text-xs px-3 py-1.5 rounded-lg border font-medium transition-all hover:bg-slate-50"
-            style={{borderColor:'#e2e8f0',color:'#475569'}}>
-            ⬇ Download GaaS Template (CSV)
-          </button>
-          <label className="text-xs px-3 py-1.5 rounded-lg border font-medium cursor-pointer transition-all hover:bg-slate-50"
-            style={{borderColor:'#e2e8f0',color:'#475569'}}>
-            📤 Upload & Preview CSV
-            <input type="file" accept=".csv" className="hidden" onChange={uploadCSV}/>
-          </label>
-          <button type="button" onClick={addLine}
-            className="text-xs px-3 py-1.5 rounded-lg border font-semibold transition-all"
-            style={{borderColor:T,color:T}}>
-            + Add SKU Row
-          </button>
-          {lines.length > 0 && (
-            <button type="button" onClick={()=>recalc([])}
-              className="text-xs px-3 py-1.5 rounded-lg border font-medium text-red-500 border-red-200 hover:bg-red-50">
-              Clear All
-            </button>
-          )}
-        </div>
-      )}
-
-      <div className="overflow-x-auto rounded-xl border border-slate-200">
-        <table className="w-full text-xs" style={{minWidth:'700px',borderCollapse:'collapse'}}>
-          <thead>
-            <tr>
-              <th className={thCls} style={{minWidth:'140px'}}>SKU Details</th>
-              <th className={thCls}>Style ID</th>
-              <th className={thCls}>Color</th>
-              <th className={thCls}>Size</th>
-              <th className={thCls + ' text-right'}>Quantity</th>
-              <th className={thCls + ' text-right'}>Rate ({sym})</th>
-              <th className={thCls + ' text-right'}>Amount ({sym})</th>
-              {!ro && <th className={thCls}></th>}
-            </tr>
-          </thead>
-          <tbody>
-            {lines.length === 0 && (
-              <tr>
-                <td colSpan={ro?7:8} className="text-center py-8 text-slate-300 border border-slate-100">
-                  No SKU rows yet — add manually or upload a CSV.
-                </td>
-              </tr>
-            )}
-            {lines.map((l, i) => (
-              <tr key={l.id} style={{background:i%2===0?'#fff':'#f8fafc'}}>
-                {[['skuDetails',l.skuDetails,'SKU name'],['styleId',l.styleId,'Style ID'],['color',l.color,'Color'],['size',l.size,'Size']].map(([field,val,ph])=>(
-                  <td key={field} className={tdCls}>
-                    {ro ? <span>{val||'—'}</span> :
-                      <input value={val} onChange={e=>updateLine(i,field,e.target.value)}
-                        placeholder={ph} className={inp}/>}
-                  </td>
-                ))}
-                {[['quantity',l.quantity],['rate',l.rate]].map(([field,val])=>(
-                  <td key={field} className={tdCls + ' text-right'}>
-                    {ro ? val :
-                      <input type="number" value={val} min="0" onChange={e=>updateLine(i,field,e.target.value)}
-                        className={inp + ' text-right font-mono'}/>}
-                  </td>
-                ))}
-                <td className={tdCls + ' text-right font-mono font-semibold'} style={{color:NAVY}}>
-                  {Number(l.amount||0).toLocaleString('en-IN')}
-                </td>
-                {!ro && (
-                  <td className={tdCls + ' text-center'}>
-                    <button type="button" onClick={()=>removeLine(i)} className="text-red-400 hover:text-red-600 text-xs">✕</button>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-          {lines.length > 0 && (
-            <tfoot>
-              <tr style={{background:'#f0f4f8'}}>
-                <td colSpan={4} className="border border-slate-200 px-3 py-2 font-bold text-right text-[11px]" style={{color:NAVY}}>Total</td>
-                <td className="border border-slate-200 px-2 py-2 text-right font-mono font-bold" style={{color:NAVY}}>{totalQty}</td>
-                <td className="border border-slate-200 px-2 py-2"></td>
-                <td className="border border-slate-200 px-2 py-2 text-right font-mono font-bold text-[12px]" style={{color:T}}>
-                  {sym}{total.toLocaleString('en-IN')}
-                </td>
-                {!ro && <td className="border border-slate-200"></td>}
-              </tr>
-            </tfoot>
-          )}
-        </table>
-      </div>
-
-      {lines.length > 0 && (
-        <div className="mt-2 text-xs text-brand-faint text-right">
-          Order Form Value: <strong style={{color:NAVY}}>{sym}{total.toLocaleString('en-IN')}</strong>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Fee row ───────────────────────────────────────────────────────────────────
-function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
-  const u   = (k,v) => onChange({ ...fee, [k]:v });
-  const sym = getSym(currency || 'INR');
-  const rules    = FEE_RULES[fee.feeType] || {};
-  const cycleOpts= rules.locked ? [] : (rules.opts || ['Monthly','Quarterly','Bi-Annually','Annually','One Time']);
-  const isOT     = fee.billingCycle === 'One Time';
-  const canGrad  = GRADUATED_ELIGIBLE.includes(fee.feeType);
-  const canStep  = STEP_UP_ELIGIBLE.includes(fee.feeType) && !isOT;
-  const cycles   = termMonths && fee.billingCycle && !isOT ? cyclesInTerm(fee.billingCycle, termMonths) : null;
-  const slabRateOpts = [...SLAB_RATE_UNITS.map(u => u.startsWith('%') ? u : `${sym} ${u}`), 'Others'];
-  const s6  = { borderColor:'#e2e8f0' };
-  const inp = 'w-full text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white';
-
-  const handleFeeType = ft => {
-    const r = FEE_RULES[ft] || {};
-    onChange({ ...fee, feeType:ft, billingCycle:r.locked||(r.opts?.[0])||'', billingCycleLocked:!!r.locked, isLogistics:ft==='Logistics Fee', pricingModel:'flat' });
-  };
-
-  const updSlab = (si, field, val) => {
-    const slabs = fee.slabs.map((s,i) => {
-      if (i !== si) return s;
-      const upd = { ...s, [field]:val };
-      if (field === 'rateType' && val !== 'Others') upd.rateTypeCustom = '';
-      return upd;
-    });
-    if (field === 'to' && fee.slabs[si+1]) slabs[si+1] = { ...slabs[si+1], from: String(parseInt(val||0)+1) };
-    u('slabs', slabs);
-  };
-
-  return (
-    <div className="border rounded-xl p-4 mb-3 bg-slate-50" style={{ borderColor:'#e2e8f0' }}>
-      <div className="flex justify-between mb-3">
-        <span className="text-xs font-bold uppercase tracking-wider text-brand-faint">Fee row {idx+1}</span>
-        <button type="button" onClick={onRemove} className="text-xs font-medium text-red-500">✕ Remove</button>
-      </div>
-      <div className="grid grid-cols-3 gap-3 mb-3">
-        <div>
-          <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">Fee type *</div>
-          <select value={fee.feeType} onChange={e=>handleFeeType(e.target.value)} className={inp} style={s6}>
-            <option value="">Select…</option>
-            {FEE_TYPES.map(f=><option key={f}>{f}</option>)}
-          </select>
-        </div>
-        <div>
-          <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">
-            Billing cycle{fee.billingCycleLocked&&<span className="text-green-500 normal-case tracking-normal"> (auto)</span>}
-          </div>
-          {fee.billingCycleLocked
-            ? <input value={fee.billingCycle} readOnly className={inp} style={{...s6,background:'#f8fafc',color:'#64748b'}}/>
-            : <select value={fee.billingCycle} onChange={e=>u('billingCycle',e.target.value)} className={inp} style={s6}>
-                <option value="">Select…</option>
-                {cycleOpts.map(o=><option key={o}>{o}</option>)}
-              </select>}
-        </div>
-        {canGrad && (
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">Pricing model</div>
-            <div className="flex gap-1">
-              {['flat','graduated'].map(pm=>(
-                <button key={pm} type="button" onClick={()=>u('pricingModel',pm)}
-                  className="flex-1 text-xs py-1.5 rounded-lg font-semibold border transition-all"
-                  style={fee.pricingModel===pm?{background:NAVY,color:'#fff',borderColor:NAVY}:{background:'#f8fafc',color:'#64748b',borderColor:'#e2e8f0'}}>
-                  {pm==='flat'?'Flat':'Graduated'}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-      {fee.isLogistics && (
-        <div className="mb-3">
-          <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">Rate card URL</div>
-          <input value={fee.logisticsRateCard||''} onChange={e=>u('logisticsRateCard',e.target.value)} className={`${inp} w-full`} style={s6}/>
-        </div>
-      )}
-      {!fee.isLogistics && fee.pricingModel==='graduated' && (
-        <div className="mb-3 rounded-lg p-3 bg-slate-100 border border-slate-200">
-          <div className="text-[10px] font-bold uppercase tracking-wider mb-2 text-slate-600">Slab tiers</div>
-          <div className="grid gap-1 mb-1" style={{gridTemplateColumns:'1fr 1fr 1fr 1.4fr 20px'}}>
-            {['From','To','Rate','Rate type',''].map((h,i)=>(
-              <div key={i} className="text-[9px] font-bold uppercase tracking-wider text-brand-faint">{h}</div>
-            ))}
-          </div>
-          {(fee.slabs||[]).map((sl,si)=>(
-            <div key={sl.id}>
-              <div className="grid gap-1 mb-1 items-center" style={{gridTemplateColumns:'1fr 1fr 1fr 1.4fr 20px'}}>
-                <input value={sl.from} readOnly={si>0} onChange={e=>updSlab(si,'from',e.target.value)} className={`${inp} font-mono`} style={{...s6,background:si>0?'#f8fafc':'#fff'}}/>
-                <input value={sl.to} onChange={e=>updSlab(si,'to',e.target.value)} placeholder="∞" className={`${inp} font-mono`} style={s6}/>
-                <input value={sl.rate} onChange={e=>updSlab(si,'rate',e.target.value)} placeholder="0.00" className={`${inp} font-mono`} style={s6}/>
-                <select value={sl.rateType} onChange={e=>updSlab(si,'rateType',e.target.value)} className={inp} style={s6}>
-                  {slabRateOpts.map(o=><option key={o}>{o}</option>)}
-                </select>
-                <button type="button" onClick={()=>{if((fee.slabs||[]).length>1)u('slabs',(fee.slabs||[]).filter((_,i)=>i!==si));}} className="text-xs text-red-500">✕</button>
-              </div>
-              {sl.rateType==='Others' && (
-                <div className="flex items-center gap-2 mb-2 pl-1">
-                  <span className="text-[10px] font-medium text-slate-500 whitespace-nowrap">{sym} per</span>
-                  <input value={sl.rateTypeCustom||''} onChange={e=>updSlab(si,'rateTypeCustom',e.target.value)} placeholder="e.g. AI Video" className="flex-1 text-xs px-2 py-1 rounded-lg border" style={s6}/>
-                </div>
-              )}
-            </div>
-          ))}
-          <button type="button"
-            onClick={()=>u('slabs',[...(fee.slabs||[]),{id:uid(),from:String(parseInt((fee.slabs||[]).at(-1)?.to||'0')+1),to:'',rate:'',rateType:`${sym} per unit`,rateTypeCustom:''}])}
-            className="text-xs font-medium mt-1" style={{color:T}}>+ Add slab tier</button>
-        </div>
-      )}
-      {!fee.isLogistics && fee.pricingModel!=='graduated' && (
-        <div className="mb-3">
-          <div className="flex items-center justify-between mb-1">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint">Commercial value *</div>
-            {(fee.feeType === 'Transaction Fee' || fee.feeType === 'Resource Fee') && !isOT && (
-              <div className="flex gap-0.5 p-0.5 rounded-lg bg-slate-100">
-                {(fee.feeType === 'Transaction Fee'
-                  ? [['fixed','Fixed'],['percent','%']]
-                  : [['fixed','Fixed'],['variable','Variable']]
-                ).map(([mode,lbl])=>(
-                  <button key={mode} type="button"
-                    onClick={()=> {
-                      if (fee.feeType === 'Transaction Fee') {
-                        u('transactionFeeIsPercent', mode==='percent');
-                      } else {
-                        u('resourceFeeIsVariable', mode==='variable');
-                      }
-                    }}
-                    className="text-[10px] px-2 py-0.5 rounded-md font-bold transition-all"
-                    style={
-                      (fee.feeType === 'Transaction Fee'
-                        ? ((!fee.transactionFeeIsPercent&&mode==='fixed')||(fee.transactionFeeIsPercent&&mode==='percent'))
-                        : ((!fee.resourceFeeIsVariable&&mode==='fixed')||(fee.resourceFeeIsVariable&&mode==='variable'))
-                      ) ? {background:NAVY,color:'#fff'} : {color:'#94a3b8'}
-                    }>
-                    {lbl}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="relative">
-            <input value={fee.commercialValue||''} onChange={e=>u('commercialValue',e.target.value)}
-              placeholder={fee.transactionFeeIsPercent?'e.g. 1.5':isOT?'e.g. 50000':'e.g. 25000 per cycle'}
-              className={`${inp} w-full font-mono`} style={s6}/>
-            {fee.transactionFeeIsPercent && (
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-brand-faint">%</span>
-            )}
-          </div>
-          {cycles && fee.commercialValue && !fee.transactionFeeIsPercent && fee.feeType !== 'Transaction Fee' && fee.feeType !== 'Usage Fee' && !(fee.feeType === 'Resource Fee' && fee.resourceFeeIsVariable) && (
-            <p className="text-[10px] mt-1 text-green-600">
-              {parseFloat(fee.commercialValue).toLocaleString('en-IN')} × {cycles} cycles = {(parseFloat(fee.commercialValue)*cycles).toLocaleString('en-IN')} over term
-            </p>
-          )}
-          {fee.transactionFeeIsPercent && fee.commercialValue && (
-            <p className="text-[10px] mt-1 text-blue-600">
-              {fee.commercialValue}% per transaction · billed {fee.billingCycle?.toLowerCase()||'as agreed'} · variable
-            </p>
-          )}
-          {!fee.transactionFeeIsPercent && fee.feeType === 'Transaction Fee' && fee.commercialValue && (
-            <p className="text-[10px] mt-1 text-blue-600">
-              Variable — excluded from OF value calculation
-            </p>
-          )}
-          {fee.feeType === 'Resource Fee' && fee.resourceFeeIsVariable && (
-            <p className="text-[10px] mt-1 text-blue-600">
-              Variable — excluded from OF value calculation
-            </p>
-          )}
-        </div>
-      )}
-      {canStep && !fee.isLogistics && fee.pricingModel==='flat' && (
-        <div className="mb-3">
-          <label className="flex items-center gap-2 text-xs font-medium cursor-pointer mb-2 text-slate-600">
-            <input type="checkbox" checked={fee.stepUpPricing||false} onChange={e=>u('stepUpPricing',e.target.checked)}/> Step-up pricing
-          </label>
-          {fee.stepUpPricing && (
-            <div className="rounded-lg p-3 bg-amber-50 border border-amber-200">
-              {(fee.stepUpValues||[]).map((sv,i)=>(
-                <div key={sv.id||i} className="flex gap-2 mb-2 items-center">
-                  <input value={sv.label} onChange={e=>u('stepUpValues',(fee.stepUpValues||[]).map((s,j)=>j===i?{...s,label:e.target.value}:s))} placeholder="e.g. 1 Jul 2025 – 28 Feb 2026" className="flex-1 text-xs px-2 py-1 rounded border" style={{borderColor:'#fcd34d'}}/>
-                  <input value={sv.value} onChange={e=>u('stepUpValues',(fee.stepUpValues||[]).map((s,j)=>j===i?{...s,value:e.target.value}:s))} placeholder="Amount" className="w-28 text-xs px-2 py-1 rounded border font-mono" style={{borderColor:'#fcd34d'}}/>
-                  <button type="button" onClick={()=>u('stepUpValues',(fee.stepUpValues||[]).filter((_,j)=>j!==i))} className="text-xs text-red-500">✕</button>
-                </div>
-              ))}
-              <button type="button" onClick={()=>u('stepUpValues',[...(fee.stepUpValues||[]),{id:uid(),label:'',value:''}])} className="text-xs font-medium text-amber-800">+ Add period</button>
-            </div>
-          )}
-        </div>
-      )}
-      {!isOT && !fee.isLogistics && (
-        <div className="mb-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
-          <div className="text-[10px] font-bold uppercase tracking-wider mb-2 text-blue-700">Usage cycle</div>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-xs cursor-pointer text-slate-600">
-              <input type="checkbox" checked={fee.usageCycleDiffers||false} onChange={e=>u('usageCycleDiffers',e.target.checked)}/>
-              Usage cycle differs from billing cycle
-            </label>
-            {fee.usageCycleDiffers && (
-              <select value={fee.usageCycle||''} onChange={e=>u('usageCycle',e.target.value)} className="text-xs px-2 py-1 rounded border bg-white" style={{borderColor:'#e2e8f0'}}>
-                <option value="">Select…</option>
-                {['Monthly','Quarterly','Bi-Annually','Annually'].map(o=><option key={o}>{o}</option>)}
-              </select>
-            )}
-          </div>
-        </div>
-      )}
-      <div className="mb-3">
-        <InclusionsField
-          value={fee.inclusions}
-          onChange={arr => u('inclusions', arr)}
-        />
-      </div>
-      <div className="grid grid-cols-1 gap-3">
-        {[['paymentTrigger','Payment trigger',null,PAY_TRIGGERS]].map(([key,lbl,ph,opts])=>(
-          <div key={key}>
-            <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">{lbl}</div>
-            {opts
-              ? <select value={fee[key]||''} onChange={e=>u(key,e.target.value)} className={inp} style={s6}>
-                  {opts.map(o=><option key={o} value={o}>{o||'— None —'}</option>)}
-                </select>
-              : <input value={fee[key]||''} onChange={e=>u(key,e.target.value)} placeholder={ph} className={`${inp} w-full`} style={s6}/>}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Service block ─────────────────────────────────────────────────────────────
-function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency }) {
-  const letter     = String.fromCharCode(97 + idx);
-  const subOptions = SUB_SERVICES[svc.name] || [];
-  const selected   = svc.subServices || [];
-  const isGaaS     = svc.name === 'GaaS';
-
-  const addFee     = () => onChange({ ...svc, fees:[...(svc.fees||[]), newFee()] });
-  const updFee     = (fi,u) => onChange({ ...svc, fees:svc.fees.map((f,i)=>i===fi?u:f) });
-  const remFee     = fi => onChange({ ...svc, fees:svc.fees.filter((_,i)=>i!==fi) });
-  const toggleSub  = val => onChange({ ...svc, subServices: selected.includes(val) ? selected.filter(v=>v!==val) : [...selected, val] });
-
-  return (
-    <div className="border rounded-2xl mb-4 overflow-hidden" style={{borderColor: isGaaS ? '#99f6e4' : '#e2e8f0'}}>
-      <div className="flex items-center justify-between px-5 py-3 border-b"
-        style={{background: isGaaS ? '#f0fdfa' : '#f8fafc', borderColor: isGaaS ? '#99f6e4' : '#e2e8f0'}}>
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-bold text-brand-faint">{letter}.</span>
-          {ro
-            ? <span className="text-sm font-semibold" style={{color:NAVY}}>{svc.name||'—'}</span>
-            : <select value={svc.name||''} onChange={e=>onChange({...svc,name:e.target.value,subServices:[],gaas_lines:[],gaas_total:0})}
-                className="text-sm font-semibold border-none bg-transparent focus:outline-none cursor-pointer" style={{color:NAVY}}>
-                <option value="">Select service…</option>
-                {SERVICES.map(s=><option key={s}>{s}</option>)}
-              </select>}
-          {isGaaS && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">SKU-based</span>}
-        </div>
-        {!ro && <button type="button" onClick={onRemove} className="text-xs font-medium text-red-500">Remove</button>}
-      </div>
-
-      <div className="p-5">
-        {isGaaS ? (
-          <div>
-            <div className="mb-3 p-3 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-xs">
-              <strong>GaaS (Garment as a Service)</strong> — PDF will show as <strong>"Garment Sale"</strong>. Enter SKU-level commercials below. Revenue is auto-calculated from the SKU total.
-            </div>
-            <GaasSKUBlock svc={svc} onChange={s=>onChange(s)} ro={ro} currency={currency}/>
-          </div>
-        ) : (
-          <>
-            {subOptions.length > 0 && (
-              <div className="mb-4 p-3 rounded-xl border border-slate-200 bg-slate-50">
-                <div className="text-[10px] font-bold uppercase tracking-wider mb-2 text-brand-faint">
-                  Sub-services <span className="text-[9px] font-normal normal-case tracking-normal text-slate-400">(select all that apply)</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {subOptions.map(opt => {
-                    const active = selected.includes(opt);
-                    return (
-                      <button key={opt} type="button" onClick={()=>!ro&&toggleSub(opt)}
-                        className="text-xs px-3 py-1.5 rounded-full font-semibold border transition-all"
-                        style={active?{background:NAVY,color:'#fff',borderColor:NAVY}:{background:'#fff',color:'#64748b',borderColor:'#e2e8f0'}}>
-                        {active?'✓ ':''}{opt}
-                      </button>
-                    );
-                  })}
-                </div>
-                {selected.length > 0 && <p className="text-[10px] mt-2 text-brand-faint">Selected: {selected.join(' · ')}</p>}
-              </div>
-            )}
-
-            {/* ── Read-only fee display ── */}
-            {(svc.fees||[]).map((fee,fi)=>(
-              ro
-                ? <div key={fee.id} className="border rounded-xl p-3 mb-2 text-xs bg-slate-50" style={{borderColor:'#e2e8f0'}}>
-                    <div className="flex flex-wrap gap-x-2 gap-y-1 items-baseline">
-                      <span className="font-semibold" style={{color:NAVY}}>{fee.feeType}</span>
-                      {fee.billingCycle && <span className="text-brand-muted">· {fee.billingCycle}</span>}
-
-                      {fee.isLogistics
-                        ? <span className="text-brand-muted">
-                            · As per rate card
-                            {fee.logisticsRateCard && <> (<a href={fee.logisticsRateCard} target="_blank" rel="noreferrer" className="underline" style={{color:T}}>link</a>)</>}
-                          </span>
-
-                        : fee.pricingModel === 'graduated'
-                          ? <span className="text-brand-muted">
-                              · Slabs:&nbsp;
-                              {(fee.slabs||[]).map((sl,si) => (
-                                <span key={sl.id||si} className="font-mono">
-                                  {sl.from}–{sl.to||'∞'} @ {sl.rate} {sl.rateType==='Others' ? sl.rateTypeCustom : sl.rateType}
-                                  {si < (fee.slabs||[]).length - 1 ? ',  ' : ''}
-                                </span>
-                              ))}
-                            </span>
-
-                          : fee.stepUpPricing && (fee.stepUpValues||[]).length > 0
-                            ? <span className="text-brand-muted">
-                                · Step-up:&nbsp;
-                                {(fee.stepUpValues||[]).map((sv,si) => (
-                                  <span key={sv.id||si} className="font-mono">
-                                    {sv.label}: {sv.value}
-                                    {si < (fee.stepUpValues||[]).length - 1 ? ',  ' : ''}
-                                  </span>
-                                ))}
-                              </span>
-
-                            : <span className="font-mono font-semibold" style={{color:NAVY}}>
-                                · {fee.commercialValue||'—'}{fee.transactionFeeIsPercent?'%':''}{fee.resourceFeeIsVariable?' (variable)':''}
-                              </span>
-                      }
-
-                      {toIncArray(fee.inclusions).length > 0 && (
-                        <span className="text-brand-muted">
-                          · Inclusions: {toIncArray(fee.inclusions).map(incLabel).join(', ')}
-                        </span>
-                      )}
-                      {fee.paymentTrigger && <span className="text-brand-muted">· {fee.paymentTrigger}</span>}
-                    </div>
-                  </div>
-                : <FeeRow key={fee.id} fee={fee} idx={fi} onChange={u=>updFee(fi,u)} onRemove={()=>remFee(fi)} termMonths={termMonths} currency={currency}/>
-            ))}
-
-            {!ro && (
-              <button type="button" onClick={addFee}
-                className="w-full text-sm font-medium py-2.5 rounded-xl border-2 border-dashed transition-all border-slate-200 text-slate-500 hover:border-teal hover:text-teal">
-                + Add fee row to {svc.name||'service'}
-              </button>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export default function StepFees({ form, set, ro }) {
-  const services   = form.services_fees || [];
-  const termMonths = form.of_term_months || 12;
-  const isGaaSForm = services.some(s => s.name === 'GaaS');
-
-  const addSvc  = () => set('services_fees', [...services, {id:uid(), name:'', subServices:[], fees:[newFee()], gaas_lines:[], gaas_total:0}]);
-  const updSvc  = (i,s) => set('services_fees', services.map((sv,j)=>j===i?s:sv));
-  const remSvc  = i => set('services_fees', services.filter((_,j)=>j!==i));
-  const isBundle= services.length > 1;
-
-  useEffect(() => {
-    if (ro) return;
-    const gaasRevenue = services.filter(s=>s.name==='GaaS').reduce((sum,s)=>sum+(s.gaas_total||0),0);
-    if (isGaaSForm) {
-      if (form.committed_revenue !== String(gaasRevenue) && form.committed_revenue !== gaasRevenue) {
-        set('committed_revenue', gaasRevenue || '');
-        set('of_value', gaasRevenue || '');
-        set('arr_text', gaasRevenue > 0 ? 'Garment Sale: ' + gaasRevenue.toLocaleString('en-IN') : '');
-      }
+  const handleRepSelect = email => {
+    if (email === '__custom__') {
+      setCustomRep(true);
+      u('is_custom_rep', true);
+      u('sales_rep_name', '');
+      u('sales_rep_email', '');
+      u('slack_id', '');
       return;
     }
-    const { arrText, committed } = calcMetrics(services, termMonths);
-    const ofv = calcOFValue(services, termMonths);
-    if (form.arr_text !== arrText || form.committed_revenue !== committed || form.of_value !== ofv) {
-      set('arr_text', arrText);
-      set('committed_revenue', committed || '');
-      set('of_value', ofv || '');
+    const rep = SALES_REPS.find(r => r.email === email);
+    if (!rep) return;
+    setCustomRep(false);
+    u('is_custom_rep', false);
+    u('sales_rep_name', rep.name);
+    u('sales_rep_email', rep.email);
+    u('slack_id', rep.slack);
+    if (rep.team) u('sales_team', rep.team);
+    if (rep.region) u('region', rep.region);
+  };
+
+  const handleTeamChange = v => {
+    u('sales_team', v);
+    if (v !== 'Global') u('region', '');
+    if (!customRep && form.sales_rep_email) {
+      const rep = SALES_REPS.find(r => r.email === form.sales_rep_email);
+      if (rep && rep.team !== v) {
+        u('sales_rep_name', ''); u('sales_rep_email', ''); u('slack_id', ''); u('region', '');
+      }
     }
-  }, [JSON.stringify(services), termMonths]); // eslint-disable-line
+  };
+
+  const handleEntityChange = v => {
+    u('entity', v);
+    if (v === 'yavi') {
+      if (!form.sales_team) u('sales_team', 'Global');
+      if (!form.committed_currency) u('committed_currency', 'USD');
+      u('gstin', '');
+      u('pan', '');
+    }
+    if (v === 'fynd') {
+      u('tax_number', '');
+    }
+  };
+
+  const handleCountryChange = v => {
+    if (v === '__others__') {
+      setCustomCountry(true);
+      u('country', '');
+      return;
+    }
+    setCustomCountry(false);
+    u('country', v);
+    if (v === 'India') u('tax_number', '');
+  };
+
+  useEffect(() => {
+    if (!ro && user?.role === 'sales' && !user?.isUniversal && user?.email && !form.sales_rep_email) {
+      handleRepSelect(user.email);
+    }
+  }, [user?.email]); // eslint-disable-line
+
+  const handleLeadTypeChange = v => {
+    u('lead_type', v);
+    u('lead_category', '');
+    u('lead_name', '');
+  };
+
+  const handleLeadCategoryChange = v => {
+    u('lead_category', v);
+    u('lead_name', '');
+  };
 
   return (
     <div>
-      {!isGaaSForm && (
-        <div className={`flex items-center justify-between mb-4 px-4 py-3 rounded-xl border ${isBundle?'bg-green-50 border-green-200':'bg-slate-50 border-slate-200'}`}>
-          <span className={`text-sm font-semibold ${isBundle?'text-green-800':'text-slate-500'}`}>Bundle: <strong>{isBundle?'Yes':'No'}</strong></span>
-          <span className={`text-xs font-bold ${isBundle?'text-green-700':'text-brand-faint'}`}>{services.length} service{services.length!==1?'s':''}</span>
-        </div>
-      )}
-      {isGaaSForm && (
-        <div className="flex items-center gap-2 mb-4 px-4 py-3 rounded-xl bg-teal-50 border border-teal-200">
-          <span className="text-sm font-semibold text-teal-800">GaaS Order — SKU-based pricing</span>
-          <span className="text-xs text-teal-600">PDF will be generated as Order Confirmation</span>
-        </div>
-      )}
-
-      {services.map((svc,i)=>(
-        <SvcBlock key={svc.id} svc={svc} idx={i} termMonths={termMonths} ro={ro} currency={form.committed_currency||'INR'}
-          onChange={s=>!ro&&updSvc(i,s)} onRemove={()=>!ro&&remSvc(i)}/>
-      ))}
-
-      {!ro && (
-        <button type="button" onClick={addSvc}
-          className="w-full py-3 text-sm font-semibold rounded-xl border-2 border-dashed transition-all mb-5"
-          style={{borderColor:T, color:T}}>
-          + Add service
-        </button>
-      )}
-
-      <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200">
-        <SHdr c="Revenue metrics"/>
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <Lbl c="OF value (auto)"/>
-            <input value={form.of_value||''} onChange={e=>!ro&&set('of_value',e.target.value)} disabled={ro} className="field-input font-mono"/>
-          </div>
-          <div className="col-span-2">
-            <Lbl c={isGaaSForm ? 'Garment Sale total (auto)' : 'ARR breakdown (auto)'}/>
-            <textarea rows={3} value={form.arr_text||''} onChange={e=>!ro&&set('arr_text',e.target.value)} disabled={ro} className="field-input resize-none text-xs font-mono"/>
-          </div>
-        </div>
-        <div>
-          <Lbl c="Committed revenue (auto)"/>
-          <input value={form.committed_revenue||''} onChange={e=>!ro&&set('committed_revenue',e.target.value)} disabled={ro} className="field-input font-mono"/>
+      {/* ── Entity selector ── */}
+      <SHdr c="Entity"/>
+      <div className="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs">
+        Select the entity issuing this Order Form. This controls the letterhead, T&amp;C, and signatory on the generated document.
+      </div>
+      <div className="grid grid-cols-2 gap-x-6 mb-2">
+        <Sel label="Issuing Entity" req value={form.entity || ''} onChange={handleEntityChange} options={ENTITIES} disabled={ro}
+          hint={form.entity === 'yavi' ? 'Yavi Technologies FZCO · Dubai CommerCity' : form.entity === 'fynd' ? 'Shopsense Retail Technologies Ltd. · Mumbai' : ''}/>
+        <div className="flex items-end pb-4">
+          {form.entity === 'yavi' && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200">
+              <span className="text-xs font-bold text-indigo-700">YAVI</span>
+              <span className="text-xs text-indigo-500">OF series: OF-YT-XXXX</span>
+            </div>
+          )}
+          {form.entity === 'fynd' && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-teal-50 border border-teal-200">
+              <span className="text-xs font-bold text-teal-700">FYND</span>
+              <span className="text-xs text-teal-500">OF series: OF-FY-XXXX</span>
+            </div>
+          )}
         </div>
       </div>
+
+      <SHdr c="Customer information"/>
+      <div className="grid grid-cols-2 gap-x-6">
+        <Inp label="Customer name (legal entity)" req value={form.customer_name} onChange={v=>u('customer_name',v)} disabled={ro}/>
+        <Inp label="Brand / trade name" req value={form.brand_name} onChange={v=>u('brand_name',v)} disabled={ro}/>
+        <div className="col-span-2">
+          <TA label="Customer billing address" req value={form.billing_address} onChange={v=>u('billing_address',v)} disabled={ro} rows={2}/>
+        </div>
+
+        {/* ── Country ── */}
+        <div className="mb-4">
+          <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
+            Country
+            {!isYavi && <span className="text-red-400 ml-1">*</span>}
+            {isYavi  && <span className="text-slate-400 ml-1">(for records)</span>}
+          </label>
+          {ro
+            ? <input value={form.country||''} readOnly className="field-input" style={{background:'#f8fafc',color:'#64748b'}}/>
+            : <>
+                <select
+                  value={customCountry ? '__others__' : (form.country||'')}
+                  onChange={e => handleCountryChange(e.target.value)}
+                  className="field-input cursor-pointer">
+                  <option value="">Select…</option>
+                  {(Array.isArray(COUNTRIES) ? COUNTRIES : []).map(c => {
+                    const val = typeof c === 'string' ? c : c.value;
+                    const lbl = typeof c === 'string' ? c : c.label;
+                    return <option key={val} value={val}>{lbl}</option>;
+                  })}
+                  <option value="__others__">Others…</option>
+                </select>
+                {customCountry && (
+                  <input value={form.country||''} onChange={e => u('country', e.target.value)}
+                    placeholder="Enter country name…" className="field-input mt-1.5"
+                    style={{ borderColor:'#00C3B5' }}/>
+                )}
+              </>
+          }
+        </div>
+
+        {!isYavi && (
+          <div className="mb-4">
+            <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
+              Customer GSTIN <span className="text-slate-400">(optional)</span>
+            </label>
+            <input value={form.gstin||''}
+              onChange={e => { const val=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,15); u('gstin',val); }}
+              placeholder="27AADCB2230M1ZT" className="field-input font-mono"
+              style={{ borderColor: form.gstin ? (/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) ? '#4ade80' : '#fca5a5') : '#e2e8f0' }}
+              maxLength={15} disabled={ro}/>
+            {form.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) && (
+              <p className="text-xs mt-1 text-red-500">Format: 2 digits + 5 letters + 4 digits + 1 letter + 1 digit + Z + 1 alphanumeric</p>
+            )}
+            {form.gstin && /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin) && (
+              <p className="text-xs mt-1 text-green-600">✓ Valid GSTIN format</p>
+            )}
+          </div>
+        )}
+
+        {!isYavi && (
+          <div className="mb-4">
+            <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
+              Customer PAN
+              {isIndia ? <span className="text-red-400 ml-1">*</span> : <span className="text-slate-400 ml-1">(optional)</span>}
+            </label>
+            <input value={form.pan||''}
+              onChange={e => { const val=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,10); u('pan',val); }}
+              placeholder="AADCB2230M" className="field-input font-mono"
+              style={{ borderColor: form.pan ? (/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) ? '#4ade80' : '#fca5a5') : '#e2e8f0' }}
+              maxLength={10} disabled={ro}/>
+            {form.pan && !/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) && (
+              <p className="text-xs mt-1 text-red-500">Format: 5 letters + 4 digits + 1 letter</p>
+            )}
+            {form.pan && /^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan) && (
+              <p className="text-xs mt-1 text-green-600">✓ Valid PAN format</p>
+            )}
+          </div>
+        )}
+
+        {(isYavi || !isIndia) && (
+          <div className={`mb-4 ${!isYavi ? 'col-span-2' : ''}`}>
+            <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
+              {isYavi ? 'Tax / VAT / TRN Number' : 'Tax / VAT Number'} <span className="text-red-400">*</span>
+            </label>
+            <input value={form.tax_number||''}
+              onChange={e => { const val = e.target.value.toUpperCase().replace(/[^A-Z0-9\-]/g,'').slice(0,30); u('tax_number', val); }}
+              placeholder={isYavi ? 'e.g. 104789269800003' : 'e.g. AE100234567, GB123456789'}
+              className="field-input font-mono"
+              style={{ borderColor: form.tax_number ? (isValidTaxNumber(form.tax_number) ? '#4ade80' : '#fca5a5') : '#e2e8f0' }}
+              maxLength={30} disabled={ro}/>
+            {form.tax_number && !isValidTaxNumber(form.tax_number) && (
+              <p className="text-xs mt-1 text-red-500">Alphanumeric only (letters, digits, hyphens) · 3–30 characters</p>
+            )}
+            {form.tax_number && isValidTaxNumber(form.tax_number) && (
+              <p className="text-xs mt-1 text-green-600">✓ Valid tax number format</p>
+            )}
+            {isYavi  && <p className="text-xs mt-1 text-brand-faint">VAT / TRN number for Yavi Technologies FZCO client</p>}
+            {!isYavi && <p className="text-xs mt-1 text-brand-faint">Enter the applicable local tax identifier — VAT, TRN, GST, etc. · Country: {form.country}</p>}
+          </div>
+        )}
+      </div>
+
+      <SHdr c="Sales information"/>
+      <div className="grid grid-cols-2 gap-x-6">
+        <Sel label="Segment" req value={form.segment} onChange={v=>u('segment',v)} options={SEGMENTS} disabled={ro}/>
+        <Sel label="Sales team" req value={form.sales_team} onChange={handleTeamChange} options={SALES_TEAMS} disabled={ro}
+          hint="Selecting a team filters the rep dropdown below"/>
+
+        {/* ── Sales rep ── */}
+        <div className="mb-4">
+          <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
+            Sales rep <span className="text-red-400">*</span>
+          </label>
+          {ro ? (
+            <input value={form.sales_rep_name||''} readOnly className="field-input" style={{background:'#f8fafc',color:'#64748b'}}/>
+          ) : (
+            <>
+              <select
+                value={customRep ? '__custom__' : (form.sales_rep_email||'')}
+                onChange={e => handleRepSelect(e.target.value)}
+                disabled={!user?.isUniversal && user?.role === 'sales'}
+                className="field-input cursor-pointer">
+                <option value="">Select rep…</option>
+                {sortedReps.map(r => <option key={r.email} value={r.email}>{r.name}</option>)}
+                <option value="__custom__">Others (not in list)…</option>
+              </select>
+              {!customRep && form.sales_team && (
+                <p className="text-xs mt-1 text-brand-faint">
+                  Showing {sortedReps.length} rep{sortedReps.length!==1?'s':''} from {form.sales_team} team
+                </p>
+              )}
+              {customRep && (
+                <div className="mt-2 p-3 rounded-xl border border-teal-200 bg-teal-50 space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-teal-700 mb-1">Custom Sales Rep</p>
+                  <input value={form.sales_rep_name||''} onChange={e=>u('sales_rep_name',e.target.value)}
+                    placeholder="Full name *" className="field-input text-xs" style={{borderColor:'#99f6e4'}}/>
+                  <input type="email" value={form.sales_rep_email||''} onChange={e=>u('sales_rep_email',e.target.value)}
+                    placeholder="Email address *" className="field-input text-xs font-mono" style={{borderColor:'#99f6e4'}}/>
+                  <input value={form.slack_id||''} onChange={e=>u('slack_id',e.target.value)}
+                    placeholder="Slack Member ID (e.g. U01ABCD23EF)" className="field-input text-xs font-mono" style={{borderColor:'#99f6e4'}}/>
+                  <p className="text-[10px] text-teal-600">Slack ID used for notifications. Find it in Slack → Profile → ⋯ → Copy member ID.</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <Inp label="Slack ID (auto)" value={form.slack_id} disabled mono/>
+
+        {isGlobal && (
+          <div className="mb-4">
+            <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
+              Region <span className="text-red-400">*</span>
+            </label>
+            <select value={form.region||''} onChange={e=>u('region',e.target.value)} disabled={ro} className="field-input cursor-pointer">
+              <option value="">Select region…</option>
+              {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+            {form.region && (
+              <p className="text-xs mt-1 text-brand-faint">
+                {form.region === 'MEA' ? 'Middle East & Africa' : 'South East Asia & Rest of World'}
+                {form.sales_rep_email && !customRep && SALES_REPS.find(r=>r.email===form.sales_rep_email)?.region !== form.region && (
+                  <span className="text-amber-600 ml-1">· Manually overridden</span>
+                )}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      <SHdr c="Lead & sale classification"/>
+      <div className="grid grid-cols-2 gap-x-6">
+        <Sel label="Sale type" req value={form.sale_type} onChange={v=>u('sale_type',v)} options={SALE_TYPES} disabled={ro}/>
+        <Sel label="Sales channel" req value={form.lead_type} onChange={v=>handleLeadTypeChange(v)} options={LEAD_TYPES} disabled={ro}/>
+
+        {form.lead_type === 'Direct' && (
+          <div className="mb-4">
+            <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
+              Lead category <span className="text-red-400">*</span>
+            </label>
+            <select value={form.lead_category||''} onChange={e=>handleLeadCategoryChange(e.target.value)} disabled={ro} className="field-input cursor-pointer">
+              <option value="">Select…</option>
+              {cats.map(c => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+        )}
+
+        {form.lead_type === 'Direct' && leadNameLabel && (
+          <Inp label={leadNameLabel} req value={form.lead_name||''} onChange={v=>u('lead_name',v)} disabled={ro}
+            placeholder={form.lead_category === 'Event' ? 'e.g. Shoptalk 2025' : 'e.g. Priya Sharma'}
+            hint={form.lead_category === 'Event' ? 'Name of the event where the lead was sourced' : 'Name of the inside sales rep or pre-sales contact'}/>
+        )}
+
+        {form.lead_type === 'Indirect' && (
+          <Inp label="Partner name" req value={form.lead_name} onChange={v=>u('lead_name',v)}
+            disabled={ro} placeholder="e.g. Prince Consulting" hint="Name of the partner who referred this deal"/>
+        )}
+      </div>
+
+      {form.sale_type && (
+        <>
+          <SHdr c="Scope of Work (SoW)"/>
+          <div className={`p-4 rounded-xl mb-4 text-sm ${needsSoW ? 'bg-amber-50 border border-amber-200 text-amber-800' : 'bg-slate-50 border border-slate-200 text-slate-500'}`}>
+            {needsSoW ? `⚠️ A signed SoW is mandatory for ${form.sale_type}.` : 'No SoW required for this sale type.'}
+          </div>
+          {needsSoW && <FileUpload label="Signed Scope of Work (PDF)" req value={form.sow_document} onChange={v=>u('sow_document',v)} disabled={ro} hint="PDF only · Max 10 MB"/>}
+          {needsRef  && <FileUpload label={`Previous SoW for reference (${form.sale_type})`} req value={form.sow_reference_document} onChange={v=>u('sow_reference_document',v)} disabled={ro} hint="Upload the earlier SoW being superseded"/>}
+        </>
+      )}
     </div>
   );
 }
