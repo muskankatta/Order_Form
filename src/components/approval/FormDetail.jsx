@@ -545,7 +545,7 @@ export default function FormDetail({ form: initial }) {
             onChange={setFinDRIs}
           />
           <div className="flex gap-3 flex-wrap mt-2">
-            {edit && <Btn variant="navy" onClick={async () => { await revopsApprove(form.id,{editedForm:ef,comment:'',financeApprovers:[]}); setEdit(false); show('Edits saved!'); }}>💾 Save edits</Btn>}
+            {edit && <Btn variant="navy" onClick={async () => { await updateDraft(form.id, ef); setEdit(false); show('Edits saved!'); }}>💾 Save edits</Btn>}
             <Btn onClick={async () => {
               if (!finDRIs.length) { alert('Select at least one RevOps reviewer.'); return; }
               const now = new Date().toISOString();
