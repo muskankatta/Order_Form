@@ -73,7 +73,7 @@ export const PAY_TRIGGERS = [
   '50% Advance / 50% before Delivery','Monthly on Actuals','As per Rate Card',
 ];
 
-export const PAY_TERMS      = ['Net 7','Net 15','Net 30','Net 60','Advance','Custom'];
+export const PAY_TERMS      = ['Net 7','Net 15','Net 30','Net 60','Advance'];
 export const RENEWAL_FREQS  = ['Monthly','Quarterly','Bi-Annually','Annually'];
 export const GAAS_PAYMENT_TRIGGERS = ['Dispatch', 'Delivery', 'Invoice'];
 export const GAAS_PAYMENT_NETS     = ['Net 30', 'Net 45', 'Net 60', 'Net 90'];
