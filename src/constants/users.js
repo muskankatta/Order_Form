@@ -55,6 +55,7 @@ export const REVOPS_USERS = [
   { id:'1327', name:'Nayan Lathiya',  slack:'U018REY8UA2', email:'nayanlathiya@gofynd.com',  team:'Global' },
   { id:'1392', name:'Atharva Shetye', slack:'U01T138DQAF', email:'atharvashetye@gofynd.com', team:'India' },
   { id:'2526', name:'Omkar Pawar',    slack:'U05PRTA46CT', email:'omkarsp@gofynd.com',       team:'India' },
+  { id:'2311', name:'Geetanshu Mathur',    slack:'U04C5996X8R', email:'geetanshumathur@gofynd.com',       team:'Global' }
 ];
 
 export const FINANCE_USERS = [
