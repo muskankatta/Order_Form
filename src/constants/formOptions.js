@@ -65,12 +65,12 @@ export const UNIT_METRICS = [
   'Store','User','Rider','Warehouse','Location','Item','SKU','Credit',
   'Message (WhatsApp)','Image','Video','Tech Pack','Forward Picked',
   'RTO Picked','Return Picked','BCA (Brand Calculated Amount)',
-  'VOG (Value of Goods)','Custom',
+  'VOG (Value of Goods)',
 ];
 
 export const PAY_TRIGGERS = [
   '','100% on Execution of OF','50% on Execution / 50% on Go-Live',
-  '50% Advance / 50% before Delivery','Monthly on Actuals','As per Rate Card','Custom',
+  '50% Advance / 50% before Delivery','Monthly on Actuals','As per Rate Card',
 ];
 
 export const PAY_TERMS      = ['Net 7','Net 15','Net 30','Net 60','Advance','Custom'];
