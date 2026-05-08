@@ -23,7 +23,7 @@ export const LEAD_NAME_LABEL = {
 };
 // Indirect also needs a partner name field (handled in StepClient)
 export const SALE_TYPES  = ['New Business','Renewal','Upsell','Cross-Sell','Shift from SoW','Revision in Commercials'];
-export const COUNTRIES   = ['India','UAE','USA','UK','Singapore','Australia','Malaysia','Indonesia','Saudi Arabia','South Africa','Other'];
+export const COUNTRIES   = ['India','UAE','USA','UK','Singapore','Australia','Malaysia','Indonesia','Saudi Arabia','South Africa'];
 
 export const OF_TERMS = [
   {label:'1 Month',months:1},{label:'3 Months',months:3},{label:'6 Months',months:6},
