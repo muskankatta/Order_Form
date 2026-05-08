@@ -465,7 +465,7 @@ export default function FormDetail({ form: initial }) {
       )}
 
       {/* Finance / Universal — save edits at any stage */}
-      {edit && (user?.role==='finance' || user?.isUniversal) && !['draft','revops_rejected','revops_approved','signed'].includes(form.status) && (
+      {edit && (user?.role==='finance' || user?.isUniversal) && !['draft','revops_rejected','signed'].includes(form.status) && (
         <Card className="mt-4 p-4">
           <div className="flex items-center gap-3">
             <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg flex-1">
