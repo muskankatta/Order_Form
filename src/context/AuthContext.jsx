@@ -21,7 +21,7 @@ export function AuthProvider({ children }) {
       // Role check
       const detectedRole = resolveRole(email);
       if (!detectedRole)
-        return { ok:false, reason:'Your account is not on the authorised user list.' };
+        return { ok:false, reason:'no_access' };
 
       // Universal bypasses role selection; others must select matching role
       const finalRole = detectedRole === 'universal' ? (selectedRole || 'finance') : detectedRole;
