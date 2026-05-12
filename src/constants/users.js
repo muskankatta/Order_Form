@@ -87,9 +87,9 @@ export function resolveRole(email) {
   if (FINANCE_USERS.find(u => u.email === email)) return 'finance';
   if (REVOPS_USERS.find(u => u.email === email))  return 'revops';
   if (SALES_REPS.find(u => u.email === email))    return 'sales';
-  return null;
+  // Not in any list — auto-viewer for gofynd.com only
+  return domain === 'gofynd.com' ? 'viewer' : null;
 }
-
 /** Get full user object from any list by email */
 export function getUserByEmail(email) {
   return (
