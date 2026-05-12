@@ -496,14 +496,11 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
             value={fee.isCustomPaymentTrigger ? '__custom__' : (fee.paymentTrigger||'')}
             onChange={e => {
               if (e.target.value === '__custom__') {
-                u('isCustomPaymentTrigger', true);
-                u('paymentTrigger', '');
+                onChange({ ...fee, isCustomPaymentTrigger: true, paymentTrigger: '' });
               } else {
-                u('isCustomPaymentTrigger', false);
-                u('paymentTrigger', e.target.value);
+                onChange({ ...fee, isCustomPaymentTrigger: false, paymentTrigger: e.target.value });
               }
-            }}
-            className={inp} style={s6}>
+            }}            className={inp} style={s6}>
             {PAY_TRIGGERS.map(o=><option key={o} value={o}>{o||'— None —'}</option>)}
             <option value="__custom__">Custom…</option>
           </select>
