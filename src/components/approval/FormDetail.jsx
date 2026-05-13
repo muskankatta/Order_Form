@@ -36,7 +36,7 @@ const subtot  = items => items.reduce((s,li)=>s+((parseFloat(li.qty)||0)*(parseF
 const blankLI = () => ({service:'',fee_type:'',description:'',qty:1,rate:0});
 
 const BOLTIC  = import.meta.env.VITE_BOLTIC_SLACK_URL||'';
-const CH      = {India:'C0392LXA3B4',Global:'C08CBBNRAKZ','AI/SaaS':'C0978TZNGM8'};
+const CH      = {India:'C0AQTCE3PNY',Global:'C08CBBNRAKZ','AI/SaaS':'C0978TZNGM8'};
 
 function getCurrentFY(){const n=new Date();const y=n.getMonth()>=3?n.getFullYear()+1:n.getFullYear();return String(y).slice(-2);}
 
