@@ -72,8 +72,8 @@ async function slackPI(pi,event){
   return null;
 }
 
-const PI_STATUS_STYLE={submitted:{bg:'#fef3c7',fg:'#92400e'},approved:{bg:'#d1fae5',fg:'#065f46'},rejected:{bg:'#fee2e2',fg:'#991b1b'},cancelled:{bg:'#f1f5f9',fg:'#64748b'}};
-const PI_STATUS_LBL={submitted:'Pending Approval',approved:'Approved',rejected:'Rejected',cancelled:'Cancelled'};
+const PI_STATUS_STYLE={submitted:{bg:'#fef3c7',fg:'#92400e'},approved:{bg:'#d1fae5',fg:'#065f46'},rejected:{bg:'#fee2e2',fg:'#991b1b'},cancelled:{bg:'#f1f5f9',fg:'#64748b'},fully_collected:{bg:'#dcfce7',fg:'#14532d'}};
+const PI_STATUS_LBL={submitted:'Pending Approval',approved:'Approved',rejected:'Rejected',cancelled:'Cancelled',fully_collected:'Fully Collected'};
 function PIPill({status}){
   const s=PI_STATUS_STYLE[status]||{bg:'#f1f5f9',fg:'#475569'};
   return <span style={{background:s.bg,color:s.fg,display:'inline-block',padding:'2px 10px',borderRadius:'9999px',fontSize:'11px',fontWeight:600}}>{PI_STATUS_LBL[status]||status}</span>;
@@ -318,10 +318,6 @@ export default function FormDetail({ form: initial }) {
 
   const live = edit ? ef : form;
   const set  = (k,v) => setEf(prev => ({...prev,[k]:v}));
-  const isYaviForm = form.entity === 'yavi'
-    || (form.of_number||'').startsWith('OFYT')
-    || (form.of_number||'').startsWith('OF-YT-');
-  const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
 
   const revopsPrimaryEmail  = (form.revops_approvers||[])[0];
   const financePrimaryEmail = (form.finance_approvers||[])[0];
@@ -465,7 +461,7 @@ export default function FormDetail({ form: initial }) {
       )}
 
       {/* Finance / Universal — save edits at any stage */}
-      {edit && (user?.role==='finance' || user?.isUniversal) && !['draft','revops_rejected','signed'].includes(form.status) && (
+      {edit && (user?.role==='finance' || user?.isUniversal) && !['draft','revops_rejected','revops_approved','signed'].includes(form.status) && (
         <Card className="mt-4 p-4">
           <div className="flex items-center gap-3">
             <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg flex-1">
@@ -545,7 +541,7 @@ export default function FormDetail({ form: initial }) {
             onChange={setFinDRIs}
           />
           <div className="flex gap-3 flex-wrap mt-2">
-            {edit && <Btn variant="navy" onClick={async () => { await updateDraft(form.id, ef); setEdit(false); show('Edits saved!'); }}>💾 Save edits</Btn>}
+            {edit && <Btn variant="navy" onClick={async () => { await revopsApprove(form.id,{editedForm:ef,comment:'',financeApprovers:[]}); setEdit(false); show('Edits saved!'); }}>💾 Save edits</Btn>}
             <Btn onClick={async () => {
               if (!finDRIs.length) { alert('Select at least one RevOps reviewer.'); return; }
               const now = new Date().toISOString();
@@ -637,9 +633,10 @@ export default function FormDetail({ form: initial }) {
                 <div>
                   <Lbl c="OF Number" req/>
                   <div className="flex items-center border-2 rounded-lg overflow-hidden font-mono font-bold text-base" style={{ borderColor:T }}>
-                    <span className="px-3 py-2 text-slate-400 bg-slate-50 border-r border-slate-200 select-none whitespace-nowrap">{ofPrefix}</span>
-                      <input value={ofNum.replace(new RegExp('^' + ofPrefix), '')}
-                        onChange={e=>{ const val=e.target.value.replace(/[^0-9]/g,''); setOfNum(val ? ofPrefix + val : ''); }}                      placeholder="0001" maxLength={6}
+                    <span className="px-3 py-2 text-slate-400 bg-slate-50 border-r border-slate-200 select-none whitespace-nowrap">OF-FY-</span>
+                    <input value={ofNum.replace(/^OF-FY-/,'')}
+                      onChange={e=>{ const val=e.target.value.replace(/[^0-9]/g,''); setOfNum(val?'OF-FY-'+val:''); }}
+                      placeholder="0001" maxLength={6}
                       className="flex-1 px-3 py-2 focus:outline-none font-mono font-bold"
                       style={{ color:NAVY }}/>
                   </div>
@@ -759,7 +756,8 @@ export default function FormDetail({ form: initial }) {
                 <thead className="bg-slate-50">
                   <tr className="text-left text-slate-400 uppercase tracking-wide">
                     <th className="px-4 py-2.5 font-semibold">PI Number</th>
-                    <th className="px-4 py-2.5 font-semibold">Amount</th>
+                    <th className="px-4 py-2.5 font-semibold">Grand Total</th>
+                    <th className="px-4 py-2.5 font-semibold">Collected</th>
                     <th className="px-4 py-2.5 font-semibold">Status</th>
                     <th className="px-4 py-2.5 font-semibold">Created By</th>
                     <th className="px-4 py-2.5 font-semibold">Reviewed By</th>
@@ -770,6 +768,11 @@ export default function FormDetail({ form: initial }) {
                     <tr key={pi.id} className="border-t border-slate-100">
                       <td className="px-4 py-2.5 font-mono font-bold text-slate-700">{pi.pi_number}</td>
                       <td className="px-4 py-2.5 font-semibold">{fmtAmt(pi.grand_total,pi.currency)}</td>
+                      <td className="px-4 py-2.5 text-xs">
+                        {(pi.total_collected||0)>0
+                          ? <span className="text-green-700 font-semibold">{fmtAmt(pi.total_collected,pi.currency)}</span>
+                          : <span className="text-slate-300">—</span>}
+                      </td>
                       <td className="px-4 py-2.5"><PIPill status={pi.status}/></td>
                       <td className="px-4 py-2.5 text-slate-500">{pi.created_by_name||'—'}</td>
                       <td className="px-4 py-2.5 text-slate-400">{pi.revops_reviewer||'—'}</td>
