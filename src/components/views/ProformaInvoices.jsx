@@ -185,12 +185,12 @@ function DetailPanel({ pi, canDownload, canApprove, canRecord, setSelPI, setShow
         </div>
         <div className="flex gap-2 flex-wrap">
           {canDownload && (pi.status==='approved'||pi.status==='fully_collected') && (
-            <Btn variant="success" size="sm" onClick={()=>printPI(pi)}>📥 Download PDF</Btn>
+            <Btn variant="success" size="sm" onClick={()=>printPI(pi)}>Download PDF</Btn>
           )}
           {canApprove && pi.status==='submitted' && (
             <>
-              <Btn variant="success" size="sm" onClick={()=>{setShowModal({piId:pi.id,action:'approve'});setCmt('');}}>✓ Approve</Btn>
-              <Btn variant="danger"  size="sm" onClick={()=>{setShowModal({piId:pi.id,action:'reject'});setCmt('');}}>✕ Reject</Btn>
+              <Btn variant="success" size="sm" onClick={()=>{setShowModal({piId:pi.id,action:'approve'});setCmt('');}}>Approve</Btn>
+              <Btn variant="danger"  size="sm" onClick={()=>{setShowModal({piId:pi.id,action:'reject'});setCmt('');}}>Reject</Btn>
             </>
           )}
           {canApprove && ['submitted','approved'].includes(pi.status) && (
@@ -199,7 +199,7 @@ function DetailPanel({ pi, canDownload, canApprove, canRecord, setSelPI, setShow
               🚫 Cancel PI
             </Btn>
           )}
-          <Btn variant="ghost" size="sm" onClick={()=>{setSelPI(null);setShowCollForm(false);}}>✕ Close</Btn>
+          <Btn variant="ghost" size="sm" onClick={()=>{setSelPI(null);setShowCollForm(false);}}>Close</Btn>
         </div>
       </div>
 
@@ -287,7 +287,12 @@ function DetailPanel({ pi, canDownload, canApprove, canRecord, setSelPI, setShow
               <button onClick={()=>setShowCollForm(v=>!v)}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
                 style={{background:showCollForm?'#f1f5f9':'#d1fae5',color:showCollForm?'#475569':'#065f46'}}>
-                {showCollForm ? '✕ Cancel' : '+ Record Collection'}
+                {showCollForm
+                  ? <span style={{display:'flex',alignItems:'center',gap:'4px'}}>
+                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg>
+                      Cancel
+                    </span>
+                  : '+ Record Collection'}
               </button>
             )}
           </div>
