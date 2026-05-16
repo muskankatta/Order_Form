@@ -85,6 +85,261 @@ function printPI(pi) {
   const w=window.open('','_blank','width=900,height=700'); w.document.write(html); w.document.close(); w.focus(); setTimeout(()=>w.print(),400);
 }
 
+// ── DETAIL PANEL ──
+function DetailPanel({ pi, canDownload, canApprove, canRecord, setSelPI, setShowModal, setCmt, showCollForm, setShowCollForm, collEntry, setCollEntry, collSaving, doAddCollection }) {
+  const collected = pi.total_collected || 0;
+  const progress  = pctOf(collected, pi.grand_total);
+  const remaining = Math.max(0, (pi.grand_total||0) - collected);
+  const canAddColl = canRecord && ['approved','fully_collected'].includes(pi.status);
+
+  return (
+    <Card className="mt-4 p-6">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 flex-wrap mb-5">
+        <div>
+          <div className="flex items-center gap-3 flex-wrap mb-1">
+            <span className="font-mono font-bold text-lg" style={{color:NAVY}}>{pi.pi_number}</span>
+            <PIPill status={pi.status}/>
+            <span style={{background:'#f1f5f9',color:'#475569',display:'inline-block',padding:'2px 10px',borderRadius:'9999px',fontSize:'11px',fontWeight:600}}>
+              {pi.entity==='yavi'?'Yavi':'Fynd'}
+            </span>
+          </div>
+          <p className="text-sm font-semibold text-slate-700">{pi.customer_name}</p>
+          <p className="text-xs text-slate-400 mt-0.5">OF: {pi.of_number} · Created by {pi.created_by_name}</p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {canDownload && (pi.status==='approved'||pi.status==='fully_collected') && (
+            <Btn variant="success" size="sm" onClick={()=>printPI(pi)}>📥 Download PDF</Btn>
+          )}
+          {canApprove && pi.status==='submitted' && (
+            <>
+              <Btn variant="success" size="sm" onClick={()=>{setShowModal({piId:pi.id,action:'approve'});setCmt('');}}>✓ Approve</Btn>
+              <Btn variant="danger"  size="sm" onClick={()=>{setShowModal({piId:pi.id,action:'reject'});setCmt('');}}>✕ Reject</Btn>
+            </>
+          )}
+          {canApprove && ['submitted','approved'].includes(pi.status) && (
+            <Btn variant="ghost" size="sm" style={{color:'#64748b'}}
+              onClick={()=>{setShowModal({piId:pi.id,action:'cancel'});setCmt('');}}>
+              🚫 Cancel PI
+            </Btn>
+          )}
+          <Btn variant="ghost" size="sm" onClick={()=>{setSelPI(null);setShowCollForm(false);}}>✕ Close</Btn>
+        </div>
+      </div>
+
+      {/* Customer */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        {[
+          ['Customer', pi.customer_name],
+          ...(pi.gstin       ? [['GSTIN',    pi.gstin]]      : []),
+          ...(pi.pan         ? [['PAN',       pi.pan]]        : []),
+          ...(pi.tax_number  ? [['Tax / VAT', pi.tax_number]] : []),
+          ['Address',  pi.billing_address||'—'],
+        ].map(([k,v])=>(
+          <div key={k} className="bg-slate-50 rounded-xl p-3">
+            <div className="text-xs text-slate-400 mb-1">{k}</div>
+            <div className="text-xs font-semibold text-slate-700 truncate">{v}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Line items */}
+      <div className="overflow-x-auto rounded-xl border border-slate-100 mb-4">
+        <table className="w-full text-xs">
+          <thead className="bg-slate-50">
+            <tr className="text-slate-400 uppercase tracking-wide text-left">
+              <th className="px-4 py-3 font-semibold">Service</th>
+              <th className="px-4 py-3 font-semibold">Description</th>
+              <th className="px-4 py-3 font-semibold text-center">SAC</th>
+              <th className="px-4 py-3 font-semibold text-center">Qty</th>
+              <th className="px-4 py-3 font-semibold text-right">Rate</th>
+              <th className="px-4 py-3 font-semibold text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(pi.line_items||[]).map((li,i)=>(
+              <tr key={i} className="border-t border-slate-100">
+                <td className="px-4 py-3 text-slate-600">{li.service||'—'}</td>
+                <td className="px-4 py-3 text-slate-600">{[li.fee_type,li.description].filter(Boolean).join(' — ')||'—'}</td>
+                <td className="px-4 py-3 font-mono text-slate-400 text-center">{li.sac_code||getSAC(li.fee_type)}</td>
+                <td className="px-4 py-3 text-center">{li.qty}</td>
+                <td className="px-4 py-3 text-right">{fmtAmt(li.rate,pi.currency)}</td>
+                <td className="px-4 py-3 text-right font-semibold">{fmtAmt(li.total,pi.currency)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="bg-slate-50 text-xs">
+            <tr className="border-t border-slate-200">
+              <td colSpan={5} className="px-4 py-3 text-right font-medium text-slate-600">Total Before Tax</td>
+              <td className="px-4 py-3 text-right font-semibold">{fmtAmt(pi.subtotal,pi.currency)}</td>
+            </tr>
+            <tr>
+              <td colSpan={5} className="px-4 py-2 text-right text-slate-400">{pi.tax_rate>0?`${pi.tax_type||'GST'} @ ${pi.tax_rate}%`:'No Tax'}</td>
+              <td className="px-4 py-2 text-right">{fmtAmt(pi.tax_amount,pi.currency)}</td>
+            </tr>
+            <tr className="border-t-2 border-slate-300">
+              <td colSpan={5} className="px-4 py-3 text-right font-bold text-slate-800">Grand Total</td>
+              <td className="px-4 py-3 text-right font-bold text-sm text-slate-800">{fmtAmt(pi.grand_total,pi.currency)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      {/* Review details */}
+      {pi.revops_reviewer && (
+        <div className="bg-slate-50 rounded-xl p-4 text-xs space-y-1.5 mb-4">
+          <div className="font-semibold text-slate-500 uppercase tracking-wide mb-2">Review Details</div>
+          <div className="flex gap-2"><span className="text-slate-400 w-28">Reviewed by</span><span className="font-medium">{pi.revops_reviewer}</span></div>
+          {pi.revops_comment && <div className="flex gap-2"><span className="text-slate-400 w-28">Comment</span><span className="font-medium">{pi.revops_comment}</span></div>}
+        </div>
+      )}
+
+      {/* ── COLLECTIONS ── */}
+      {['approved','fully_collected'].includes(pi.status) && (
+        <div className="border-t border-slate-100 pt-5">
+          {/* Header + progress */}
+          <div className="flex items-start justify-between gap-4 mb-3 flex-wrap">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-0.5">Collections</div>
+              <div className="text-xs text-slate-400">
+                <span className="font-semibold text-green-700">{fmtAmt(collected,pi.currency)}</span> collected of {fmtAmt(pi.grand_total,pi.currency)}
+                {remaining > 0 && <span className="ml-2 text-amber-600 font-medium">· {fmtAmt(remaining,pi.currency)} remaining</span>}
+                {remaining === 0 && <span className="ml-2 text-green-600 font-medium">· Fully collected ✓</span>}
+              </div>
+            </div>
+            {canAddColl && (
+              <button onClick={()=>setShowCollForm(v=>!v)}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                style={{background:showCollForm?'#f1f5f9':'#d1fae5',color:showCollForm?'#475569':'#065f46'}}>
+                {showCollForm?'✕ Cancel':'+ Record Collection'}
+              </button>
+            )}
+          </div>
+
+          {/* Progress bar */}
+          <div className="h-2.5 bg-slate-100 rounded-full mb-4 overflow-hidden">
+            <div style={{width:`${progress}%`,background:progress>=100?'#16a34a':'#2563eb',height:'100%',borderRadius:'9999px',transition:'width 0.4s ease'}}/>
+          </div>
+
+          {/* Collection history */}
+          {(pi.collections||[]).length > 0 && (
+            <div className="overflow-x-auto rounded-xl border border-slate-100 mb-4">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50">
+                  <tr className="text-slate-400 uppercase tracking-wide text-left">
+                    <th className="px-3 py-2.5 font-semibold">Date</th>
+                    <th className="px-3 py-2.5 font-semibold">Amount</th>
+                    <th className="px-3 py-2.5 font-semibold">Mode</th>
+                    <th className="px-3 py-2.5 font-semibold">Reference / UTR</th>
+                    <th className="px-3 py-2.5 font-semibold">Notes</th>
+                    <th className="px-3 py-2.5 font-semibold">Recorded By</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...(pi.collections||[])].sort((a,b)=>new Date(b.date)-new Date(a.date)).map((c,i)=>(
+                    <tr key={c.id||i} className="border-t border-slate-100">
+                      <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">{fmtDate(c.date)}</td>
+                      <td className="px-3 py-2.5 font-semibold text-green-700">{fmtAmt(c.amount,pi.currency)}</td>
+                      <td className="px-3 py-2.5 text-slate-500">{c.mode}</td>
+                      <td className="px-3 py-2.5 font-mono text-slate-600">{c.payment_reference}</td>
+                      <td className="px-3 py-2.5 text-slate-400">{c.notes||'—'}</td>
+                      <td className="px-3 py-2.5 text-slate-400">{c.recorded_by_name}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-slate-50">
+                  <tr className="border-t border-slate-200">
+                    <td className="px-3 py-2.5 font-semibold text-slate-600">Total collected</td>
+                    <td className="px-3 py-2.5 font-bold text-green-700">{fmtAmt(collected,pi.currency)}</td>
+                    <td colSpan={4}/>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+
+          {/* Add collection form */}
+          {showCollForm && canAddColl && (
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <div className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-3">Record New Collection</div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Amount ({pi.currency}) *</label>
+                  <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white">
+                    <span className="px-2 text-slate-400 text-xs shrink-0">{symOf(pi.currency)}</span>
+                    <input type="number" min="0.01" step="0.01" value={collEntry.amount}
+                      onChange={e=>setCollEntry(v=>({...v,amount:e.target.value}))}
+                      placeholder="0.00"
+                      className="flex-1 pr-3 py-2 text-xs focus:outline-none bg-white"/>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Date of Receipt *</label>
+                  <input type="date" value={collEntry.date}
+                    onChange={e=>setCollEntry(v=>({...v,date:e.target.value}))}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-teal-400"/>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Payment Mode *</label>
+                  <select value={collEntry.mode}
+                    onChange={e=>setCollEntry(v=>({...v,mode:e.target.value}))}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-teal-400">
+                    {PAYMENT_MODES.map(m=><option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Payment Reference / UTR *</label>
+                  <input type="text" value={collEntry.payment_reference}
+                    onChange={e=>setCollEntry(v=>({...v,payment_reference:e.target.value}))}
+                    placeholder="e.g. UTR123456789 or CHQ001234"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-teal-400"/>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Notes (optional)</label>
+                  <input type="text" value={collEntry.notes}
+                    onChange={e=>setCollEntry(v=>({...v,notes:e.target.value}))}
+                    placeholder="Any additional notes"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-teal-400"/>
+                </div>
+              </div>
+
+              {collEntry.amount && parseFloat(collEntry.amount) > 0 && (
+                <div className="mb-3 p-2 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-700">
+                  After this entry: <strong>{fmtAmt(collected+parseFloat(collEntry.amount||0),pi.currency)}</strong> collected
+                  {(collected+parseFloat(collEntry.amount||0)) >= pi.grand_total
+                    ? <span className="ml-2 font-semibold text-green-700">→ Will mark PI as Fully Collected 🎉</span>
+                    : <span className="ml-2 text-slate-500">· {fmtAmt(Math.max(0,pi.grand_total-(collected+parseFloat(collEntry.amount||0))),pi.currency)} still remaining</span>}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <button onClick={()=>{setShowCollForm(false);setCollEntry({amount:'',date:'',payment_reference:'',mode:'NEFT',notes:''}); }}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100">
+                  Cancel
+                </button>
+                <button onClick={doAddCollection} disabled={collSaving}
+                  className="text-xs font-semibold px-4 py-1.5 rounded-lg text-white"
+                  style={{background:collSaving?'#94a3b8':'#16a34a'}}>
+                  {collSaving?'Saving…':'✓ Save Collection'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {(pi.collections||[]).length===0 && !showCollForm && (
+            <div className="text-center text-xs text-slate-400 py-4">
+              No collections recorded yet.
+              {canAddColl && <span className="ml-1">Click <strong>+ Record Collection</strong> to add one.</span>}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+
+
 // ══════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════════════════════
@@ -194,258 +449,6 @@ export default function ProformaInvoices() {
   const cancelled      = pis.filter(p=>p.status==='cancelled').length;
   const fullyCollected = pis.filter(p=>p.status==='fully_collected').length;
 
-  // ── DETAIL PANEL ──
-  const DetailPanel = ({ pi }) => {
-    const collected = pi.total_collected || 0;
-    const progress  = pctOf(collected, pi.grand_total);
-    const remaining = Math.max(0, (pi.grand_total||0) - collected);
-    const canAddColl = canRecord && ['approved','fully_collected'].includes(pi.status);
-
-    return (
-      <Card className="mt-4 p-6">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 flex-wrap mb-5">
-          <div>
-            <div className="flex items-center gap-3 flex-wrap mb-1">
-              <span className="font-mono font-bold text-lg" style={{color:NAVY}}>{pi.pi_number}</span>
-              <PIPill status={pi.status}/>
-              <span style={{background:'#f1f5f9',color:'#475569',display:'inline-block',padding:'2px 10px',borderRadius:'9999px',fontSize:'11px',fontWeight:600}}>
-                {pi.entity==='yavi'?'Yavi':'Fynd'}
-              </span>
-            </div>
-            <p className="text-sm font-semibold text-slate-700">{pi.customer_name}</p>
-            <p className="text-xs text-slate-400 mt-0.5">OF: {pi.of_number} · Created by {pi.created_by_name}</p>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            {canDownload && (pi.status==='approved'||pi.status==='fully_collected') && (
-              <Btn variant="success" size="sm" onClick={()=>printPI(pi)}>📥 Download PDF</Btn>
-            )}
-            {canApprove && pi.status==='submitted' && (
-              <>
-                <Btn variant="success" size="sm" onClick={()=>{setShowModal({piId:pi.id,action:'approve'});setCmt('');}}>✓ Approve</Btn>
-                <Btn variant="danger"  size="sm" onClick={()=>{setShowModal({piId:pi.id,action:'reject'});setCmt('');}}>✕ Reject</Btn>
-              </>
-            )}
-            {canApprove && ['submitted','approved'].includes(pi.status) && (
-              <Btn variant="ghost" size="sm" style={{color:'#64748b'}}
-                onClick={()=>{setShowModal({piId:pi.id,action:'cancel'});setCmt('');}}>
-                🚫 Cancel PI
-              </Btn>
-            )}
-            <Btn variant="ghost" size="sm" onClick={()=>{setSelPI(null);setShowCollForm(false);}}>✕ Close</Btn>
-          </div>
-        </div>
-
-        {/* Customer */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-          {[
-            ['Customer', pi.customer_name],
-            ...(pi.gstin       ? [['GSTIN',    pi.gstin]]      : []),
-            ...(pi.pan         ? [['PAN',       pi.pan]]        : []),
-            ...(pi.tax_number  ? [['Tax / VAT', pi.tax_number]] : []),
-            ['Address',  pi.billing_address||'—'],
-          ].map(([k,v])=>(
-            <div key={k} className="bg-slate-50 rounded-xl p-3">
-              <div className="text-xs text-slate-400 mb-1">{k}</div>
-              <div className="text-xs font-semibold text-slate-700 truncate">{v}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Line items */}
-        <div className="overflow-x-auto rounded-xl border border-slate-100 mb-4">
-          <table className="w-full text-xs">
-            <thead className="bg-slate-50">
-              <tr className="text-slate-400 uppercase tracking-wide text-left">
-                <th className="px-4 py-3 font-semibold">Service</th>
-                <th className="px-4 py-3 font-semibold">Description</th>
-                <th className="px-4 py-3 font-semibold text-center">SAC</th>
-                <th className="px-4 py-3 font-semibold text-center">Qty</th>
-                <th className="px-4 py-3 font-semibold text-right">Rate</th>
-                <th className="px-4 py-3 font-semibold text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(pi.line_items||[]).map((li,i)=>(
-                <tr key={i} className="border-t border-slate-100">
-                  <td className="px-4 py-3 text-slate-600">{li.service||'—'}</td>
-                  <td className="px-4 py-3 text-slate-600">{[li.fee_type,li.description].filter(Boolean).join(' — ')||'—'}</td>
-                  <td className="px-4 py-3 font-mono text-slate-400 text-center">{li.sac_code||getSAC(li.fee_type)}</td>
-                  <td className="px-4 py-3 text-center">{li.qty}</td>
-                  <td className="px-4 py-3 text-right">{fmtAmt(li.rate,pi.currency)}</td>
-                  <td className="px-4 py-3 text-right font-semibold">{fmtAmt(li.total,pi.currency)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot className="bg-slate-50 text-xs">
-              <tr className="border-t border-slate-200">
-                <td colSpan={5} className="px-4 py-3 text-right font-medium text-slate-600">Total Before Tax</td>
-                <td className="px-4 py-3 text-right font-semibold">{fmtAmt(pi.subtotal,pi.currency)}</td>
-              </tr>
-              <tr>
-                <td colSpan={5} className="px-4 py-2 text-right text-slate-400">{pi.tax_rate>0?`${pi.tax_type||'GST'} @ ${pi.tax_rate}%`:'No Tax'}</td>
-                <td className="px-4 py-2 text-right">{fmtAmt(pi.tax_amount,pi.currency)}</td>
-              </tr>
-              <tr className="border-t-2 border-slate-300">
-                <td colSpan={5} className="px-4 py-3 text-right font-bold text-slate-800">Grand Total</td>
-                <td className="px-4 py-3 text-right font-bold text-sm text-slate-800">{fmtAmt(pi.grand_total,pi.currency)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        {/* Review details */}
-        {pi.revops_reviewer && (
-          <div className="bg-slate-50 rounded-xl p-4 text-xs space-y-1.5 mb-4">
-            <div className="font-semibold text-slate-500 uppercase tracking-wide mb-2">Review Details</div>
-            <div className="flex gap-2"><span className="text-slate-400 w-28">Reviewed by</span><span className="font-medium">{pi.revops_reviewer}</span></div>
-            {pi.revops_comment && <div className="flex gap-2"><span className="text-slate-400 w-28">Comment</span><span className="font-medium">{pi.revops_comment}</span></div>}
-          </div>
-        )}
-
-        {/* ── COLLECTIONS ── */}
-        {['approved','fully_collected'].includes(pi.status) && (
-          <div className="border-t border-slate-100 pt-5">
-            {/* Header + progress */}
-            <div className="flex items-start justify-between gap-4 mb-3 flex-wrap">
-              <div>
-                <div className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-0.5">Collections</div>
-                <div className="text-xs text-slate-400">
-                  <span className="font-semibold text-green-700">{fmtAmt(collected,pi.currency)}</span> collected of {fmtAmt(pi.grand_total,pi.currency)}
-                  {remaining > 0 && <span className="ml-2 text-amber-600 font-medium">· {fmtAmt(remaining,pi.currency)} remaining</span>}
-                  {remaining === 0 && <span className="ml-2 text-green-600 font-medium">· Fully collected ✓</span>}
-                </div>
-              </div>
-              {canAddColl && (
-                <button onClick={()=>setShowCollForm(v=>!v)}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                  style={{background:showCollForm?'#f1f5f9':'#d1fae5',color:showCollForm?'#475569':'#065f46'}}>
-                  {showCollForm?'✕ Cancel':'+ Record Collection'}
-                </button>
-              )}
-            </div>
-
-            {/* Progress bar */}
-            <div className="h-2.5 bg-slate-100 rounded-full mb-4 overflow-hidden">
-              <div style={{width:`${progress}%`,background:progress>=100?'#16a34a':'#2563eb',height:'100%',borderRadius:'9999px',transition:'width 0.4s ease'}}/>
-            </div>
-
-            {/* Collection history */}
-            {(pi.collections||[]).length > 0 && (
-              <div className="overflow-x-auto rounded-xl border border-slate-100 mb-4">
-                <table className="w-full text-xs">
-                  <thead className="bg-slate-50">
-                    <tr className="text-slate-400 uppercase tracking-wide text-left">
-                      <th className="px-3 py-2.5 font-semibold">Date</th>
-                      <th className="px-3 py-2.5 font-semibold">Amount</th>
-                      <th className="px-3 py-2.5 font-semibold">Mode</th>
-                      <th className="px-3 py-2.5 font-semibold">Reference / UTR</th>
-                      <th className="px-3 py-2.5 font-semibold">Notes</th>
-                      <th className="px-3 py-2.5 font-semibold">Recorded By</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...(pi.collections||[])].sort((a,b)=>new Date(b.date)-new Date(a.date)).map((c,i)=>(
-                      <tr key={c.id||i} className="border-t border-slate-100">
-                        <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">{fmtDate(c.date)}</td>
-                        <td className="px-3 py-2.5 font-semibold text-green-700">{fmtAmt(c.amount,pi.currency)}</td>
-                        <td className="px-3 py-2.5 text-slate-500">{c.mode}</td>
-                        <td className="px-3 py-2.5 font-mono text-slate-600">{c.payment_reference}</td>
-                        <td className="px-3 py-2.5 text-slate-400">{c.notes||'—'}</td>
-                        <td className="px-3 py-2.5 text-slate-400">{c.recorded_by_name}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-slate-50">
-                    <tr className="border-t border-slate-200">
-                      <td className="px-3 py-2.5 font-semibold text-slate-600">Total collected</td>
-                      <td className="px-3 py-2.5 font-bold text-green-700">{fmtAmt(collected,pi.currency)}</td>
-                      <td colSpan={4}/>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-
-            {/* Add collection form */}
-            {showCollForm && canAddColl && (
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <div className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-3">Record New Collection</div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Amount ({pi.currency}) *</label>
-                    <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white">
-                      <span className="px-2 text-slate-400 text-xs shrink-0">{symOf(pi.currency)}</span>
-                      <input type="number" min="0.01" step="0.01" value={collEntry.amount}
-                        onChange={e=>setCollEntry(v=>({...v,amount:e.target.value}))}
-                        placeholder="0.00"
-                        className="flex-1 pr-3 py-2 text-xs focus:outline-none bg-white"/>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Date of Receipt *</label>
-                    <input type="date" value={collEntry.date}
-                      onChange={e=>setCollEntry(v=>({...v,date:e.target.value}))}
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-teal-400"/>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Payment Mode *</label>
-                    <select value={collEntry.mode}
-                      onChange={e=>setCollEntry(v=>({...v,mode:e.target.value}))}
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-teal-400">
-                      {PAYMENT_MODES.map(m=><option key={m} value={m}>{m}</option>)}
-                    </select>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Payment Reference / UTR *</label>
-                    <input type="text" value={collEntry.payment_reference}
-                      onChange={e=>setCollEntry(v=>({...v,payment_reference:e.target.value}))}
-                      placeholder="e.g. UTR123456789 or CHQ001234"
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-teal-400"/>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Notes (optional)</label>
-                    <input type="text" value={collEntry.notes}
-                      onChange={e=>setCollEntry(v=>({...v,notes:e.target.value}))}
-                      placeholder="Any additional notes"
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-teal-400"/>
-                  </div>
-                </div>
-
-                {collEntry.amount && parseFloat(collEntry.amount) > 0 && (
-                  <div className="mb-3 p-2 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-700">
-                    After this entry: <strong>{fmtAmt(collected+parseFloat(collEntry.amount||0),pi.currency)}</strong> collected
-                    {(collected+parseFloat(collEntry.amount||0)) >= pi.grand_total
-                      ? <span className="ml-2 font-semibold text-green-700">→ Will mark PI as Fully Collected 🎉</span>
-                      : <span className="ml-2 text-slate-500">· {fmtAmt(Math.max(0,pi.grand_total-(collected+parseFloat(collEntry.amount||0))),pi.currency)} still remaining</span>}
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-2">
-                  <button onClick={()=>{setShowCollForm(false);setCollEntry({amount:'',date:'',payment_reference:'',mode:'NEFT',notes:''}); }}
-                    className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100">
-                    Cancel
-                  </button>
-                  <button onClick={doAddCollection} disabled={collSaving}
-                    className="text-xs font-semibold px-4 py-1.5 rounded-lg text-white"
-                    style={{background:collSaving?'#94a3b8':'#16a34a'}}>
-                    {collSaving?'Saving…':'✓ Save Collection'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {(pi.collections||[]).length===0 && !showCollForm && (
-              <div className="text-center text-xs text-slate-400 py-4">
-                No collections recorded yet.
-                {canAddColl && <span className="ml-1">Click <strong>+ Record Collection</strong> to add one.</span>}
-              </div>
-            )}
-          </div>
-        )}
-      </Card>
-    );
-  };
 
   // ── RENDER ──
   return (
@@ -526,7 +529,23 @@ export default function ProformaInvoices() {
         )}
       </Card>
 
-      {selPI && <DetailPanel pi={selPI}/>}
+      {selPI && (
+        <DetailPanel
+          pi={selPI}
+          canDownload={canDownload}
+          canApprove={canApprove}
+          canRecord={canRecord}
+          setSelPI={setSelPI}
+          setShowModal={setShowModal}
+          setCmt={setCmt}
+          showCollForm={showCollForm}
+          setShowCollForm={setShowCollForm}
+          collEntry={collEntry}
+          setCollEntry={setCollEntry}
+          collSaving={collSaving}
+          doAddCollection={doAddCollection}
+        />
+      )}
 
       {/* Approve / Reject / Cancel modal */}
       {showModal && (
