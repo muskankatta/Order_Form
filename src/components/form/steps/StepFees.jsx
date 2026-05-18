@@ -11,7 +11,7 @@ const T = '#00C3B5'; const NAVY = '#1B2B4B';
 
 const SUB_SERVICES = {
   'Konnect': ['3P Storefront','3P Marketplace'],
-  'StoreOS': ['Clienteling','POS','In Store Apps','Scan & Go'],
+  'StoreOS': ['Clienteling','POS','Endless Aisle','Scan & Go','Self Checkout Kiosk'],
   'GlamAR':  ['3D Model Creation','3D Configurator','3D Virtual Photography','360 Degree Product Viewer','Virtual Try-On (VTO)','AR Ads','AI Skin Analysis'],
 };
 
