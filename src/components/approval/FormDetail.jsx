@@ -310,6 +310,7 @@ export default function FormDetail({ form: initial }) {
   const [sigDate,    setSigDate]    = useState('');
   const [signedLink, setSignedLink] = useState(form.signed_of_link||'');
   const [salesRevopsApprovers, setSalesRevopsApprovers] = useState([]);
+  const [submitErrors, setSubmitErrors] = useState([]);
 
   // ── PI state ──
   const [pis,        setPIs]        = useState([]);
@@ -318,6 +319,30 @@ export default function FormDetail({ form: initial }) {
 
   const live = edit ? ef : form;
   const set  = (k,v) => setEf(prev => ({...prev,[k]:v}));
+
+  const validateForSubmit = (f) => {
+    const e = [];
+    const isYavi  = f.entity === 'yavi' || (f.of_number||'').startsWith('OFYT') || (f.of_number||'').startsWith('OF-YT-');
+    const isIndia = !isYavi && (!f.country || f.country === 'India');
+    if (!f.entity)                e.push('Issuing entity is required');
+    if (!f.customer_name)         e.push('Customer name is required');
+    if (!f.billing_address)       e.push('Customer billing address is required');
+    if (!f.country)               e.push('Country is required');
+    if (!f.sales_rep_email)       e.push('Sales rep is required');
+    if (!f.sales_team)            e.push('Sales team is required');
+    if (!f.segment)               e.push('Segment is required');
+    if (!f.sale_type)             e.push('Sale type is required');
+    if (!f.lead_type)             e.push('Sales channel is required');
+    if (!f.start_date)            e.push('Start date is required');
+    if (!(f.services_fees||[]).length) e.push('At least one service is required');
+    if (!f.signatory_name)        e.push('Signatory name is required');
+    if (!f.signatory_designation) e.push('Signatory designation is required');
+    if (!f.signatory_email)       e.push('Signatory email is required');
+    if (isYavi && !f.tax_number)  e.push('Tax / VAT / TRN Number is required for Yavi OFs');
+    if (isIndia && !f.pan)        e.push('Customer PAN is required');
+    if (!isYavi && !isIndia && !f.tax_number) e.push('Tax / VAT Number is required for international OFs');
+    return e;
+  };
 
   const revopsPrimaryEmail  = (form.revops_approvers||[])[0];
   const financePrimaryEmail = (form.finance_approvers||[])[0];
@@ -515,16 +540,24 @@ export default function FormDetail({ form: initial }) {
             <p className="text-xs text-amber-600 mt-1">Select at least one RevOps reviewer to submit.</p>
           )}
           <div className="mt-4">
+            {submitErrors.length > 0 && (
+              <div className="mb-3 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">
+                <p className="font-bold mb-1">Fix these before submitting:</p>
+                {submitErrors.map((e,i) => <p key={i}>• {e}</p>)}
+              </div>
+            )}
             <Btn onClick={async () => {
-              if (!salesRevopsApprovers.length) { alert('Please select at least one RevOps reviewer.'); return; }
-              await submitForm(form, salesRevopsApprovers);
+              const errs = validateForSubmit(edit ? ef : form);
+              if (errs.length) { setSubmitErrors(errs); window.scrollTo(0,400); return; }
+              if (!salesRevopsApprovers.length) { setSubmitErrors(['Select at least one RevOps reviewer.']); return; }
+              setSubmitErrors([]);
+              await submitForm(edit ? ef : form, salesRevopsApprovers);
               show('Submitted for RevOps review!');
               navigate('/dashboard');
             }}>
               {form.status==='revops_rejected' ? 'Resubmit for review →' : 'Submit for review →'}
             </Btn>
-          </div>
-        </Card>
+          </div>        </Card>
       )}
 
       {/* Universal — submit draft on behalf of Sales Rep */}
@@ -543,7 +576,10 @@ export default function FormDetail({ form: initial }) {
           <div className="flex gap-3 flex-wrap mt-2">
             {edit && <Btn variant="navy" onClick={async () => { await updateDraft(form.id, ef); setEdit(false); show('Edits saved ✓'); }}>💾 Save edits</Btn>}
             <Btn onClick={async () => {
-              if (!finDRIs.length) { alert('Select at least one RevOps reviewer.'); return; }
+              const errs = validateForSubmit(edit ? ef : form);
+              if (errs.length) { setSubmitErrors(errs); window.scrollTo(0,400); return; }
+              if (!finDRIs.length) { setSubmitErrors(['Select at least one RevOps reviewer.']); return; }
+              setSubmitErrors([]);
               const now = new Date().toISOString();
               await revopsApprove(form.id, {
                 editedForm: { ...form, status:'submitted', submitted_at: now, revops_approvers: finDRIs },
