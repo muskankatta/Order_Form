@@ -17,6 +17,8 @@ const LEAD_NAME_LABEL = {
   'Event':                  'Event name',
 };
 
+const toTitleCase = v => v.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+
 function isValidTaxNumber(val) {
   return /^[A-Z0-9\-]{3,30}$/.test(val);
 }
@@ -148,8 +150,8 @@ export default function StepClient({ form, set, ro }) {
 
       <SHdr c="Customer information"/>
       <div className="grid grid-cols-2 gap-x-6">
-        <Inp label="Customer name (legal entity)" req value={form.customer_name} onChange={v=>u('customer_name',v)} disabled={ro}/>
-        <Inp label="Brand / trade name" req value={form.brand_name} onChange={v=>u('brand_name',v)} disabled={ro}/>
+        <Inp label="Customer name (legal entity)" req value={form.customer_name} onChange={v=>u('customer_name',v)} onBlur={v=>u('customer_name', toTitleCase(v||form.customer_name||''))} disabled={ro}/>
+        <Inp label="Brand / trade name" req value={form.brand_name} onChange={v=>u('brand_name',v)} onBlur={v=>u('brand_name', toTitleCase(v||form.brand_name||''))} disabled={ro}/>
         <div className="col-span-2">
           <TA label="Customer billing address" req value={form.billing_address} onChange={v=>u('billing_address',v)} disabled={ro} rows={2}/>
         </div>
