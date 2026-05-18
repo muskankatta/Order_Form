@@ -79,7 +79,7 @@ export default function StepCommercial({ form, set, ro }) {
       <SHdr c="Client representative"/>
       <div className="grid grid-cols-3 gap-x-4">
         <Inp label="Name" req value={form.client_rep_name} onChange={v=>u('client_rep_name',v)} disabled={ro}/>
-        <Inp label="Mobile number" value={form.client_rep_mobile} onChange={v=>u('client_rep_mobile',v)} disabled={ro} placeholder="+91 98765 43210"/>
+        <Inp label="Mobile number" req value={form.client_rep_mobile} onChange={v=>u('client_rep_mobile',v)} disabled={ro} placeholder="+91 98765 43210"/>
         <Inp label="Email" req type="email" value={form.client_rep_email} onChange={v=>u('client_rep_email',v)} disabled={ro}/>
       </div>
       <div className="grid grid-cols-3 gap-x-4">
