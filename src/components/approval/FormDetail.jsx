@@ -461,7 +461,7 @@ export default function FormDetail({ form: initial }) {
       )}
 
       {/* Finance / Universal — save edits at any stage */}
-      {edit && (user?.role==='finance' || user?.isUniversal) && !['draft','revops_rejected','revops_approved','signed'].includes(form.status) && (
+      {edit && (user?.role==='finance' || user?.isUniversal) && (
         <Card className="mt-4 p-4">
           <div className="flex items-center gap-3">
             <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg flex-1">
@@ -541,7 +541,7 @@ export default function FormDetail({ form: initial }) {
             onChange={setFinDRIs}
           />
           <div className="flex gap-3 flex-wrap mt-2">
-            {edit && <Btn variant="navy" onClick={async () => { await revopsApprove(form.id,{editedForm:ef,comment:'',financeApprovers:[]}); setEdit(false); show('Edits saved!'); }}>💾 Save edits</Btn>}
+            {edit && <Btn variant="navy" onClick={async () => { await updateDraft(form.id, ef); setEdit(false); show('Edits saved ✓'); }}>💾 Save edits</Btn>}
             <Btn onClick={async () => {
               if (!finDRIs.length) { alert('Select at least one RevOps reviewer.'); return; }
               const now = new Date().toISOString();
@@ -596,7 +596,7 @@ export default function FormDetail({ form: initial }) {
           )}
           {isRevopsPrimary && (
             <div className="flex gap-3 flex-wrap mt-2">
-              {edit && <Btn variant="navy" onClick={() => { revopsApprove(form.id,{editedForm:ef,comment:cmt,financeApprovers:finDRIs}); setEdit(false); show('Edits saved!'); }}>💾 Save edits</Btn>}
+              {edit && <Btn variant="navy" onClick={async () => { await updateDraft(form.id, ef); setEdit(false); show('Edits saved ✓'); }}>💾 Save edits</Btn>}
               <Btn variant="success" onClick={handleRevopsApprove}>✓ Approve → Finance</Btn>
               <Btn variant="danger"  onClick={handleRevopsReject}>✕ Reject</Btn>
             </div>
