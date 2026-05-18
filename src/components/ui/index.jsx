@@ -14,14 +14,15 @@ export const Lbl = ({ c, req }) => (
   </label>
 );
 
-export const Inp = ({ label, req, type='text', value, onChange, placeholder, disabled, mono, hint }) => (
+export const Inp = ({ label, req, type='text', value, onChange, onBlur, placeholder, disabled, mono, hint }) => (
   <div className="mb-4">
     {label && <Lbl c={label} req={req}/>}
     <input
       type={type} value={value||''} placeholder={placeholder} disabled={disabled}
       onChange={e => onChange?.(e.target.value)}
       className={`field-input${mono?' font-mono':''}`}
-      style={fs} onFocus={e=>!disabled&&ff(e)} onBlur={fb}
+      style={fs} onFocus={e=>!disabled&&ff(e)}
+      onBlur={e => { fb(e); onBlur?.(e.target.value); }}
     />
     {hint && <p className="text-xs mt-1 text-brand-faint">{hint}</p>}
   </div>
