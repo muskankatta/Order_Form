@@ -356,6 +356,7 @@ const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
   const canEdit = user?.isUniversal
     || (user?.role==='sales' && ['draft','revops_rejected'].includes(form.status) && form.sales_rep_email===user.email)
     || (user?.role==='revops' && form.status==='submitted')
+    || (user?.role==='revops' && form.status==='draft' && !!form.clone_of)
     || (user?.role==='finance');
 
   const canDelete = (user?.isUniversal) || (user?.role==='sales'&&form.status==='draft') || (user?.role==='revops'&&form.status==='submitted') || (user?.role==='finance'&&form.status==='revops_approved');
@@ -503,6 +504,67 @@ const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
         </Card>
       )}
 
+{/* RevOps — edit + submit clone drafts */}
+      {user?.role==='revops' && form.status==='draft' && !!form.clone_of && (
+        <Card className="mt-4 p-6">
+          <h3 className="font-bold mb-1" style={{ color:NAVY }}>📋 Clone draft — RevOps</h3>
+          <p className="text-sm text-brand-muted mb-4">
+            This is a cloned draft. You can edit and submit it for RevOps review on behalf of the Sales Rep.
+          </p>
+          {form.clone_of && (
+            <p className="text-xs text-slate-400 mb-4">
+              Cloned from: <span className="font-mono">{form.clone_of}</span>
+            </p>
+          )}
+          {edit && (
+            <div className="mb-4">
+              <Btn variant="navy" onClick={async () => {
+                await updateDraft(form.id, ef);
+                setEdit(false);
+                show('Draft saved!');
+              }}>💾 Save edits</Btn>
+            </div>
+          )}
+          <MultiSelect
+            label="Select RevOps reviewer(s) — first selected is Primary DRI"
+            req
+            options={REVOPS_USERS.map(u => ({ value:u.email, label:u.name }))}
+            value={salesRevopsApprovers}
+            onChange={setSalesRevopsApprovers}
+          />
+          {salesRevopsApprovers.length > 0 && (
+            <div className="mt-2 p-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
+              <strong>Primary DRI:</strong> {(REVOPS_USERS.find(u=>u.email===salesRevopsApprovers[0])||{}).name||salesRevopsApprovers[0]}
+              {salesRevopsApprovers.length > 1 && (
+                <span className="ml-2 text-blue-500">
+                  · CC: {salesRevopsApprovers.slice(1).map(e=>(REVOPS_USERS.find(u=>u.email===e)||{}).name||e).join(', ')}
+                </span>
+              )}
+            </div>
+          )}
+          {!salesRevopsApprovers.length && (
+            <p className="text-xs text-amber-600 mt-1">Select at least one RevOps reviewer to submit.</p>
+          )}
+          <div className="mt-4">
+            {submitErrors.length > 0 && (
+              <div className="mb-3 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">
+                <p className="font-bold mb-1">Fix these before submitting:</p>
+                {submitErrors.map((e,i) => <p key={i}>• {e}</p>)}
+              </div>
+            )}
+            <Btn onClick={async () => {
+              const errs = validateForSubmit(edit ? ef : form);
+              if (errs.length) { setSubmitErrors(errs); window.scrollTo(0,400); return; }
+              if (!salesRevopsApprovers.length) { setSubmitErrors(['Select at least one RevOps reviewer.']); return; }
+              setSubmitErrors([]);
+              await submitForm(edit ? ef : form, salesRevopsApprovers);
+              show('Clone submitted for RevOps review!');
+              navigate('/dashboard');
+            }}>Submit for review →</Btn>
+          </div>
+        </Card>
+      )}
+      
       {/* Sales Rep — save edits + submit draft */}
       {user?.role==='sales' && ['draft','revops_rejected'].includes(form.status) && form.sales_rep_email===user?.email && (
         <Card className="mt-4 p-6">
