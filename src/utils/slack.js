@@ -101,7 +101,7 @@ function buildMessage(event, form, extra = {}) {
   const ofRef = form.of_number ? `*${form.of_number}*` : '_Draft_';
   const cust  = form.customer_name || '—';
   const url   = `https://muskankatta.github.io/Order_Form/#/form/${form.id}`;
-  const repMention = slackMention(form.sales_rep_email) || form.sales_rep_name || '—';
+  const repMention = slackMention(form.sales_rep_email) || (form.slack_id ? `<@${form.slack_id}>` : null) || form.sales_rep_name || '—';
 
   const icons  = { submitted:'📋', revops_approved:'✅', revops_rejected:'❌', approved:'🎉', finance_rejected:'❌', signed:'✍️' };
   const labels = {
