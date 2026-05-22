@@ -6,6 +6,7 @@ import { Card, Btn, Toast } from '../ui/index.jsx';
 import { useToast } from '../../hooks/useToast.js';
 import { fmtDate } from '../../utils/dates.js';
 import { SERVICES } from '../../constants/formOptions.js';
+import { REVOPS_USERS } from '../../constants/users.js';
 
 const NAVY = '#1B2B4B';
 const FEE_TYPES     = ['Setup Fee','One Time Fee','Subscription Fee'];
@@ -35,11 +36,13 @@ async function notifyPI(pi,event){
   if(!BOLTIC)return null;
   try{
     const ch=CH[pi.sales_team]||CH['India'];
+    const salesTag  = pi.sales_rep_slack_id   ? `<@${pi.sales_rep_slack_id}>` : null;
+    const revopsTag = pi.revops_reviewer_slack_id ? `<@${pi.revops_reviewer_slack_id}>` : pi.revops_reviewer;
     const msgs={
       submitted:`🧾 *Proforma Invoice Raised* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*By:* ${pi.created_by_name}  |  *Amount:* ${fmtAmt(pi.grand_total,pi.currency)}\n⏳ Awaiting RevOps Approval`,
-      cancelled:`🚫 *Proforma Invoice Cancelled* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*Cancelled by:* ${pi.revops_reviewer}\n*Reason:* ${pi.revops_comment||'Not specified'}`,
-      approved: `\u2705 *Proforma Invoice Approved* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *Amount:* ${fmtAmt(pi.grand_total,pi.currency)}\n*Approved by:* ${pi.revops_reviewer}\n📥 Sales Rep can now download the PI PDF`,
-      rejected: `\u274C *Proforma Invoice Rejected* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*Rejected by:* ${pi.revops_reviewer}\n*Reason:* ${pi.revops_comment||'Not specified'}`,
+      cancelled:`🚫 *Proforma Invoice Cancelled* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*Cancelled by:* ${revopsTag}${salesTag?`  |  *Sales Rep:* ${salesTag}`:''}\n*Reason:* ${pi.revops_comment||'Not specified'}`,
+      approved: `✅ *Proforma Invoice Approved* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *Amount:* ${fmtAmt(pi.grand_total,pi.currency)}\n*Approved by:* ${revopsTag}${salesTag?`  |  *Sales Rep:* ${salesTag}`:''}\n📥 Download the PDF from the OF Platform`,
+      rejected: `❌ *Proforma Invoice Rejected* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*Rejected by:* ${revopsTag}${salesTag?`  |  *Sales Rep:* ${salesTag}`:''}\n*Reason:* ${pi.revops_comment||'Not specified'}`,
     };
     const body={channel:ch,text:msgs[event]||''};if(pi.slack_thread_ts)body.thread_ts=pi.slack_thread_ts;
     const res=await fetch(BOLTIC,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -398,7 +401,7 @@ export default function ProformaInvoices() {
       await updateDoc(doc(db,'proforma_invoices',showModal.piId),{status:'approved',revops_reviewer:user.name||user.email,revops_comment:cmt,revops_reviewed_at:serverTimestamp()});
       await loadPIs();
       const pi=pis.find(p=>p.id===showModal.piId);
-      if(pi) await notifyPI({...pi,status:'approved',revops_reviewer:user.name||user.email,revops_comment:cmt},'approved');
+      if(pi){ const rSlack=REVOPS_USERS.find(u=>u.email===user.email)?.slack||null; await notifyPI({...pi,status:'approved',revops_reviewer:user.name||user.email,revops_reviewer_slack_id:rSlack,revops_comment:cmt},'approved'); }
       if(selPI?.id===showModal.piId) setSelPI(p=>({...p,status:'approved',revops_reviewer:user.name||user.email,revops_comment:cmt}));
       setShowModal(null); setCmt(''); show('PI Approved ✓');
     } catch(e) { show('Error: '+e.message,'error'); }
@@ -410,7 +413,7 @@ export default function ProformaInvoices() {
       await updateDoc(doc(db,'proforma_invoices',showModal.piId),{status:'rejected',revops_reviewer:user.name||user.email,revops_comment:cmt,revops_reviewed_at:serverTimestamp()});
       await loadPIs();
       const pi=pis.find(p=>p.id===showModal.piId);
-      if(pi) await notifyPI({...pi,status:'rejected',revops_reviewer:user.name||user.email,revops_comment:cmt},'rejected');
+      if(pi){ const rSlack=REVOPS_USERS.find(u=>u.email===user.email)?.slack||null; await notifyPI({...pi,status:'rejected',revops_reviewer:user.name||user.email,revops_reviewer_slack_id:rSlack,revops_comment:cmt},'rejected'); }
       if(selPI?.id===showModal.piId) setSelPI(p=>({...p,status:'rejected',revops_reviewer:user.name||user.email,revops_comment:cmt}));
       setShowModal(null); setCmt(''); show('PI Rejected');
     } catch(e) { show('Error: '+e.message,'error'); }
@@ -422,7 +425,7 @@ export default function ProformaInvoices() {
       await updateDoc(doc(db,'proforma_invoices',showModal.piId),{status:'cancelled',revops_reviewer:user.name||user.email,revops_comment:cmt,revops_reviewed_at:serverTimestamp()});
       await loadPIs();
       const pi=pis.find(p=>p.id===showModal.piId);
-      if(pi) await notifyPI({...pi,status:'cancelled',revops_reviewer:user.name||user.email,revops_comment:cmt},'cancelled');
+      if(pi){ const rSlack=REVOPS_USERS.find(u=>u.email===user.email)?.slack||null; await notifyPI({...pi,status:'cancelled',revops_reviewer:user.name||user.email,revops_reviewer_slack_id:rSlack,revops_comment:cmt},'cancelled'); }
       if(selPI?.id===showModal.piId) setSelPI(p=>({...p,status:'cancelled',revops_reviewer:user.name||user.email,revops_comment:cmt}));
       setShowModal(null); setCmt(''); show('PI Cancelled');
     } catch(e) { show('Error: '+e.message,'error'); }
