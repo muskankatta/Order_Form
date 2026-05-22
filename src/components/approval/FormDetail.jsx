@@ -18,7 +18,6 @@ import { SERVICES as PI_SERVICES_FALLBACK_IMPORT } from '../../constants/formOpt
 const NAVY='#1B2B4B'; const T='#00C3B5';
 const TABS = [{id:'client',lbl:'Client'},{id:'commercial',lbl:'Commercial'},{id:'fees',lbl:'Fees'},{id:'terms',lbl:'Terms'},{id:'signatory',lbl:'Signatory'}];
 
-// ── PI helpers ───────────────────────────────────────────────────────────────
 const PI_SERVICES_FALLBACK = PI_SERVICES_FALLBACK_IMPORT || [
   'Fynd Store OS','Fynd OMS','Fynd Commerce','Fynd Marketplace',
   'Kaily (CoPilot)','Boltic','Pixelbin','GlamAR','ratl.ai',
@@ -27,7 +26,7 @@ const PI_SERVICES_FALLBACK = PI_SERVICES_FALLBACK_IMPORT || [
 const PI_FEE_TYPES = ['Setup Fee','One Time Fee','Subscription Fee'];
 const PI_SAC = {'Setup Fee':'998314','One Time Fee':'998314','Subscription Fee':'998599'};
 const getSAC  = ft => PI_SAC[ft]||'998314';
-const symOf = cur => ({ USD:'$', AED:'AED ', GBP:'£', EUR:'€', SGD:'SGD ', SAR:'SAR ', QAR:'QAR ', OMR:'OMR ', KWD:'KWD ' }[cur] || (cur ? cur+' ' : '₹'));
+const symOf = cur => ({ USD:'$', AED:'AED ', GBP:'£', EUR:'€', SGD:'SGD ', SAR:'SAR ', QAR:'QAR ', OMR:'OMR ', KWD:'KWD ' }[cur] || (cur ? cur+' ' : '₹'));
 const fmtAmt  = (n,cur) => symOf(cur)+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const entityOf= of => { const n=of?.of_number||''; return (n.startsWith('OFYT')||n.startsWith('OF-YT-'))?'yavi':'fynd'; };
 const isIndia = of => of?.sales_team==='India'||(of?.country||'').toLowerCase()==='india';
@@ -36,7 +35,7 @@ const subtot  = items => items.reduce((s,li)=>s+((parseFloat(li.qty)||0)*(parseF
 const blankLI = () => ({service:'',fee_type:'',description:'',qty:1,rate:0});
 
 const BOLTIC  = import.meta.env.VITE_BOLTIC_SLACK_URL||'';
-const CH      = {India:'C0AQTCE3PNY',Global:'C08CBBNRAKZ','AI/SaaS':'C0978TZNGM8'};
+const CH      = {India:'C0392LXA3B4',Global:'C08CBBNRAKZ','AI/SaaS':'C0978TZNGM8'};
 
 function getCurrentFY(){const n=new Date();const y=n.getMonth()>=3?n.getFullYear()+1:n.getFullYear();return String(y).slice(-2);}
 
@@ -55,13 +54,18 @@ async function slackPI(pi,event){
   if(!BOLTIC) return null;
   try{
     const ch=CH[pi.sales_team]||CH['India'];
-    const primarySlack = pi.revops_approvers_slack_ids?.[0];
-    const revopsTag = primarySlack
-      ? `*Assigned to:* <@${primarySlack}>`
+    // Sales Rep tag
+    const salesTag = pi.sales_rep_slack_id
+      ? `<@${pi.sales_rep_slack_id}>`
+      : pi.created_by_name;
+    // RevOps tag
+    const primaryRevopsSlack = pi.revops_approvers_slack_ids?.[0];
+    const revopsTag = primaryRevopsSlack
+      ? `*Assigned to:* <@${primaryRevopsSlack}>`
       : pi.revops_approvers_names?.[0]
         ? `*Assigned to:* ${pi.revops_approvers_names[0]}` : '';
     const msgs={
-      submitted:`🧾 *Proforma Invoice Raised* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*By:* ${pi.created_by_name}  |  *Amount:* ${fmtAmt(pi.grand_total,pi.currency)}${revopsTag?'\n'+revopsTag:''}\n⏳ Awaiting RevOps Approval\n🔗 <${PI_PLATFORM_URL}|Review on OF Platform>`,
+      submitted:`🧾 *Proforma Invoice Raised* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*By:* ${salesTag}  |  *Amount:* ${fmtAmt(pi.grand_total,pi.currency)}${revopsTag?'\n'+revopsTag:''}\n⏳ Awaiting RevOps Approval\n🔗 <${PI_PLATFORM_URL}|Review on OF Platform>`,
     };
     const body={channel:ch,text:msgs[event]||''};
     if(pi.slack_thread_ts) body.thread_ts=pi.slack_thread_ts;
@@ -88,7 +92,6 @@ function PICreateForm({ form, user, onSubmitted }) {
   const [submitting,  setSub]         = useState(false);
   const fixed = fixedTax(form);
   const cur   = form.committed_currency||'INR';
-  // Only show services present in this OF; fall back to master list if none
   const ofServices = (form.services_fees||[]).map(s=>s.name).filter(Boolean);
   const availableServices = ofServices.length > 0 ? ofServices : PI_SERVICES_FALLBACK;
   const sub   = subtot(items);
@@ -147,7 +150,6 @@ function PICreateForm({ form, user, onSubmitted }) {
 
   return (
     <div className="mt-4 space-y-4">
-      {/* Customer info pills */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[['Customer',form.customer_name||'—'],['Entity',entityOf(form)==='yavi'?'Yavi':'Fynd'],['Currency',cur],form.tax_number?['Tax / VAT',form.tax_number]:['GSTIN/PAN',form.gstin||form.pan||'—']].map(([k,v])=>(
           <div key={k} className="bg-slate-50 rounded-xl p-3">
@@ -157,7 +159,6 @@ function PICreateForm({ form, user, onSubmitted }) {
         ))}
       </div>
 
-      {/* Line items */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">Line Items</span>
@@ -226,7 +227,6 @@ function PICreateForm({ form, user, onSubmitted }) {
         </div>
       </div>
 
-      {/* Tax + Totals */}
       <div className="ml-auto max-w-xs space-y-2">
         <div className="flex justify-between py-2 text-sm">
           <span className="text-slate-500">Total Before Tax</span>
@@ -265,7 +265,6 @@ function PICreateForm({ form, user, onSubmitted }) {
         </div>
       </div>
 
-      {/* RevOps selector */}
       <div>
         <MultiSelect
           label="Assign RevOps reviewer(s) — first selected is Primary DRI"
@@ -317,12 +316,12 @@ export default function FormDetail({ form: initial }) {
   const [piLoading,  setPILoading]  = useState(false);
   const [showPIForm, setShowPIForm] = useState(false);
 
- const live = edit ? ef : form;
-const set  = (k,v) => setEf(prev => ({...prev,[k]:v}));
-const isYaviForm = form.entity === 'yavi'
-  || (form.of_number||'').startsWith('OFYT')
-  || (form.of_number||'').startsWith('OF-YT-');
-const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
+  const live = edit ? ef : form;
+  const set  = (k,v) => setEf(prev => ({...prev,[k]:v}));
+  const isYaviForm = form.entity === 'yavi'
+    || (form.of_number||'').startsWith('OFYT')
+    || (form.of_number||'').startsWith('OF-YT-');
+  const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
 
   const validateForSubmit = (f) => {
     const e = [];
@@ -361,7 +360,7 @@ const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
 
   const canDelete = (user?.isUniversal) || (user?.role==='sales'&&form.status==='draft') || (user?.role==='revops'&&form.status==='submitted') || (user?.role==='finance'&&form.status==='revops_approved');
 
-  const canRaisePI = (user?.role==='sales'||user?.isUniversal) && ['revops_approved','approved','signed'].includes(form.status);
+  const canRaisePI = (user?.role==='sales'||user?.role==='revops'||user?.isUniversal) && ['revops_approved','approved','signed'].includes(form.status);
 
   const tabContent = {
     client:     <StepClient     form={live} set={set} ro={!edit}/>,
@@ -371,7 +370,6 @@ const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
     signatory:  <StepSignatory  form={live} set={set} ro={!edit}/>,
   };
 
-  // ── Load PIs for this OF ──
   const loadPIs = useCallback(async () => {
     if (!form.id) return;
     setPILoading(true);
@@ -504,7 +502,7 @@ const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
         </Card>
       )}
 
-{/* RevOps — edit + submit clone drafts */}
+      {/* RevOps — edit + submit clone drafts */}
       {user?.role==='revops' && form.status==='draft' && !!form.clone_of && (
         <Card className="mt-4 p-6">
           <h3 className="font-bold mb-1" style={{ color:NAVY }}>📋 Clone draft — RevOps</h3>
@@ -564,7 +562,7 @@ const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
           </div>
         </Card>
       )}
-      
+
       {/* Sales Rep — save edits + submit draft */}
       {user?.role==='sales' && ['draft','revops_rejected'].includes(form.status) && form.sales_rep_email===user?.email && (
         <Card className="mt-4 p-6">
@@ -623,7 +621,8 @@ const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
             }}>
               {form.status==='revops_rejected' ? 'Resubmit for review →' : 'Submit for review →'}
             </Btn>
-          </div>        </Card>
+          </div>
+        </Card>
       )}
 
       {/* Universal — submit draft on behalf of Sales Rep */}
@@ -736,9 +735,9 @@ const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
                   <Lbl c="OF Number" req/>
                   <div className="flex items-center border-2 rounded-lg overflow-hidden font-mono font-bold text-base" style={{ borderColor:T }}>
                     <span className="px-3 py-2 text-slate-400 bg-slate-50 border-r border-slate-200 select-none whitespace-nowrap">{ofPrefix}</span>
-<input value={ofNum.replace(new RegExp('^' + ofPrefix), '')}
-  onChange={e=>{ const val=e.target.value.replace(/[^0-9]/g,''); setOfNum(val ? ofPrefix + val : ''); }}                      
-                        placeholder="0001" maxLength={6}
+                    <input value={ofNum.replace(new RegExp('^' + ofPrefix), '')}
+                      onChange={e=>{ const val=e.target.value.replace(/[^0-9]/g,''); setOfNum(val ? ofPrefix + val : ''); }}
+                      placeholder="0001" maxLength={6}
                       className="flex-1 px-3 py-2 focus:outline-none font-mono font-bold"
                       style={{ color:NAVY }}/>
                   </div>
@@ -851,7 +850,6 @@ const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
             )}
           </div>
 
-          {/* Existing PIs list */}
           {!piLoading && pis.length > 0 && (
             <div className="overflow-x-auto rounded-xl border border-slate-100 mb-4">
               <table className="w-full text-xs">
@@ -892,7 +890,6 @@ const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
             </div>
           )}
 
-          {/* Inline create form */}
           {showPIForm && canRaisePI && (
             <PICreateForm
               form={form}
