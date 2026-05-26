@@ -4,7 +4,7 @@ import { Card, Btn, ErrorBanner } from '../ui/index.jsx';
 import StepClient from './steps/StepClient.jsx';
 import StepCommercial from './steps/StepCommercial.jsx';
 import StepFees from './steps/StepFees.jsx';
-import { StepTerms, StepSignatory } from './steps/StepTermsSignatory.jsx';
+import { StepTerms, StepSignatory, StepNotes } from './steps/StepTermsSignatory.jsx';
 import { MultiSelect } from '../ui/index.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
 import { useFormWizard } from '../../hooks/useFormWizard.js';
@@ -23,11 +23,13 @@ export default function FormWizard({ initial = null, onSaved }) {
 
   const stepProps = { form, set, ro: false };
   const comps = [
-    <StepClient   {...stepProps}/>,
+    <StepClient     {...stepProps}/>,
     <StepCommercial {...stepProps}/>,
-    <StepFees     {...stepProps}/>,
-    <StepTerms    {...stepProps}/>,
-    <StepSignatory {...stepProps}/>,
+    <StepFees       {...stepProps}/>,
+    <StepTerms      {...stepProps}/>,
+    <StepSignatory  {...stepProps}/>,
+    // Important Notes is always read-only in the wizard — Finance edits via FormDetail
+    <StepNotes form={form} set={set} ro={true}/>,
   ];
 
   const handleDraft = async () => {
@@ -68,7 +70,7 @@ export default function FormWizard({ initial = null, onSaved }) {
 
       <Card className="p-6">{comps[step]}</Card>
 
-      {/* RevOps approver selection — only on last step */}
+      {/* RevOps approver selection — only on last step (Notes) */}
       {step === FORM_STEPS.length - 1 && (
         <Card className="p-5 mt-4">
           <MultiSelect
