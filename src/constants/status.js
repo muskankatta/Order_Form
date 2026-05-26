@@ -11,13 +11,12 @@ export const STATUS = {
   void:            { label:'Void',            bg:'#fef2f2', text:'#b91c1c', dot:'#ef4444' },
   churn:           { label:'Churn',           bg:'#fff7ed', text:'#c2410c', dot:'#f97316' },
 };
-
 export const FORM_STEPS = [
   { id:'client',    lbl:'Client',         icon:'👤' },
   { id:'commercial',lbl:'Commercial',     icon:'📅' },
   { id:'fees',      lbl:'Services & Fees',icon:'💰' },
   { id:'terms',     lbl:'Special Terms',  icon:'📝' },
   { id:'signatory', lbl:'Signatory',      icon:'✍️' },
+  { id:'notes',     lbl:'Notes',          icon:'📋' },
 ];
-
 export const DEAL_STATUS_OPTIONS = ['revised','void','churn'];
