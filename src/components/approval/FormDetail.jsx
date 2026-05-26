@@ -6,7 +6,7 @@ import { Card, Btn, StatusPill, Lbl, TA, MultiSelect, Toast } from '../ui/index.
 import StepClient from '../form/steps/StepClient.jsx';
 import StepCommercial from '../form/steps/StepCommercial.jsx';
 import StepFees from '../form/steps/StepFees.jsx';
-import { StepTerms, StepSignatory } from '../form/steps/StepTermsSignatory.jsx';
+import { StepTerms, StepSignatory, StepNotes } from '../form/steps/StepTermsSignatory.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { FINANCE_USERS, REVOPS_USERS } from '../../constants/users.js';
@@ -16,7 +16,14 @@ import { useToast } from '../../hooks/useToast.js';
 import { SERVICES as PI_SERVICES_FALLBACK_IMPORT } from '../../constants/formOptions.js';
 
 const NAVY='#1B2B4B'; const T='#00C3B5';
-const TABS = [{id:'client',lbl:'Client'},{id:'commercial',lbl:'Commercial'},{id:'fees',lbl:'Fees'},{id:'terms',lbl:'Terms'},{id:'signatory',lbl:'Signatory'}];
+const TABS = [
+  {id:'client',    lbl:'Client'},
+  {id:'commercial',lbl:'Commercial'},
+  {id:'fees',      lbl:'Fees'},
+  {id:'terms',     lbl:'Terms'},
+  {id:'signatory', lbl:'Signatory'},
+  {id:'notes',     lbl:'Notes'},
+];
 
 const PI_SERVICES_FALLBACK = PI_SERVICES_FALLBACK_IMPORT || [
   'Fynd Store OS','Fynd OMS','Fynd Commerce','Fynd Marketplace',
@@ -54,16 +61,11 @@ async function slackPI(pi,event){
   if(!BOLTIC) return null;
   try{
     const ch=CH[pi.sales_team]||CH['India'];
-    // Sales Rep tag
-    const salesTag = pi.sales_rep_slack_id
-      ? `<@${pi.sales_rep_slack_id}>`
-      : pi.created_by_name;
-    // RevOps tag
+    const salesTag = pi.sales_rep_slack_id ? `<@${pi.sales_rep_slack_id}>` : pi.created_by_name;
     const primaryRevopsSlack = pi.revops_approvers_slack_ids?.[0];
     const revopsTag = primaryRevopsSlack
       ? `*Assigned to:* <@${primaryRevopsSlack}>`
-      : pi.revops_approvers_names?.[0]
-        ? `*Assigned to:* ${pi.revops_approvers_names[0]}` : '';
+      : pi.revops_approvers_names?.[0] ? `*Assigned to:* ${pi.revops_approvers_names[0]}` : '';
     const msgs={
       submitted:`🧾 *Proforma Invoice Raised* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*By:* ${salesTag}  |  *Amount:* ${fmtAmt(pi.grand_total,pi.currency)}${revopsTag?'\n'+revopsTag:''}\n⏳ Awaiting RevOps Approval\n🔗 <${PI_PLATFORM_URL}|Review on OF Platform>`,
     };
@@ -311,7 +313,6 @@ export default function FormDetail({ form: initial }) {
   const [salesRevopsApprovers, setSalesRevopsApprovers] = useState([]);
   const [submitErrors, setSubmitErrors] = useState([]);
 
-  // ── PI state ──
   const [pis,        setPIs]        = useState([]);
   const [piLoading,  setPILoading]  = useState(false);
   const [showPIForm, setShowPIForm] = useState(false);
@@ -322,6 +323,9 @@ export default function FormDetail({ form: initial }) {
     || (form.of_number||'').startsWith('OFYT')
     || (form.of_number||'').startsWith('OF-YT-');
   const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
+
+  // Notes tab is editable only by Finance (or Universal)
+  const canEditNotes = edit && (user?.role === 'finance' || user?.isUniversal);
 
   const validateForSubmit = (f) => {
     const e = [];
@@ -368,6 +372,8 @@ export default function FormDetail({ form: initial }) {
     fees:       <StepFees       form={live} set={set} ro={!edit}/>,
     terms:      <StepTerms      form={live} set={set} ro={!edit}/>,
     signatory:  <StepSignatory  form={live} set={set} ro={!edit}/>,
+    // Notes: editable only by Finance/Universal in edit mode
+    notes:      <StepNotes      form={live} set={set} ro={!canEditNotes}/>,
   };
 
   const loadPIs = useCallback(async () => {
@@ -461,6 +467,10 @@ export default function FormDetail({ form: initial }) {
             className="flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all"
             style={tab===t.id ? {background:'#fff',color:NAVY,boxShadow:'0 1px 3px rgba(0,0,0,0.08)'} : {color:'#94a3b8'}}>
             {t.lbl}
+            {/* Lock icon on Notes tab for non-Finance */}
+            {t.id==='notes' && !(user?.role==='finance'||user?.isUniversal) && (
+              <span className="ml-1 text-slate-300">🔒</span>
+            )}
           </button>
         ))}
       </div>
@@ -833,7 +843,7 @@ export default function FormDetail({ form: initial }) {
         </Card>
       )}
 
-      {/* ── PROFORMA INVOICES SECTION ─────────────────────────────────────── */}
+      {/* PROFORMA INVOICES SECTION */}
       {['revops_approved','approved','signed'].includes(form.status) && (
         <Card className="mt-4 p-5">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
