@@ -56,39 +56,12 @@ var SHARED_STYLES =
   '.footer{margin-top:20px;font-size:9px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:8px}' +
   '@media print{button,#actionBar{display:none}h2,.sign-box h4,th{-webkit-print-color-adjust:exact;print-color-adjust:exact}}';
 
-// ── Action bar ────────────────────────────────────────────────────────────────
+// ── Action bar — print only (Word doc removed) ────────────────────────────────
 var makeActionBar = function(ofNum, isYavi) {
   return '<div id="actionBar" style="text-align:center;margin-top:20px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap">' +
     '<button onclick="window.print()" style="background:#1B2B4B;color:#fff;border:none;padding:10px 28px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">' +
     '\uD83D\uDDB6 Print / Save as PDF</button>' +
-    '<button id="wordBtn" onclick="downloadWord()" style="background:#217346;color:#fff;border:none;padding:10px 28px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">' +
-    '\u2B07 Download Word (.docx)</button>' +
-    '</div>' +
-    '<script src="https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.js"><\/script>' +
-    '<script>' +
-    'var _ofNum="' + (ofNum||'DRAFT') + '";' +
-    'function downloadWord(){' +
-    'var btn=document.getElementById("wordBtn");' +
-    'btn.textContent="Generating...";btn.disabled=true;' +
-    'try{' +
-    'var content=document.getElementById("of-content").outerHTML;' +
-    'var full="<!DOCTYPE html><html><head><meta charset=\'UTF-8\'><style>' +
-      'body{font-family:Arial,sans-serif;font-size:11pt;color:#1a1a1a;margin:2cm}' +
-      'table{width:100%;border-collapse:collapse}' +
-      'th{background:#f0f4f8;font-weight:bold;padding:5pt 8pt;border:1pt solid #ccc}' +
-      'td{padding:4pt 8pt;border:1pt solid #ddd}' +
-      'h1{font-size:14pt;font-weight:900;text-align:center;text-transform:uppercase;margin:14pt 0}' +
-      'h2{font-size:10pt;font-weight:bold;background:#1B2B4B;color:white;padding:5pt 12pt;margin:12pt 0 0}' +
-      '</style></head><body>"+content+"</body></html>";' +
-    'var blob=htmlDocx.asBlob(full,{orientation:"portrait",margins:{top:720,right:720,bottom:720,left:720}});' +
-    'var url=URL.createObjectURL(blob);' +
-    'var a=document.createElement("a");a.href=url;a.download="OF_"+_ofNum+".docx";' +
-    'document.body.appendChild(a);a.click();document.body.removeChild(a);' +
-    'setTimeout(function(){URL.revokeObjectURL(url);},2000);' +
-    'btn.textContent="\u2B07 Download Word (.docx)";btn.disabled=false;' +
-    '}catch(e){alert("Word generation failed: "+e.message);btn.textContent="\u2B07 Download Word (.docx)";btn.disabled=false;}' +
-    '}' +
-    '<\/script>';
+    '</div>';
 };
 
 // ── GaaS Order Confirmation PDF ───────────────────────────────────────────────
@@ -282,8 +255,16 @@ export const openPDF = function(form) {
       '</div></div>';
   }
 
+  // ── Important Notes: use Finance-edited version if saved, else default T&C ──
   var tcHtml;
-  if (isYavi) {
+  if (form.important_notes) {
+    // Finance has customised the T&C — render as plain text preserving line breaks
+    tcHtml = form.important_notes
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br/>');
+  } else if (isYavi) {
     tcHtml =
       '<strong>1. Ownership &amp; Licensing</strong> \u2014 Shopsense Retail Technologies Limited (\u201cFynd\u201d) is the owner and licensor of the Software/Platform availed as Service(s) by the Client under this Order Form. Fynd has granted Yavi Technologies with licence to resell the Service(s) in the capacity of an exclusive authorized reseller by way of an independent licence agreement.<br/>' +
       '<strong>2. Agreement Scope</strong> \u2014 This Order Form shall be read together with schedules, annexures, SOP(s), SoW(s), and/or any written documents executed between the Parties, read along with the online terms and policy documents of Fynd with respect to the Service(s) being availed by the Client and shall constitute the entire understanding and agreement between the parties and replaces all prior understandings, negotiations, discussions, writings and agreements with respect to the subject matter hereof.<br/>' +
