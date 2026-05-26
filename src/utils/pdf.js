@@ -50,9 +50,9 @@ var SHARED_STYLES =
   '.kv td:first-child{background:#f8f9fa;font-weight:600;width:33%}' +
   '.st-block{padding:10px 14px;border:1px solid #ddd;font-size:10.5px;line-height:1.7;white-space:pre-wrap}' +
   '.sign-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:20px}' +
-'.sign-box{border:1px solid #ccc;border-radius:4px;padding:20px;min-height:140px}' +
-  '.sign-box h4{font-size:10px;font-weight:700;color:#1B2B4B;text-transform:uppercase;margin-bottom:10px}' +
-  '.sign-line{border-bottom:1px solid #999;margin:24px 0 8px}' +
+  '.sign-box{border:1px solid #ccc;border-radius:4px;padding:28px;min-height:280px}' +
+  '.sign-box h4{font-size:10px;font-weight:700;color:#1B2B4B;text-transform:uppercase;margin-bottom:14px}' +
+  '.sign-line{border-bottom:1px solid #999;margin:144px 0 10px}' +
   '.footer{margin-top:20px;font-size:9px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:8px}' +
   '@media print{button,#actionBar{display:none}h2,.sign-box h4,th{-webkit-print-color-adjust:exact;print-color-adjust:exact}}';
 
@@ -140,9 +140,9 @@ export const openGaaSPDF = function(form) {
     '.tc-section ul{margin-left:16px}' +
     '.tc-section li{margin-bottom:2px}' +
     '.sign-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}' +
-    '.sign-box{border:1px solid #ccc;border-radius:4px;padding:12px}' +
-    '.sign-box h4{font-size:10px;font-weight:700;color:#1B2B4B;text-transform:uppercase;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:4px}' +
-    '.sign-line{border-bottom:1px solid #999;margin:22px 0 6px}' +
+    '.sign-box{border:1px solid #ccc;border-radius:4px;padding:24px;min-height:280px}' +
+    '.sign-box h4{font-size:10px;font-weight:700;color:#1B2B4B;text-transform:uppercase;margin-bottom:14px;border-bottom:1px solid #eee;padding-bottom:4px}' +
+    '.sign-line{border-bottom:1px solid #999;margin:144px 0 10px}' +
     '.footer{margin-top:16px;font-size:9px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:6px}' +
     '@media print{button,#actionBar{display:none}h2,.sign-box h4,th{-webkit-print-color-adjust:exact;print-color-adjust:exact}}' +
     '</style></head><body>' +
@@ -214,23 +214,23 @@ export const openGaaSPDF = function(form) {
     '</div>' +
     '<div style="margin-top:14px;font-size:11px;font-weight:700;margin-bottom:6px">Authorization:</div>' +
     '<div class="sign-grid">' +
-'<div class="sign-box"><h4>For Fynd:</h4>' +
-'<div style="font-size:10px;color:#555;margin-bottom:4px">Name &amp; Designation</div>' +
-'<div class="sign-line"></div>' +
-'<div><strong>Sreeraman Mohan Girija</strong></div>' +
-'<div style="color:#555;margin-top:3px">Whole-time Director</div>' +
-'<div style="margin-top:10px;color:#999;font-size:9.5px">e- Sign: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>' +
-'<div style="color:#999;font-size:9.5px;margin-top:6px">Date of Signing: _______________</div>' +
-'</div>' +
-'<div class="sign-box"><h4>For Buyer:</h4>' +
-'<div style="font-size:10px;color:#555;margin-bottom:4px">Name &amp; Designation</div>' +
-'<div class="sign-line"></div>' +
-'<div><strong>' + sigName + '</strong></div>' +
-'<div style="color:#555;margin-top:3px">' + sigDesig + '</div>' +
-'<div style="margin-top:10px;color:#999;font-size:9.5px">e- Sign: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>' +
-'<div style="color:#999;font-size:9.5px;margin-top:6px">Date of Signing: _______________</div>' +
-'</div>' +
-'</div>' +    
+    '<div class="sign-box"><h4>For Fynd:</h4>' +
+    '<div style="font-size:10px;color:#555;margin-bottom:4px">Name &amp; Designation</div>' +
+    '<div class="sign-line"></div>' +
+    '<div><strong>Sreeraman Mohan Girija</strong></div>' +
+    '<div style="color:#555;margin-top:3px">Whole-time Director</div>' +
+    '<div style="margin-top:10px;color:#999;font-size:9.5px">e- Sign: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>' +
+    '<div style="color:#999;font-size:9.5px;margin-top:6px">Date of Signing: _______________</div>' +
+    '</div>' +
+    '<div class="sign-box"><h4>For Buyer:</h4>' +
+    '<div style="font-size:10px;color:#555;margin-bottom:4px">Name &amp; Designation</div>' +
+    '<div class="sign-line"></div>' +
+    '<div><strong>' + sigName + '</strong></div>' +
+    '<div style="color:#555;margin-top:3px">' + sigDesig + '</div>' +
+    '<div style="margin-top:10px;color:#999;font-size:9.5px">e- Sign: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>' +
+    '<div style="color:#999;font-size:9.5px;margin-top:6px">Date of Signing: _______________</div>' +
+    '</div>' +
+    '</div>' +
     '<div class="footer">OF#: ' + ofNum + ' \u00b7 Generated: ' + new Date().toLocaleString('en-IN') + ' \u00b7 Shopsense Retail Technologies Ltd.</div>' +
     '</div>' +
     makeActionBar(ofNum, false) +
@@ -344,9 +344,6 @@ export const openPDF = function(form) {
       '<tbody>' + (svc.fees||[]).map(feeRow).join('') + '</tbody></table></div>';
   }).join('');
 
-
-
-
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
     '<title>OF ' + ofNum + '</title>' +
     '<style>' + SHARED_STYLES + '</style></head><body>' +
@@ -384,17 +381,17 @@ export const openPDF = function(form) {
     tcHtml +
     '</div>' +
     '<div style="margin-top:18px;font-size:11px;font-weight:700;margin-bottom:6px">Authorization:</div>' +
-   '<div class="sign-grid">' +
-'<div class="sign-box"><h4>' + entitySignatoryLabel + '</h4><div class="sign-line"></div>' +
-'<div><strong>' + entitySignatoryName + '</strong></div>' +
-'<div style="color:#555;margin-top:3px">' + entitySignatoryDesig + '</div>' +
-'<div style="margin-top:10px;color:#999;font-size:9.5px">Date: _______________</div></div>' +
-'<div class="sign-box"><h4>For: ' + custName + '</h4><div class="sign-line"></div>' +
-'<div><strong>' + sigName + '</strong></div>' +
-'<div style="color:#555;margin-top:3px">' + sigDesig + '</div>' +
-'<div style="color:#aaa;font-size:9.5px;margin-top:2px">' + sigEmail + '</div>' +
-'<div style="margin-top:10px;color:#999;font-size:9.5px">Date: _______________</div></div>' +
-'</div>' +
+    '<div class="sign-grid">' +
+    '<div class="sign-box"><h4>' + entitySignatoryLabel + '</h4><div class="sign-line"></div>' +
+    '<div><strong>' + entitySignatoryName + '</strong></div>' +
+    '<div style="color:#555;margin-top:3px">' + entitySignatoryDesig + '</div>' +
+    '<div style="margin-top:10px;color:#999;font-size:9.5px">Date: _______________</div></div>' +
+    '<div class="sign-box"><h4>For: ' + custName + '</h4><div class="sign-line"></div>' +
+    '<div><strong>' + sigName + '</strong></div>' +
+    '<div style="color:#555;margin-top:3px">' + sigDesig + '</div>' +
+    '<div style="color:#aaa;font-size:9.5px;margin-top:2px">' + sigEmail + '</div>' +
+    '<div style="margin-top:10px;color:#999;font-size:9.5px">Date: _______________</div></div>' +
+    '</div>' +
     '<div class="footer">OF#: ' + ofNum + ' \u00b7 Generated: ' + new Date().toLocaleString('en-IN') + ' \u00b7 ' + footerEntity + '</div>' +
     '</div>' +
     makeActionBar(ofNum, isYavi) +
