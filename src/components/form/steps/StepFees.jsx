@@ -3,7 +3,7 @@ import { Lbl, SHdr } from '../../ui/index.jsx';
 import { SERVICES, FEE_TYPES, FEE_RULES, UNIT_METRICS, PAY_TRIGGERS,
          GRADUATED_ELIGIBLE, STEP_UP_ELIGIBLE, SLAB_RATE_UNITS } from '../../../constants/formOptions.js';
 import { uid } from '../../../utils/dates.js';
-import { cyclesInTerm, getSym } from '../../../utils/formatting.js';
+import { cyclesInTerm, getSym, cyclesInDateRange } from '../../../utils/formatting.js';
 import { calcMetrics, calcOFValue } from '../../../utils/calculations.js';
 import { newFee } from '../../../hooks/useFormWizard.js';
 
@@ -16,7 +16,6 @@ const SUB_SERVICES = {
 };
 
 // ── Inclusions helpers ────────────────────────────────────────────────────────
-// Normalize: each item is { text, metric }. Handles legacy strings.
 function toIncArray(val) {
   if (!val) return [];
   if (Array.isArray(val)) return val.map(item =>
@@ -447,25 +446,104 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
           )}
         </div>
       )}
+
+      {/* ── Step-up pricing ─────────────────────────────────────────────────── */}
       {canStep && !fee.isLogistics && fee.pricingModel==='flat' && (
         <div className="mb-3">
           <label className="flex items-center gap-2 text-xs font-medium cursor-pointer mb-2 text-slate-600">
             <input type="checkbox" checked={fee.stepUpPricing||false} onChange={e=>u('stepUpPricing',e.target.checked)}/> Step-up pricing
           </label>
           {fee.stepUpPricing && (
-            <div className="rounded-lg p-3 bg-amber-50 border border-amber-200">
-              {(fee.stepUpValues||[]).map((sv,i)=>(
-                <div key={sv.id||i} className="flex gap-2 mb-2 items-center">
-                  <input value={sv.label} onChange={e=>u('stepUpValues',(fee.stepUpValues||[]).map((s,j)=>j===i?{...s,label:e.target.value}:s))} placeholder="e.g. 1 Jul 2025 – 28 Feb 2026" className="flex-1 text-xs px-2 py-1 rounded border" style={{borderColor:'#fcd34d'}}/>
-                  <input value={sv.value} onChange={e=>u('stepUpValues',(fee.stepUpValues||[]).map((s,j)=>j===i?{...s,value:e.target.value}:s))} placeholder="Amount" className="w-28 text-xs px-2 py-1 rounded border font-mono" style={{borderColor:'#fcd34d'}}/>
-                  <button type="button" onClick={()=>u('stepUpValues',(fee.stepUpValues||[]).filter((_,j)=>j!==i))} className="text-xs text-red-500">✕</button>
-                </div>
-              ))}
-              <button type="button" onClick={()=>u('stepUpValues',[...(fee.stepUpValues||[]),{id:uid(),label:'',value:''}])} className="text-xs font-medium text-amber-800">+ Add period</button>
+            <div className="rounded-lg p-3 bg-amber-50 border border-amber-200 space-y-3">
+              <p className="text-[10px] text-amber-700 font-medium">
+                Each period has its own date range, billing cycle, and rate.
+                OF contribution = rate × cycles in that period.
+              </p>
+              {(fee.stepUpValues||[]).map((sv, i) => {
+                const rate   = parseFloat(sv.rate != null ? sv.rate : sv.value) || 0;
+                const cycles = (sv.startDate && sv.endDate && sv.billingCycle)
+                  ? cyclesInDateRange(sv.startDate, sv.endDate, sv.billingCycle) : null;
+                const periodTotal = (cycles !== null && rate > 0) ? rate * cycles : null;
+                const updSv = patch => u('stepUpValues', (fee.stepUpValues||[]).map((s,j) => j===i ? {...s,...patch} : s));
+                return (
+                  <div key={sv.id||i} className="rounded-lg border border-amber-200 bg-white p-3">
+                    <div className="flex justify-between items-center mb-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Period {i+1}</span>
+                      <button type="button"
+                        onClick={()=>u('stepUpValues',(fee.stepUpValues||[]).filter((_,j)=>j!==i))}
+                        className="text-xs text-red-500">✕ Remove</button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">Start date</div>
+                        <input type="date" value={sv.startDate||''}
+                          onChange={e=>updSv({startDate:e.target.value})}
+                          className="w-full text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white"
+                          style={{borderColor:'#fcd34d'}}/>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">End date</div>
+                        <input type="date" value={sv.endDate||''}
+                          onChange={e=>updSv({endDate:e.target.value})}
+                          className="w-full text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white"
+                          style={{borderColor:'#fcd34d'}}/>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">Billing cycle</div>
+                        <select value={sv.billingCycle||''}
+                          onChange={e=>updSv({billingCycle:e.target.value})}
+                          className="w-full text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white"
+                          style={{borderColor:'#fcd34d'}}>
+                          <option value="">Select…</option>
+                          {['Monthly','Quarterly','Bi-Annually','Annually','One Time'].map(o=><option key={o}>{o}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">Rate per cycle ({sym})</div>
+                        <input type="number" value={sv.rate != null ? sv.rate : (sv.value||'')}
+                          onChange={e=>updSv({rate:e.target.value, value:e.target.value})}
+                          placeholder="0" min="0"
+                          className="w-full text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white font-mono"
+                          style={{borderColor:'#fcd34d'}}/>
+                      </div>
+                    </div>
+                    {/* Live calculation preview */}
+                    {cycles !== null && rate > 0 ? (
+                      <div className="mt-2.5 px-2.5 py-1.5 rounded-lg bg-amber-100 border border-amber-200 text-[11px] font-semibold text-amber-800">
+                        {sym}{rate.toLocaleString('en-IN')} × {cycles} {sv.billingCycle} cycle{cycles!==1?'s':''} = <span style={{color:NAVY}}>{sym}{(rate*cycles).toLocaleString('en-IN')}</span>
+                      </div>
+                    ) : sv.startDate && sv.endDate && !sv.billingCycle ? (
+                      <p className="mt-1.5 text-[10px] text-amber-600">← Select a billing cycle to calculate</p>
+                    ) : null}
+                  </div>
+                );
+              })}
+              <button type="button"
+                onClick={()=>u('stepUpValues',[...(fee.stepUpValues||[]),{id:uid(),startDate:'',endDate:'',billingCycle:'Monthly',rate:'',value:''}])}
+                className="text-xs font-semibold text-amber-800 hover:text-amber-900">
+                + Add period
+              </button>
+              {/* Grand total across all periods */}
+              {(fee.stepUpValues||[]).length > 1 && (() => {
+                const stepTotal = (fee.stepUpValues||[]).reduce((sum, sv) => {
+                  const r = parseFloat(sv.rate != null ? sv.rate : sv.value) || 0;
+                  const c = (sv.startDate && sv.endDate && sv.billingCycle)
+                    ? cyclesInDateRange(sv.startDate, sv.endDate, sv.billingCycle) : 0;
+                  return sum + r * c;
+                }, 0);
+                return stepTotal > 0 ? (
+                  <div className="pt-2 border-t border-amber-200 text-[11px] font-bold text-amber-900">
+                    Total across all periods: {sym}{stepTotal.toLocaleString('en-IN')}
+                  </div>
+                ) : null;
+              })()}
             </div>
           )}
         </div>
       )}
+
       {!isOT && !fee.isLogistics && (
         <div className="mb-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
           <div className="text-[10px] font-bold uppercase tracking-wider mb-2 text-blue-700">Usage cycle</div>
@@ -500,7 +578,7 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
               } else {
                 onChange({ ...fee, isCustomPaymentTrigger: false, paymentTrigger: e.target.value });
               }
-            }}            className={inp} style={s6}>
+            }} className={inp} style={s6}>
             {PAY_TRIGGERS.map(o=><option key={o} value={o}>{o||'— None —'}</option>)}
             <option value="__custom__">Custom…</option>
           </select>
@@ -521,6 +599,7 @@ function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency }) {
   const subOptions = SUB_SERVICES[svc.name] || [];
   const selected   = svc.subServices || [];
   const isGaaS     = svc.name === 'GaaS';
+  const sym        = getSym(currency || 'INR');
 
   const addFee     = () => onChange({ ...svc, fees:[...(svc.fees||[]), newFee()] });
   const updFee     = (fi,u) => onChange({ ...svc, fees:svc.fees.map((f,i)=>i===fi?u:f) });
@@ -620,12 +699,22 @@ function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency }) {
                           : fee.stepUpPricing && (fee.stepUpValues||[]).length > 0
                             ? <span className="text-brand-muted">
                                 · Step-up:&nbsp;
-                                {(fee.stepUpValues||[]).map((sv,si) => (
-                                  <span key={sv.id||si} className="font-mono">
-                                    {sv.label}: {sv.value}
-                                    {si < (fee.stepUpValues||[]).length - 1 ? ',  ' : ''}
-                                  </span>
-                                ))}
+                                {(fee.stepUpValues||[]).map((sv, si) => {
+                                  const rate = parseFloat(sv.rate != null ? sv.rate : sv.value) || 0;
+                                  const cycles = (sv.startDate && sv.endDate && sv.billingCycle)
+                                    ? cyclesInDateRange(sv.startDate, sv.endDate, sv.billingCycle) : null;
+                                  const label = (sv.startDate && sv.endDate)
+                                    ? `${sv.startDate} – ${sv.endDate}`
+                                    : (sv.label || `Period ${si+1}`);
+                                  return (
+                                    <span key={sv.id||si} className="font-mono">
+                                      {label}{sv.billingCycle ? ` (${sv.billingCycle})` : ''}:
+                                      {' '}{sym}{rate.toLocaleString('en-IN')}/cycle
+                                      {cycles ? ` × ${cycles} = ${sym}${(rate*cycles).toLocaleString('en-IN')}` : ''}
+                                      {si < (fee.stepUpValues||[]).length - 1 ? ',  ' : ''}
+                                    </span>
+                                  );
+                                })}
                               </span>
 
                             : <span className="font-mono font-semibold" style={{color:NAVY}}>
