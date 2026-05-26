@@ -389,7 +389,7 @@ export default function ProformaInvoices() {
       try   { snap = await getDocs(query(collection(db,'proforma_invoices'),orderBy('created_at','desc'))); }
       catch { snap = await getDocs(collection(db,'proforma_invoices')); }
       const all = []; snap.forEach(d => all.push({id:d.id,...d.data()}));
-      setPIs(user?.role==='sales' ? all.filter(p=>p.created_by_email===user.email) : all);
+      setPIs(user?.role==='sales' ? all.filter(p=>p.created_by_email===user.email||p.sales_rep_email===user.email) : all);
     } catch(e) { console.error('loadPIs',e); }
     finally { setLoading(false); }
   }, [user]);
