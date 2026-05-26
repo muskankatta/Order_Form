@@ -5,73 +5,81 @@ import {
   AlignmentType, BorderStyle, WidthType, ShadingType, VerticalAlign,
 } from 'docx';
 
-// ── Layout constants (A4, 720 DXA margins each side) ──────────────────────────
-// Content width = 11906 - 720*2 = 10466
-const CW   = 10466;
+// ── Layout: A4 with 0.75" (1080 DXA) margins — content width 9746 DXA ─────────
+const CW   = 9746; // 11906 - 1080*2
 const NAVY = '1B2B4B';
 
 const border    = { style: BorderStyle.SINGLE, size: 4, color: 'CCCCCC' };
 const borders   = { top: border, bottom: border, left: border, right: border };
 const noBorder  = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
 const noBorders = { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder };
-const cellPad   = { top: 100, bottom: 100, left: 140, right: 140 };
+const cellPad   = { top: 100, bottom: 100, left: 120, right: 120 };
 
-// ── Text helpers ──────────────────────────────────────────────────────────────
+// ── Text helpers — minimum size 18 (9pt) ─────────────────────────────────────
 const run   = (text, opts = {}) => new TextRun({ text: String(text || ''), size: 20, font: 'Arial', ...opts });
 const bold  = (text, size = 20) => run(text, { bold: true, size });
-const navy  = (text, size = 22) => run(text, { bold: true, color: NAVY, size, font: 'Arial' });
-const grey  = (text, size = 18) => run(text, { color: '666666', size, font: 'Arial' });
-const white = (text, size = 20) => run(text, { bold: true, color: 'FFFFFF', size, font: 'Arial' });
+const navy  = (text, size = 22) => run(text, { bold: true, color: NAVY, size });
+const grey  = (text, size = 18) => run(text, { color: '666666', size });
+const white = (text, size = 20) => run(text, { bold: true, color: 'FFFFFF', size });
 
-// ── Section header — navy background, white text ──────────────────────────────
+// ── Section header ─────────────────────────────────────────────────────────────
 function sectionHeader(text) {
   return new Paragraph({
     children: [white(text, 20)],
     shading: { fill: NAVY, type: ShadingType.CLEAR },
     spacing: { before: 200, after: 0 },
-    indent: { left: 140, right: 140 },
+    indent: { left: 0, right: 0 },
   });
 }
 
-// ── KV table (4-col label/value grid) ────────────────────────────────────────
-const KV_WIDTHS = [2100, 3133, 2100, 3133];
+// ── KV table (4-col) ─────────────────────────────────────────────────────────
+// label 22% / value 28% / label 22% / value 28%
+const KV_L = Math.round(CW * 0.22);
+const KV_V = Math.round((CW - KV_L * 2) / 2);
+const KV_WIDTHS = [KV_L, KV_V, KV_L, CW - KV_L * 2 - KV_V]; // last col absorbs rounding
 
 function kvCell(text, isLabel, colspan = 1) {
   const w = colspan > 1
     ? KV_WIDTHS.slice(1).reduce((a, b) => a + b, 0)
-    : (isLabel ? KV_WIDTHS[0] : KV_WIDTHS[1]);
+    : (isLabel ? KV_L : KV_V);
   return new TableCell({
-    borders,
+    borders, margins: cellPad,
     width: { size: w, type: WidthType.DXA },
     shading: { fill: isLabel ? 'F0F4F8' : 'FFFFFF', type: ShadingType.CLEAR },
-    margins: cellPad,
     columnSpan: colspan,
     children: [new Paragraph({ children: [isLabel ? bold(text || '', 19) : run(text || '\u2014', { size: 19 })] })],
   });
 }
 
 function kvRow(l1, v1, l2, v2) {
-  const cells = [kvCell(l1, true), kvCell(v1, false)];
-  if (l2 !== undefined) { cells.push(kvCell(l2, true)); cells.push(kvCell(v2, false)); }
-  return new TableRow({ children: cells });
+  const c = [kvCell(l1, true), kvCell(v1, false)];
+  if (l2 !== undefined) { c.push(kvCell(l2, true)); c.push(kvCell(v2, false)); }
+  return new TableRow({ children: c });
 }
 
 function kvRowSpan(label, val) {
   return new TableRow({ children: [kvCell(label, true), kvCell(val, false, 3)] });
 }
 
-// ── Fee table (5 columns) ─────────────────────────────────────────────────────
-const FEE_WIDTHS = [1800, 1500, 2600, 2600, 1966];
+// ── Fee table (5-col) ────────────────────────────────────────────────────────
+// 17% / 14% / 23% / 27% / rest
+const FEE_W = [
+  Math.round(CW * 0.17),
+  Math.round(CW * 0.14),
+  Math.round(CW * 0.23),
+  Math.round(CW * 0.27),
+  0,
+];
+FEE_W[4] = CW - FEE_W[0] - FEE_W[1] - FEE_W[2] - FEE_W[3];
 
 function feeHeaderRow() {
   return new TableRow({
     tableHeader: true,
     children: ['Fee Type', 'Billing Cycle', 'Commercial Value', 'Inclusions', 'Charged On'].map((h, i) =>
       new TableCell({
-        borders,
-        width: { size: FEE_WIDTHS[i], type: WidthType.DXA },
+        borders, margins: cellPad,
+        width: { size: FEE_W[i], type: WidthType.DXA },
         shading: { fill: 'F0F4F8', type: ShadingType.CLEAR },
-        margins: cellPad,
         children: [new Paragraph({ children: [bold(h, 18)] })],
       })
     ),
@@ -82,9 +90,9 @@ function feeDataRow(values) {
   return new TableRow({
     children: values.map((v, i) =>
       new TableCell({
-        borders,
-        width: { size: FEE_WIDTHS[i], type: WidthType.DXA },
-        margins: cellPad,
+        borders, margins: cellPad,
+        width: { size: FEE_W[i], type: WidthType.DXA },
+        // Split on \n for multi-line cell values
         children: (v || '\u2014').split('\n').map(l =>
           new Paragraph({ children: [run(l || '\u2014', { size: 19 })] })
         ),
@@ -99,7 +107,7 @@ function fmtFeeCV(fee, sym) {
   if (fee.pricingModel === 'graduated') {
     return (fee.slabs || []).map(s =>
       s.from + '\u2013' + (s.to || '\u221e') + ': ' +
-      (s.rateType?.startsWith('%') ? s.rate + s.rateType : sym + s.rate)
+      (s.rateType?.startsWith('%') ? s.rate + s.rateType : sym + s.rate + ' ' + (s.rateType || ''))
     ).join('\n');
   }
   if (fee.stepUpPricing && fee.stepUpValues?.length) {
@@ -132,24 +140,16 @@ function buildTaxDetails(form, isYavi) {
   return parts.length ? parts.join('  \u00b7  ') : '\u2014';
 }
 
-// ── Signature box cell ────────────────────────────────────────────────────────
-// 1.5 inches gap = 2160 DXA spacing (1440 DXA per inch)
+// ── Signature box cell — entity LEFT, customer RIGHT ─────────────────────────
+// 1.5 inch gap = 2160 DXA above signature line
 function signBox(heading, name, desig, email) {
   return new TableCell({
     borders,
     width: { size: Math.floor(CW / 2), type: WidthType.DXA },
-    margins: { top: 200, bottom: 200, left: 200, right: 200 },
+    margins: { top: 180, bottom: 180, left: 180, right: 180 },
     children: [
-      new Paragraph({
-        children: [bold(heading, 19)],
-        spacing: { before: 0, after: 60 },
-      }),
-      // 1.5-inch blank space
-      new Paragraph({
-        children: [run('')],
-        spacing: { before: 0, after: 2160 },
-      }),
-      // Signature line as paragraph bottom border
+      new Paragraph({ children: [bold(heading, 19)], spacing: { before: 0, after: 60 } }),
+      new Paragraph({ children: [run('')], spacing: { before: 0, after: 2160 } }),
       new Paragraph({
         border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '999999' } },
         spacing: { before: 0, after: 120 },
@@ -157,8 +157,8 @@ function signBox(heading, name, desig, email) {
       }),
       new Paragraph({ children: [bold(name || '________________________', 19)], spacing: { before: 0, after: 40 } }),
       new Paragraph({ children: [grey(desig || 'Authorised Signatory', 18)], spacing: { before: 0, after: 40 } }),
-      ...(email ? [new Paragraph({ children: [grey(email, 17)], spacing: { before: 0, after: 40 } })] : []),
-      new Paragraph({ children: [grey('Date: _______________', 18)], spacing: { before: 100, after: 0 } }),
+      ...(email ? [new Paragraph({ children: [grey(email, 18)], spacing: { before: 0, after: 40 } })] : []),
+      new Paragraph({ children: [grey('Date: _______________', 18)], spacing: { before: 80, after: 0 } }),
     ],
   });
 }
@@ -168,9 +168,56 @@ function tcPara(num, title, body) {
   return new Paragraph({
     spacing: { before: 100, after: 60 },
     children: [
-      run(num + '. ', { bold: true, size: 18 }),
-      run(title + ' \u2014 ', { bold: true, size: 18 }),
-      run(body, { size: 18 }),
+      run(num + '. ', { bold: true, size: 19 }),
+      run(title + ' \u2014 ', { bold: true, size: 19 }),
+      run(body, { size: 19 }),
+    ],
+  });
+}
+
+// ── Letterhead table ──────────────────────────────────────────────────────────
+function buildLetterhead(isYavi, ofNum, dateStr) {
+  const LEFT_W  = Math.round(CW * 0.55);
+  const RIGHT_W = CW - LEFT_W;
+
+  const leftChildren = isYavi
+    ? [
+        new Paragraph({ spacing: { after: 60 }, children: [navy('Yavi Technologies FZCO', 24)] }),
+        new Paragraph({ spacing: { after: 40 }, children: [grey('B1, Office 129, Dubai CommerCity, 117th St \u2013 Umm Ramool, Dubai', 18)] }),
+        new Paragraph({ children: [grey('VAT: 104789269800003  |  LICENSE: 50455', 18)] }),
+      ]
+    : [
+        new Paragraph({ spacing: { after: 60 }, children: [navy('Shopsense Retail Technologies Limited', 24)] }),
+        new Paragraph({ spacing: { after: 40 }, children: [grey('1st Floor, Wework Vijay Diamond, Andheri East, Mumbai \u2013 400 093', 18)] }),
+        new Paragraph({ children: [grey('CIN: U52100MH2012PLC236314  |  GSTN: 27AALCA0442L1ZM  |  PAN: AALCA0442L', 18)] }),
+      ];
+
+  return new Table({
+    width: { size: CW, type: WidthType.DXA },
+    columnWidths: [LEFT_W, RIGHT_W],
+    borders: {
+      bottom: { style: BorderStyle.SINGLE, size: 8, color: NAVY },
+      top: noBorder, left: noBorder, right: noBorder, insideH: noBorder, insideV: noBorder,
+    },
+    rows: [new TableRow({ children: [
+      new TableCell({
+        borders: noBorders,
+        width: { size: LEFT_W, type: WidthType.DXA },
+        margins: { top: 0, bottom: 160, left: 0, right: 0 },
+        children: leftChildren,
+      }),
+      new TableCell({
+        borders: noBorders,
+        width: { size: RIGHT_W, type: WidthType.DXA },
+        verticalAlign: VerticalAlign.BOTTOM,
+        margins: { top: 0, bottom: 160, left: 0, right: 0 },
+        children: [
+          new Paragraph({ alignment: AlignmentType.RIGHT, children: [run('ORDER FORM', { bold: true, color: '64748B', size: 18, allCaps: true })] }),
+          new Paragraph({ alignment: AlignmentType.RIGHT, children: [run(ofNum, { bold: true, color: NAVY, size: 34, font: 'Courier New' })] }),
+          new Paragraph({ alignment: AlignmentType.RIGHT, children: [grey('Date: ' + (dateStr || ''), 18)] }),
+        ],
+      }),
+    ]}),
     ],
   });
 }
@@ -200,89 +247,17 @@ function buildDoc(form) {
     ? fmtDate(form.signed_date)
     : fmtDate(form.submitted_at ? form.submitted_at.split('T')[0] : '');
 
-  const LEFT_W = Math.round(CW * 0.55);
-  const RIGHT_W = CW - LEFT_W;
-
   const children = [];
 
   // ── Letterhead ──────────────────────────────────────────────────────────────
-  if (isYavi) {
-    // Yavi: text-only letterhead (image not embeddable in docx easily)
-    children.push(new Table({
-      width: { size: CW, type: WidthType.DXA },
-      columnWidths: [LEFT_W, RIGHT_W],
-      borders: {
-        bottom: { style: BorderStyle.SINGLE, size: 8, color: NAVY },
-        top: noBorder, left: noBorder, right: noBorder, insideH: noBorder, insideV: noBorder,
-      },
-      rows: [new TableRow({ children: [
-        new TableCell({
-          borders: noBorders,
-          width: { size: LEFT_W, type: WidthType.DXA },
-          margins: { top: 0, bottom: 160, left: 0, right: 0 },
-          children: [
-            new Paragraph({ spacing: { after: 60 }, children: [navy('Yavi Technologies FZCO', 26)] }),
-            new Paragraph({ spacing: { after: 40 }, children: [grey('B1, Office 129, Dubai CommerCity, 117th St \u2013 Umm Ramool, Dubai', 17)] }),
-            new Paragraph({ children: [grey('VAT: 104789269800003  |  LICENSE: 50455', 17)] }),
-          ],
-        }),
-        new TableCell({
-          borders: noBorders,
-          width: { size: RIGHT_W, type: WidthType.DXA },
-          verticalAlign: VerticalAlign.BOTTOM,
-          margins: { top: 0, bottom: 160, left: 0, right: 0 },
-          children: [
-            new Paragraph({ alignment: AlignmentType.RIGHT, children: [run('ORDER FORM', { bold: true, color: '64748B', size: 16, allCaps: true, font: 'Arial' })] }),
-            new Paragraph({ alignment: AlignmentType.RIGHT, children: [run(ofNum, { bold: true, color: NAVY, size: 36, font: 'Courier New' })] }),
-            new Paragraph({ alignment: AlignmentType.RIGHT, children: [grey('Date: ' + dateStr, 17)] }),
-          ],
-        }),
-      ]}),
-      ],
-    }));
-  } else {
-    // Fynd letterhead
-    children.push(new Table({
-      width: { size: CW, type: WidthType.DXA },
-      columnWidths: [LEFT_W, RIGHT_W],
-      borders: {
-        bottom: { style: BorderStyle.SINGLE, size: 8, color: NAVY },
-        top: noBorder, left: noBorder, right: noBorder, insideH: noBorder, insideV: noBorder,
-      },
-      rows: [new TableRow({ children: [
-        new TableCell({
-          borders: noBorders,
-          width: { size: LEFT_W, type: WidthType.DXA },
-          margins: { top: 0, bottom: 160, left: 0, right: 0 },
-          children: [
-            new Paragraph({ spacing: { after: 60 }, children: [navy('Shopsense Retail Technologies Limited', 26)] }),
-            new Paragraph({ spacing: { after: 40 }, children: [grey('1st Floor, Wework Vijay Diamond, Andheri East, Mumbai \u2013 400 093', 17)] }),
-            new Paragraph({ children: [grey('CIN: U52100MH2012PLC236314  |  GSTN: 27AALCA0442L1ZM  |  PAN: AALCA0442L', 17)] }),
-          ],
-        }),
-        new TableCell({
-          borders: noBorders,
-          width: { size: RIGHT_W, type: WidthType.DXA },
-          verticalAlign: VerticalAlign.BOTTOM,
-          margins: { top: 0, bottom: 160, left: 0, right: 0 },
-          children: [
-            new Paragraph({ alignment: AlignmentType.RIGHT, children: [run('ORDER FORM', { bold: true, color: '64748B', size: 16, allCaps: true, font: 'Arial' })] }),
-            new Paragraph({ alignment: AlignmentType.RIGHT, children: [run(ofNum, { bold: true, color: NAVY, size: 36, font: 'Courier New' })] }),
-            new Paragraph({ alignment: AlignmentType.RIGHT, children: [grey('Date: ' + dateStr, 17)] }),
-          ],
-        }),
-      ]}),
-      ],
-    }));
-  }
-
+  children.push(buildLetterhead(isYavi, ofNum, dateStr));
   children.push(new Paragraph({ children: [run('')], spacing: { before: 120, after: 0 } }));
 
   // ── Title ───────────────────────────────────────────────────────────────────
   children.push(new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { before: 100, after: 160 },
-    children: [run('ORDER FORM', { bold: true, size: 30, allCaps: true, characterSpacing: 60, font: 'Arial', color: NAVY })],
+    children: [run('ORDER FORM', { bold: true, size: 28, allCaps: true, characterSpacing: 60, color: NAVY })],
   }));
 
   // ── Section A ────────────────────────────────────────────────────────────────
@@ -316,7 +291,7 @@ function buildDoc(form) {
   svcs.forEach((svc, i) => {
     children.push(new Paragraph({
       spacing: { before: 140, after: 0 },
-      children: [run(String.fromCharCode(97 + i) + '. ' + (svc.name || '\u2014'), { bold: true, size: 20, color: NAVY, font: 'Arial' })],
+      children: [run(String.fromCharCode(97 + i) + '. ' + (svc.name || '\u2014'), { bold: true, size: 20, color: NAVY })],
     }));
     const feeRows = [feeHeaderRow()];
     (svc.fees || []).forEach(fee => {
@@ -330,18 +305,21 @@ function buildDoc(form) {
     });
     children.push(new Table({
       width: { size: CW, type: WidthType.DXA },
-      columnWidths: FEE_WIDTHS,
+      columnWidths: FEE_W,
       rows: feeRows,
     }));
   });
 
-  // ── Section C (Special Terms) ─────────────────────────────────────────────────
+  // ── Section C (Special Terms) — split on \n for line breaks ──────────────────
   if (form.special_terms) {
     children.push(sectionHeader('C. Special Terms'));
-    children.push(new Paragraph({
-      spacing: { before: 60, after: 60 },
-      children: [run(form.special_terms, { size: 18 })],
-    }));
+    const stLines = form.special_terms.split('\n');
+    stLines.forEach(line => {
+      children.push(new Paragraph({
+        spacing: { before: 60, after: 40 },
+        children: [run(line || '', { size: 19 })],
+      }));
+    });
   }
 
   // ── T&C ──────────────────────────────────────────────────────────────────────
@@ -362,9 +340,8 @@ function buildDoc(form) {
     children.push(tcPara('6', 'Validity', 'This Order Form shall remain valid for a period of seven (7) working days from the date of issuance. If not signed and returned within this period, the Order Form shall be deemed null and void unless extended in writing by Fynd.'));
   }
 
-  // ── Authorization — entity LEFT, customer RIGHT (matching pdf.js) ─────────────
+  // ── Authorization — entity LEFT, customer RIGHT ───────────────────────────
   children.push(new Paragraph({ spacing: { before: 220, after: 100 }, children: [bold('Authorization:', 22)] }));
-
   children.push(new Table({
     width: { size: CW, type: WidthType.DXA },
     columnWidths: [Math.floor(CW / 2), CW - Math.floor(CW / 2)],
@@ -379,7 +356,7 @@ function buildDoc(form) {
     alignment: AlignmentType.CENTER,
     spacing: { before: 180 },
     border: { top: { style: BorderStyle.SINGLE, size: 4, color: 'EEEEEE' } },
-    children: [grey('OF#: ' + ofNum + '  \u00b7  Generated: ' + new Date().toLocaleString('en-IN') + '  \u00b7  ' + footerEntity, 16)],
+    children: [grey('OF#: ' + ofNum + '  \u00b7  Generated: ' + new Date().toLocaleString('en-IN') + '  \u00b7  ' + footerEntity, 18)],
   }));
 
   return new Document({
@@ -388,7 +365,7 @@ function buildDoc(form) {
       properties: {
         page: {
           size: { width: 11906, height: 16838 },
-          margin: { top: 720, right: 720, bottom: 720, left: 720 },
+          margin: { top: 1080, right: 1080, bottom: 1080, left: 1080 },
         },
       },
       children,
