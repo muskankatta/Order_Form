@@ -61,11 +61,16 @@ async function slackPI(pi,event){
   if(!BOLTIC) return null;
   try{
     const ch=CH[pi.sales_team]||CH['India'];
-    const salesTag = pi.sales_rep_slack_id ? `<@${pi.sales_rep_slack_id}>` : pi.created_by_name;
+    // Sales Rep tag
+    const salesTag = pi.sales_rep_slack_id
+      ? `<@${pi.sales_rep_slack_id}>`
+      : pi.created_by_name;
+    // RevOps tag
     const primaryRevopsSlack = pi.revops_approvers_slack_ids?.[0];
     const revopsTag = primaryRevopsSlack
       ? `*Assigned to:* <@${primaryRevopsSlack}>`
-      : pi.revops_approvers_names?.[0] ? `*Assigned to:* ${pi.revops_approvers_names[0]}` : '';
+      : pi.revops_approvers_names?.[0]
+        ? `*Assigned to:* ${pi.revops_approvers_names[0]}` : '';
     const msgs={
       submitted:`🧾 *Proforma Invoice Raised* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*By:* ${salesTag}  |  *Amount:* ${fmtAmt(pi.grand_total,pi.currency)}${revopsTag?'\n'+revopsTag:''}\n⏳ Awaiting RevOps Approval\n🔗 <${PI_PLATFORM_URL}|Review on OF Platform>`,
     };
@@ -134,6 +139,8 @@ function PICreateForm({ form, user, onSubmitted }) {
         tax_type:fixed?'GST':(taxType||''),
         tax_rate:tr, tax_amount:ta, grand_total:grand,
         created_by_name:user.name||'', created_by_email:user.email,
+        sales_rep_email:form.sales_rep_email||'',
+        sales_rep_name:form.sales_rep_name||'',
         sales_rep_slack_id:form.slack_id||'',
         created_at:serverTimestamp(),
         revops_approvers: piRevops,
@@ -313,6 +320,7 @@ export default function FormDetail({ form: initial }) {
   const [salesRevopsApprovers, setSalesRevopsApprovers] = useState([]);
   const [submitErrors, setSubmitErrors] = useState([]);
 
+  // ── PI state ──
   const [pis,        setPIs]        = useState([]);
   const [piLoading,  setPILoading]  = useState(false);
   const [showPIForm, setShowPIForm] = useState(false);
@@ -843,7 +851,7 @@ export default function FormDetail({ form: initial }) {
         </Card>
       )}
 
-      {/* PROFORMA INVOICES SECTION */}
+      {/* ── PROFORMA INVOICES SECTION ─────────────────────────────────────── */}
       {['revops_approved','approved','signed'].includes(form.status) && (
         <Card className="mt-4 p-5">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
@@ -871,6 +879,7 @@ export default function FormDetail({ form: initial }) {
                     <th className="px-4 py-2.5 font-semibold">Status</th>
                     <th className="px-4 py-2.5 font-semibold">Created By</th>
                     <th className="px-4 py-2.5 font-semibold">Reviewed By</th>
+                    <th className="px-4 py-2.5"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -886,6 +895,15 @@ export default function FormDetail({ form: initial }) {
                       <td className="px-4 py-2.5"><PIPill status={pi.status}/></td>
                       <td className="px-4 py-2.5 text-slate-500">{pi.created_by_name||'—'}</td>
                       <td className="px-4 py-2.5 text-slate-400">{pi.revops_reviewer||'—'}</td>
+                      <td className="px-4 py-2.5">
+                        {(pi.status==='approved'||pi.status==='fully_collected') && (
+                          <a href="/#/proforma-invoices"
+                            className="text-xs font-semibold px-2 py-1 rounded-lg"
+                            style={{background:'#d1fae5',color:'#065f46',textDecoration:'none',display:'inline-block'}}>
+                            Download PDF
+                          </a>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
