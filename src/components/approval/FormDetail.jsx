@@ -13,7 +13,7 @@ import { FINANCE_USERS, REVOPS_USERS } from '../../constants/users.js';
 import { fmtDate, fmtShort } from '../../utils/dates.js';
 import { openPDF } from '../../utils/pdf.js';
 import { useToast } from '../../hooks/useToast.js';
-import { SERVICES as PI_SERVICES_FALLBACK_IMPORT } from '../../constants/formOptions.js';
+import { SERVICES as PI_SERVICES_FALLBACK_IMPORT, SOW_REQUIRED_TYPES } from '../../constants/formOptions.js';
 
 const NAVY='#1B2B4B'; const T='#00C3B5';
 const TABS = [
@@ -61,16 +61,11 @@ async function slackPI(pi,event){
   if(!BOLTIC) return null;
   try{
     const ch=CH[pi.sales_team]||CH['India'];
-    // Sales Rep tag
-    const salesTag = pi.sales_rep_slack_id
-      ? `<@${pi.sales_rep_slack_id}>`
-      : pi.created_by_name;
-    // RevOps tag
+    const salesTag = pi.sales_rep_slack_id ? `<@${pi.sales_rep_slack_id}>` : pi.created_by_name;
     const primaryRevopsSlack = pi.revops_approvers_slack_ids?.[0];
     const revopsTag = primaryRevopsSlack
       ? `*Assigned to:* <@${primaryRevopsSlack}>`
-      : pi.revops_approvers_names?.[0]
-        ? `*Assigned to:* ${pi.revops_approvers_names[0]}` : '';
+      : pi.revops_approvers_names?.[0] ? `*Assigned to:* ${pi.revops_approvers_names[0]}` : '';
     const msgs={
       submitted:`🧾 *Proforma Invoice Raised* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*By:* ${salesTag}  |  *Amount:* ${fmtAmt(pi.grand_total,pi.currency)}${revopsTag?'\n'+revopsTag:''}\n⏳ Awaiting RevOps Approval\n🔗 <${PI_PLATFORM_URL}|Review on OF Platform>`,
     };
@@ -320,7 +315,6 @@ export default function FormDetail({ form: initial }) {
   const [salesRevopsApprovers, setSalesRevopsApprovers] = useState([]);
   const [submitErrors, setSubmitErrors] = useState([]);
 
-  // ── PI state ──
   const [pis,        setPIs]        = useState([]);
   const [piLoading,  setPILoading]  = useState(false);
   const [showPIForm, setShowPIForm] = useState(false);
@@ -331,31 +325,67 @@ export default function FormDetail({ form: initial }) {
     || (form.of_number||'').startsWith('OFYT')
     || (form.of_number||'').startsWith('OF-YT-');
   const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
-
-  // Notes tab is editable only by Finance (or Universal)
   const canEditNotes = edit && (user?.role === 'finance' || user?.isUniversal);
 
+  // ── Full validation — mirrors useFormWizard.validate() ────────────────────
   const validateForSubmit = (f) => {
     const e = [];
-    const isYavi  = f.entity === 'yavi' || (f.of_number||'').startsWith('OFYT') || (f.of_number||'').startsWith('OF-YT-');
-    const isIndia = !isYavi && (!f.country || f.country === 'India');
+    const isYavi   = f.entity === 'yavi' || (f.of_number||'').startsWith('OFYT') || (f.of_number||'').startsWith('OF-YT-');
+    const isIndia  = !isYavi && (!f.country || f.country === 'India');
+    const isGlobal = f.sales_team === 'Global';
+    const isGaaS   = (f.services_fees||[]).some(s => s.name === 'GaaS');
+
     if (!f.entity)                e.push('Issuing entity is required');
     if (!f.customer_name)         e.push('Customer name is required');
+    if (!f.brand_name)            e.push('Brand / trade name is required');
     if (!f.billing_address)       e.push('Customer billing address is required');
-    if (!f.country)               e.push('Country is required');
+    if (!isYavi && !f.country)    e.push('Country is required');
+
+    if (isYavi && !f.tax_number)              e.push('Tax / VAT / TRN Number is required for Yavi OFs');
+    if (isIndia && !f.pan)                    e.push('Customer PAN is required');
+    if (!isYavi && !isIndia && !f.tax_number) e.push('Tax / VAT Number is required for international OFs');
+
     if (!f.sales_rep_email)       e.push('Sales rep is required');
     if (!f.sales_team)            e.push('Sales team is required');
     if (!f.segment)               e.push('Segment is required');
     if (!f.sale_type)             e.push('Sale type is required');
     if (!f.lead_type)             e.push('Sales channel is required');
-    if (!f.start_date)            e.push('Start date is required');
+    if (isGlobal && !f.region)    e.push('Region is required for Global team');
+
+    if (f.lead_type === 'Direct' && !f.lead_category)
+      e.push('Lead category is required');
+    if (f.lead_type === 'Direct' && f.lead_category === 'Inside Sales/Pre-Sales' && !f.lead_name)
+      e.push('Rep / Contact name is required');
+    if (f.lead_type === 'Direct' && f.lead_category === 'Event' && !f.lead_name)
+      e.push('Event name is required');
+    if (f.lead_type === 'Indirect' && !f.lead_name)
+      e.push('Partner name is required');
+
+    if (f.sale_type && SOW_REQUIRED_TYPES.has(f.sale_type) && !f.sow_document)
+      e.push('Signed SoW document is required for ' + f.sale_type);
+
+    if (!f.client_rep_name)       e.push('Client representative name is required');
+    if (!f.client_rep_mobile)     e.push('Client representative mobile number is required');
+    if (!f.client_rep_email)      e.push('Client representative email is required');
+    if (!f.billing_email)         e.push('Billing email is required');
+
+    if (!isGaaS) {
+      if (!f.start_date)          e.push('Start date is required');
+      if (!f.of_term_months)      e.push('Order Form term is required');
+      if (f.auto_renewal === 'Yes' && !f.renewal_term) e.push('Renewal frequency is required when auto renewal is Yes');
+      if (!f.payment_terms)       e.push('Payment terms are required');
+    }
+    if (isGaaS) {
+      if (!f.expected_delivery_date) e.push('Expected delivery date is required for GaaS orders');
+      if (!f.of_term)                e.push('Order Form term is required for GaaS orders');
+      if (!f.gaas_payment_trigger)   e.push('Payment trigger is required for GaaS orders');
+      if (!f.gaas_payment_net)       e.push('Net terms are required for GaaS orders');
+    }
+
     if (!(f.services_fees||[]).length) e.push('At least one service is required');
     if (!f.signatory_name)        e.push('Signatory name is required');
     if (!f.signatory_designation) e.push('Signatory designation is required');
     if (!f.signatory_email)       e.push('Signatory email is required');
-    if (isYavi && !f.tax_number)  e.push('Tax / VAT / TRN Number is required for Yavi OFs');
-    if (isIndia && !f.pan)        e.push('Customer PAN is required');
-    if (!isYavi && !isIndia && !f.tax_number) e.push('Tax / VAT Number is required for international OFs');
     return e;
   };
 
@@ -380,7 +410,6 @@ export default function FormDetail({ form: initial }) {
     fees:       <StepFees       form={live} set={set} ro={!edit}/>,
     terms:      <StepTerms      form={live} set={set} ro={!edit}/>,
     signatory:  <StepSignatory  form={live} set={set} ro={!edit}/>,
-    // Notes: editable only by Finance/Universal in edit mode
     notes:      <StepNotes      form={live} set={set} ro={!canEditNotes}/>,
   };
 
@@ -475,7 +504,6 @@ export default function FormDetail({ form: initial }) {
             className="flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all"
             style={tab===t.id ? {background:'#fff',color:NAVY,boxShadow:'0 1px 3px rgba(0,0,0,0.08)'} : {color:'#94a3b8'}}>
             {t.lbl}
-            {/* Lock icon on Notes tab for non-Finance */}
             {t.id==='notes' && !(user?.role==='finance'||user?.isUniversal) && (
               <span className="ml-1 text-slate-300">🔒</span>
             )}
@@ -534,11 +562,7 @@ export default function FormDetail({ form: initial }) {
           )}
           {edit && (
             <div className="mb-4">
-              <Btn variant="navy" onClick={async () => {
-                await updateDraft(form.id, ef);
-                setEdit(false);
-                show('Draft saved!');
-              }}>💾 Save edits</Btn>
+              <Btn variant="navy" onClick={async () => { await updateDraft(form.id, ef); setEdit(false); show('Draft saved!'); }}>💾 Save edits</Btn>
             </div>
           )}
           <MultiSelect
@@ -594,11 +618,7 @@ export default function FormDetail({ form: initial }) {
           )}
           {edit && (
             <div className="mb-4">
-              <Btn variant="navy" onClick={async () => {
-                await updateDraft(form.id, ef);
-                setEdit(false);
-                show('Draft saved!');
-              }}>💾 Save edits</Btn>
+              <Btn variant="navy" onClick={async () => { await updateDraft(form.id, ef); setEdit(false); show('Draft saved!'); }}>💾 Save edits</Btn>
             </div>
           )}
           <MultiSelect
@@ -825,10 +845,7 @@ export default function FormDetail({ form: initial }) {
                 <input type="url" value={signedLink} onChange={e=>setSignedLink(e.target.value)}
                   placeholder="https://drive.google.com/..."
                   className="field-input flex-1" style={{ borderColor:'#e2e8f0' }}/>
-                <Btn size="sm" onClick={async () => {
-                  await updateDraft(form.id, { signed_of_link: signedLink });
-                  show('Signed PDF link saved ✓');
-                }}>Save link</Btn>
+                <Btn size="sm" onClick={async () => { await updateDraft(form.id, { signed_of_link: signedLink }); show('Signed PDF link saved ✓'); }}>Save link</Btn>
               </div>
               {form.signed_of_link && (
                 <a href={form.signed_of_link} target="_blank" rel="noreferrer"
@@ -851,7 +868,7 @@ export default function FormDetail({ form: initial }) {
         </Card>
       )}
 
-      {/* ── PROFORMA INVOICES SECTION ─────────────────────────────────────── */}
+      {/* PROFORMA INVOICES SECTION */}
       {['revops_approved','approved','signed'].includes(form.status) && (
         <Card className="mt-4 p-5">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
