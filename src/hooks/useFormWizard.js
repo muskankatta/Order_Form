@@ -50,6 +50,8 @@ export function useFormWizard(initial = null) {
     const e = [];
     const isYavi   = form.entity === 'yavi';
     const isIndia  = !isYavi && (!form.country || form.country === 'India');
+    const isGlobal = form.sales_team === 'Global';
+    const isGaaS   = (form.services_fees||[]).some(s => s.name === 'GaaS');
 
     // ── Entity ───────────────────────────────────────────────────────────────
     if (!form.entity)
@@ -58,54 +60,104 @@ export function useFormWizard(initial = null) {
     // ── Customer basics ──────────────────────────────────────────────────────
     if (!form.customer_name)
       e.push('Customer name is required');
+    if (!form.brand_name)
+      e.push('Brand / trade name is required');
+    if (!form.billing_address)
+      e.push('Customer billing address is required');
+    if (!isYavi && !form.country)
+      e.push('Country is required');
 
     // ── Tax fields — entity + country aware ──────────────────────────────────
     if (isYavi) {
-      // Yavi OFs: tax_number (VAT/TRN) is mandatory, PAN/GSTIN not required
       if (!form.tax_number)
         e.push('Tax / VAT / TRN Number is required for Yavi OFs');
       else if (!/^[A-Z0-9\-]{3,30}$/.test(form.tax_number))
         e.push('Tax / VAT / TRN Number format is invalid (alphanumeric, 3–30 chars)');
     } else if (isIndia) {
-      // Fynd India OFs: PAN mandatory
       if (!form.pan)
         e.push('Customer PAN is required');
       else if (!/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan))
         e.push('PAN format is invalid (e.g. AADCB2230M)');
-      // GSTIN optional but validate format if present
       if (form.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin))
         e.push('GSTIN format is invalid (e.g. 27AADCB2230M1ZT)');
     } else {
-      // Fynd non-India OFs: tax_number mandatory
       if (!form.tax_number)
         e.push('Tax / VAT Number is required for international OFs');
       else if (!/^[A-Z0-9\-]{3,30}$/.test(form.tax_number))
         e.push('Tax / VAT Number format is invalid (alphanumeric, 3–30 chars)');
-      // PAN optional but validate if filled
       if (form.pan && !/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan))
         e.push('PAN format is invalid (e.g. AADCB2230M)');
-      // GSTIN optional but validate if filled
       if (form.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin))
         e.push('GSTIN format is invalid (e.g. 27AADCB2230M1ZT)');
     }
 
-    // ── Sales ────────────────────────────────────────────────────────────────
+    // ── Sales information ────────────────────────────────────────────────────
+    if (!form.segment)
+      e.push('Segment is required');
+    if (!form.sales_team)
+      e.push('Sales team is required');
     if (!form.sales_rep_email)
       e.push('Sales rep is required');
+    if (isGlobal && !form.region)
+      e.push('Region is required for Global team');
 
-    // ── Dates ────────────────────────────────────────────────────────────────
-    if (!form.start_date)
-      e.push('Start date is required');
+    // ── Lead & sale classification ────────────────────────────────────────────
+    if (!form.sale_type)
+      e.push('Sale type is required');
+    if (!form.lead_type)
+      e.push('Sales channel is required');
+    if (form.lead_type === 'Direct' && !form.lead_category)
+      e.push('Lead category is required');
+    if (form.lead_type === 'Direct' && form.lead_category === 'Inside Sales/Pre-Sales' && !form.lead_name)
+      e.push('Rep / Contact name is required');
+    if (form.lead_type === 'Direct' && form.lead_category === 'Event' && !form.lead_name)
+      e.push('Event name is required');
+    if (form.lead_type === 'Indirect' && !form.lead_name)
+      e.push('Partner name is required');
 
-    // ── Services ─────────────────────────────────────────────────────────────
-    if (!(form.services_fees||[]).length)
-      e.push('At least one service is required');
-
-    // ── SoW — only required for sale types that need it ──────────────────────
+    // ── SoW ──────────────────────────────────────────────────────────────────
     if (form.sale_type && SOW_REQUIRED_TYPES.has(form.sale_type) && !form.sow_document)
       e.push('Signed SoW document is required for ' + form.sale_type);
 
-    // ── Signatory ────────────────────────────────────────────────────────────
+    // ── Client representative (StepCommercial) ────────────────────────────────
+    if (!form.client_rep_name)
+      e.push('Client representative name is required');
+    if (!form.client_rep_mobile)
+      e.push('Client representative mobile number is required');
+    if (!form.client_rep_email)
+      e.push('Client representative email is required');
+    if (!form.billing_email)
+      e.push('Billing email is required');
+
+    // ── Service period ────────────────────────────────────────────────────────
+    if (!isGaaS) {
+      if (!form.start_date)
+        e.push('Start date is required');
+      if (!form.of_term_months)
+        e.push('Order Form term is required');
+      if (form.auto_renewal === 'Yes' && !form.renewal_term)
+        e.push('Renewal frequency is required when auto renewal is Yes');
+      if (!form.payment_terms)
+        e.push('Payment terms are required');
+    }
+
+    // ── GaaS-specific fields ──────────────────────────────────────────────────
+    if (isGaaS) {
+      if (!form.expected_delivery_date)
+        e.push('Expected delivery date is required for GaaS orders');
+      if (!form.of_term)
+        e.push('Order Form term is required for GaaS orders');
+      if (!form.gaas_payment_trigger)
+        e.push('Payment trigger is required for GaaS orders');
+      if (!form.gaas_payment_net)
+        e.push('Net terms are required for GaaS orders');
+    }
+
+    // ── Services ──────────────────────────────────────────────────────────────
+    if (!(form.services_fees||[]).length)
+      e.push('At least one service is required');
+
+    // ── Signatory ─────────────────────────────────────────────────────────────
     if (!form.signatory_name)        e.push('Signatory name is required');
     if (!form.signatory_designation) e.push('Signatory designation is required');
     if (!form.signatory_email)       e.push('Signatory email is required');
