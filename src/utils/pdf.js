@@ -304,10 +304,15 @@ export const openPDF = function(form) {
       cv = '<a href="' + (fee.logisticsRateCard || '#') + '" style="color:#00897b">As per rate card</a>';
     } else if (fee.pricingModel === 'graduated') {
       cv = (fee.slabs || []).map(function(s) {
-        return (s.from||0) + '\u2013' + (s.to||'\u221e') + ': ' +
-          (s.rateType && s.rateType.startsWith('%')
-            ? s.rate + '' + s.rateType
-            : sym + s.rate + ' ' + (s.rateType||'per unit').replace(/^[^\s]+\s/,''));
+        var rateLabel;
+        if (s.rateType && s.rateType.startsWith('%')) {
+          rateLabel = s.rate + '' + s.rateType;
+        } else if (s.rateType === 'Others') {
+          rateLabel = sym + s.rate + (s.rateTypeCustom ? ' per ' + s.rateTypeCustom : '');
+        } else {
+          rateLabel = sym + s.rate + ' ' + (s.rateType||'per unit').replace(/^[^\s]+\s/,'');
+        }
+        return (s.from||0) + '\u2013' + (s.to||'\u221e') + ': ' + rateLabel;
       }).join('<br/>');
     } else if (fee.stepUpPricing && fee.stepUpValues && fee.stepUpValues.length) {
       cv = fee.stepUpValues.map(function(sv, pi) {
