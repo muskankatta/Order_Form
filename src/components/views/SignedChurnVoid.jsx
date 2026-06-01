@@ -55,8 +55,8 @@ export function SignedOFs() {
   const [cvRequests,   setCvRequests]  = useState([]);
   const [q,            setQ]           = useState('');
   const [regionFilter, setRegionFilter]= useState('all');
-  const [overdueOnly,  setOverdueOnly] = useState(false);  // NEW: overdue filter
-  const [cvAmounts,    setCvAmounts]   = useState({});     // NEW: Finance churn amounts
+  const [overdueOnly,  setOverdueOnly] = useState(false);
+  const [cvAmounts,    setCvAmounts]   = useState({});
 
   const [periodFY,    setPeriodFY]    = useState('all');
   const [periodQtr,   setPeriodQtr]   = useState('all');
@@ -76,7 +76,6 @@ export function SignedOFs() {
         .filter(r => !r.actioned)
         .sort((a,b) => (b.requested_at||'').localeCompare(a.requested_at||''));
       setCvRequests(docs);
-      // Pre-populate Finance churn amount inputs with existing churn_value
       const init = {};
       docs.forEach(r => { if (r.churn_value) init[r.id] = r.churn_value; });
       setCvAmounts(prev => ({ ...init, ...prev }));
@@ -125,33 +124,29 @@ export function SignedOFs() {
     return true;
   };
 
- const baseFilter = arr => {
-  let res = arr;
-  if (q) res = res.filter(f=>[f.customer_name,f.of_number,f.brand_name,f.sales_rep_name].some(v=>v?.toLowerCase().includes(q.toLowerCase())));
-  res = res.filter(f => matchesRegion(f, regionFilter));
-  // Deduplicate by of_number — sum committed_revenue across entries sharing the same OF#
-  const seen = new Map();
-  res.forEach(f => {
-    const key = f.of_number || f.id;
-    if (!seen.has(key)) {
-      seen.set(key, { ...f });
-    } else {
-      const existing = seen.get(key);
-      existing.committed_revenue = Number(existing.committed_revenue||0) + Number(f.committed_revenue||0);
-    }
-  });
-  return [...seen.values()];
-};
+  const baseFilter = arr => {
+    let res = arr;
+    if (q) res = res.filter(f=>[f.customer_name,f.of_number,f.brand_name,f.sales_rep_name].some(v=>v?.toLowerCase().includes(q.toLowerCase())));
+    res = res.filter(f => matchesRegion(f, regionFilter));
+    const seen = new Map();
+    res.forEach(f => {
+      const key = f.of_number || f.id;
+      if (!seen.has(key)) {
+        seen.set(key, { ...f });
+      } else {
+        const existing = seen.get(key);
+        existing.committed_revenue = Number(existing.committed_revenue||0) + Number(f.committed_revenue||0);
+      }
+    });
+    return [...seen.values()];
+  };
 
-  // All approved+unsigned
   const allApproved = baseFilter(forms.filter(f => f.status==='approved' && !f.signed_date));
-  // Overdue count (for badge)
   const overdueCount = allApproved.filter(f => {
     const sentDate = f.approved_at || f.submitted_at;
     if (!sentDate) return false;
     return Math.floor((new Date() - new Date(sentDate)) / 86400000) >= 30;
   }).length;
-  // Filtered approved list (respects overdueOnly toggle)
   const approved = overdueOnly
     ? allApproved.filter(f => {
         const sentDate = f.approved_at || f.submitted_at;
@@ -275,7 +270,7 @@ export function SignedOFs() {
         </div>
       </div>
 
-      {/* Overdue filter — Pending Signing tab only */}
+      {/* Overdue filter */}
       {cvTab==='unsigned' && overdueCount > 0 && (
         <div className="flex items-center gap-3 mb-3 flex-wrap">
           <button onClick={()=>setOverdueOnly(!overdueOnly)}
@@ -388,9 +383,7 @@ export function SignedOFs() {
                       const region=formRegion(f);
                       return (
                         <tr key={f.id} className={'border-b border-slate-50 last:border-0 '+(overdue?'bg-red-50':'')}>
-                          <td className="px-4 py-3 font-mono font-bold" style={{color:NAVY}}>
-                            {f.of_number}
-                          </td>
+                          <td className="px-4 py-3 font-mono font-bold" style={{color:NAVY}}>{f.of_number}</td>
                           <td className="px-4 py-3 cursor-pointer hover:underline font-medium" style={{color:NAVY}} onClick={()=>navigate('/form/'+f.id)}>{f.customer_name}</td>
                           <td className="px-4 py-3 text-xs">{f.committed_currency} {Number(f.committed_revenue||0).toLocaleString('en-IN')}</td>
                           <td className="px-4 py-3 text-xs">
@@ -574,33 +567,55 @@ export function ChurnVoidRequest() {
   const { user }  = useAuth();
   const { toast, show, hide } = useToast();
   const fileInputRef = useRef(null);
+  const customerDropdownRef = useRef(null);
 
   const isFinanceOrAdmin = user?.role === 'finance' || user?.isUniversal;
 
   const [req, setReq] = useState({
     customer: '',
-    customer_manual: '',    // for 'Others'
+    customer_manual: '',
     of_number: '',
     status_requested: 'Churn',
-    churn_value: '',        // Finance only
+    churn_value: '',
     reason: '',
     finance_dris: [],
-    effective_date: '',     // new: effective date
-    attachment: null,       // new: { name, type, size, data }
+    effective_date: '',
+    attachment: null,
   });
   const [validationErrors, setValidationErrors] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
+  // ── Searchable customer dropdown state ────────────────────────────────────
+  const [customerSearch,       setCustomerSearch]       = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+
   const u = (k,v) => setReq(r=>({...r,[k]:v}));
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (customerDropdownRef.current && !customerDropdownRef.current.contains(e.target)) {
+        setShowCustomerDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const approvedForms = useMemo(() =>
     forms.filter(f=>['approved','signed'].includes(f.status)),
   [forms]);
 
-  // Customer names — include 'Others' at the end
   const customerNames = useMemo(() =>
     [...new Set(approvedForms.map(f=>f.customer_name?.trim()))].filter(Boolean).sort((a,b)=>a.localeCompare(b)),
   [approvedForms]);
+
+  // Filtered list — matches search input
+  const filteredCustomers = useMemo(() => {
+    const s = customerSearch.toLowerCase().trim();
+    const names = s ? customerNames.filter(n => n.toLowerCase().includes(s)) : customerNames;
+    return names;
+  }, [customerNames, customerSearch]);
 
   const isOthers = req.customer === 'Others';
 
@@ -619,7 +634,14 @@ export function ChurnVoidRequest() {
       : null,
   [approvedForms, req.customer, req.of_number, isOthers]);
 
-  // File upload handler — max 500KB
+  const handleCustomerSelect = (name) => {
+    u('customer', name);
+    u('of_number', '');
+    u('customer_manual', '');
+    setCustomerSearch(name === 'Others' ? '' : name);
+    setShowCustomerDropdown(false);
+  };
+
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -663,9 +685,7 @@ export function ChurnVoidRequest() {
           requested_by: user?.name || '',
           requested_at: new Date().toISOString(),
           actioned: false,
-          // Finance-only churn_value — only stored if Finance is filling the form
           ...(isFinanceOrAdmin && req.churn_value ? { churn_value: req.churn_value } : {}),
-          // Attachment — stored inline as base64 (max 500KB → ~667KB base64)
           ...(req.attachment ? { attachment: req.attachment } : {}),
         };
         await setDoc(doc(db, 'churn_void_requests', reqId), docData);
@@ -678,6 +698,7 @@ export function ChurnVoidRequest() {
       });
       show('Request submitted');
       setReq({ customer:'', customer_manual:'', of_number:'', status_requested:'Churn', churn_value:'', reason:'', finance_dris:[], effective_date:'', attachment:null });
+      setCustomerSearch('');
       setValidationErrors([]);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch(e) { setValidationErrors(['Error: '+e.message]); }
@@ -690,17 +711,72 @@ export function ChurnVoidRequest() {
       <p className="text-sm text-brand-muted mb-6">File a request to Finance to mark a deal as Churn or Void.</p>
       <Card className="p-6 max-w-2xl">
         <div className="grid grid-cols-2 gap-x-4">
-          {/* Customer dropdown */}
-          <div className="mb-4">
+
+          {/* ── Searchable customer dropdown ── */}
+          <div className="mb-4" ref={customerDropdownRef}>
             <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
               Client / Customer <span className="text-red-400">*</span>
             </label>
-            <select value={req.customer} onChange={e=>{u('customer',e.target.value);u('of_number','');u('customer_manual','');}}
-              className="field-input cursor-pointer">
-              <option value="">Select customer…</option>
-              {customerNames.map(n=>(<option key={n} value={n}>{n}</option>))}
-              <option value="Others">— Others (no Order Form) —</option>
-            </select>
+            <div className="relative">
+              <input
+                type="text"
+                value={customerSearch}
+                onChange={e => {
+                  setCustomerSearch(e.target.value);
+                  setShowCustomerDropdown(true);
+                  // If user clears the field, also clear selection
+                  if (!e.target.value) { u('customer', ''); u('of_number', ''); }
+                }}
+                onFocus={() => setShowCustomerDropdown(true)}
+                placeholder="Type to search customer…"
+                className="field-input w-full pr-8"
+                style={{
+                  borderColor: req.customer ? T : '#e2e8f0',
+                }}
+                autoComplete="off"
+              />
+              {/* Clear button */}
+              {(customerSearch || req.customer) && (
+                <button type="button"
+                  onClick={() => { setCustomerSearch(''); u('customer',''); u('of_number',''); setShowCustomerDropdown(false); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold">
+                  ✕
+                </button>
+              )}
+              {/* Dropdown list */}
+              {showCustomerDropdown && (
+                <div className="absolute z-50 left-0 right-0 top-full mt-1 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden"
+                  style={{maxHeight:'260px', overflowY:'auto'}}>
+                  {filteredCustomers.length === 0 && customerSearch ? (
+                    <div className="px-4 py-3 text-sm text-slate-400">No matches for "{customerSearch}"</div>
+                  ) : (
+                    <>
+                      {filteredCustomers.map(name => (
+                        <button key={name} type="button"
+                          onMouseDown={() => handleCustomerSelect(name)}
+                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors"
+                          style={req.customer === name ? {background:'#e0f7f5', color:'#00897b', fontWeight:600} : {color:'#1e293b'}}>
+                          {name}
+                        </button>
+                      ))}
+                      {/* Others option always at bottom */}
+                      <button type="button"
+                        onMouseDown={() => handleCustomerSelect('Others')}
+                        className="w-full text-left px-4 py-2.5 text-sm border-t border-slate-100 hover:bg-slate-50 transition-colors"
+                        style={req.customer === 'Others' ? {background:'#e0f7f5', color:'#00897b', fontWeight:600} : {color:'#64748b'}}>
+                        — Others (no Order Form) —
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+            {/* Show selected value as a pill if chosen */}
+            {req.customer && req.customer !== 'Others' && (
+              <p className="text-[11px] mt-1 font-semibold" style={{color:'#00897b'}}>
+                ✓ {req.customer}
+              </p>
+            )}
           </div>
 
           {/* Custom name when Others */}
@@ -793,7 +869,6 @@ export function ChurnVoidRequest() {
 
         <TA label="Reason / justification" req value={req.reason} onChange={v=>u('reason',v)} rows={4}/>
 
-        {/* Effective date — new */}
         <div className="mb-4">
           <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
             Effective date of {req.status_requested} <span className="text-red-400">*</span>
@@ -803,7 +878,6 @@ export function ChurnVoidRequest() {
           <p className="text-xs mt-1 text-brand-faint">Date from which the Churn/Void takes effect</p>
         </div>
 
-        {/* File attachment — new */}
         <div className="mb-4">
           <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
             Supporting document <span className="text-slate-400">(optional · max 500KB)</span>
