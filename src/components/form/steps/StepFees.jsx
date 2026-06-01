@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Lbl, SHdr } from '../../ui/index.jsx';
 import { SERVICES, FEE_TYPES, FEE_RULES, UNIT_METRICS, PAY_TRIGGERS,
          GRADUATED_ELIGIBLE, STEP_UP_ELIGIBLE, SLAB_RATE_UNITS } from '../../../constants/formOptions.js';
@@ -14,6 +14,18 @@ const SUB_SERVICES = {
   'StoreOS': ['Clienteling','POS','Endless Aisle','Scan & Go','Self Checkout Kiosk'],
   'GlamAR':  ['3D Model Creation','3D Configurator','3D Virtual Photography','360 Degree Product Viewer','Virtual Try-On (VTO)','AR Ads','AI Skin Analysis'],
 };
+
+// ── Drag handle icon ──────────────────────────────────────────────────────────
+function DragHandle() {
+  return (
+    <span
+      title="Drag to reorder"
+      className="cursor-grab active:cursor-grabbing select-none"
+      style={{color:'#cbd5e1',fontSize:'14px',lineHeight:1,letterSpacing:'-1px',padding:'0 2px'}}>
+      ⠿
+    </span>
+  );
+}
 
 // ── Inclusions helpers ────────────────────────────────────────────────────────
 function toIncArray(val) {
@@ -41,11 +53,8 @@ function InclusionsField({ value, onChange }) {
   const add = () => {
     const t = draftText.trim();
     if (!t) return;
-    const next = [...items, { text: t, metric: effectiveMetric }];
-    onChange(next);
-    setDraftText('');
-    setDraftMetric('');
-    setDraftCustomMetric('');
+    onChange([...items, { text: t, metric: effectiveMetric }]);
+    setDraftText(''); setDraftMetric(''); setDraftCustomMetric('');
   };
 
   const remove = (i) => onChange(items.filter((_,j) => j !== i));
@@ -53,7 +62,6 @@ function InclusionsField({ value, onChange }) {
   return (
     <div>
       <div className="text-[10px] font-bold uppercase tracking-wider mb-2 text-brand-faint">Inclusions</div>
-
       {items.length > 0 && (
         <div className="flex flex-col gap-1 mb-3">
           {items.map((item, i) => (
@@ -67,7 +75,6 @@ function InclusionsField({ value, onChange }) {
           ))}
         </div>
       )}
-
       <div className="rounded-lg border p-2 bg-white" style={{borderColor:'#e2e8f0'}}>
         <div className="flex gap-2 mb-1.5">
           <input value={draftText} onChange={e => setDraftText(e.target.value)}
@@ -77,9 +84,7 @@ function InclusionsField({ value, onChange }) {
             style={{borderColor:'#e2e8f0'}}/>
           <button type="button" onClick={add}
             className="text-xs px-3 py-1.5 rounded-md font-semibold whitespace-nowrap transition-all"
-            style={{background: T, color:'#fff', border:'none'}}>
-            + Add
-          </button>
+            style={{background: T, color:'#fff', border:'none'}}>+ Add</button>
         </div>
         <select value={draftMetric}
           onChange={e => { setDraftMetric(e.target.value); if (e.target.value !== 'Custom') setDraftCustomMetric(''); }}
@@ -112,23 +117,16 @@ function GaasSKUBlock({ svc, onChange, ro, currency }) {
     onChange({ ...svc, gaas_lines: updated, gaas_total: total });
   };
 
-  const addLine = () => recalc([...lines, {
-    id:uid(), skuDetails:'', styleId:'', color:'', size:'', quantity:0, rate:0, amount:0,
-  }]);
-
+  const addLine = () => recalc([...lines, { id:uid(), skuDetails:'', styleId:'', color:'', size:'', quantity:0, rate:0, amount:0 }]);
   const updateLine = (i, field, val) => {
     recalc(lines.map((l, li) => {
       if (li !== i) return l;
       const upd = { ...l, [field]: val };
-      if (field === 'quantity' || field === 'rate') {
-        upd.amount = parseFloat(upd.quantity||0) * parseFloat(upd.rate||0);
-      }
+      if (field === 'quantity' || field === 'rate') upd.amount = parseFloat(upd.quantity||0) * parseFloat(upd.rate||0);
       return upd;
     }));
   };
-
   const removeLine = i => recalc(lines.filter((_,li) => li !== i));
-
   const total    = lines.reduce((s,l) => s + (Number(l.amount)||0), 0);
   const totalQty = lines.reduce((s,l) => s + (Number(l.quantity)||0), 0);
 
@@ -167,9 +165,7 @@ function GaasSKUBlock({ svc, onChange, ro, currency }) {
         <div className="flex gap-2 mb-3 flex-wrap items-center">
           <button type="button" onClick={downloadTemplate}
             className="text-xs px-3 py-1.5 rounded-lg border font-medium transition-all hover:bg-slate-50"
-            style={{borderColor:'#e2e8f0',color:'#475569'}}>
-            ⬇ Download GaaS Template (CSV)
-          </button>
+            style={{borderColor:'#e2e8f0',color:'#475569'}}>⬇ Download GaaS Template (CSV)</button>
           <label className="text-xs px-3 py-1.5 rounded-lg border font-medium cursor-pointer transition-all hover:bg-slate-50"
             style={{borderColor:'#e2e8f0',color:'#475569'}}>
             📤 Upload & Preview CSV
@@ -177,18 +173,13 @@ function GaasSKUBlock({ svc, onChange, ro, currency }) {
           </label>
           <button type="button" onClick={addLine}
             className="text-xs px-3 py-1.5 rounded-lg border font-semibold transition-all"
-            style={{borderColor:T,color:T}}>
-            + Add SKU Row
-          </button>
+            style={{borderColor:T,color:T}}>+ Add SKU Row</button>
           {lines.length > 0 && (
             <button type="button" onClick={()=>recalc([])}
-              className="text-xs px-3 py-1.5 rounded-lg border font-medium text-red-500 border-red-200 hover:bg-red-50">
-              Clear All
-            </button>
+              className="text-xs px-3 py-1.5 rounded-lg border font-medium text-red-500 border-red-200 hover:bg-red-50">Clear All</button>
           )}
         </div>
       )}
-
       <div className="overflow-x-auto rounded-xl border border-slate-200">
         <table className="w-full text-xs" style={{minWidth:'700px',borderCollapse:'collapse'}}>
           <thead>
@@ -205,19 +196,14 @@ function GaasSKUBlock({ svc, onChange, ro, currency }) {
           </thead>
           <tbody>
             {lines.length === 0 && (
-              <tr>
-                <td colSpan={ro?7:8} className="text-center py-8 text-slate-300 border border-slate-100">
-                  No SKU rows yet — add manually or upload a CSV.
-                </td>
-              </tr>
+              <tr><td colSpan={ro?7:8} className="text-center py-8 text-slate-300 border border-slate-100">No SKU rows yet — add manually or upload a CSV.</td></tr>
             )}
             {lines.map((l, i) => (
               <tr key={l.id} style={{background:i%2===0?'#fff':'#f8fafc'}}>
                 {[['skuDetails',l.skuDetails,'SKU name'],['styleId',l.styleId,'Style ID'],['color',l.color,'Color'],['size',l.size,'Size']].map(([field,val,ph])=>(
                   <td key={field} className={tdCls}>
                     {ro ? <span>{val||'—'}</span> :
-                      <input value={val} onChange={e=>updateLine(i,field,e.target.value)}
-                        placeholder={ph} className={inp}/>}
+                      <input value={val} onChange={e=>updateLine(i,field,e.target.value)} placeholder={ph} className={inp}/>}
                   </td>
                 ))}
                 {[['quantity',l.quantity],['rate',l.rate]].map(([field,val])=>(
@@ -253,7 +239,6 @@ function GaasSKUBlock({ svc, onChange, ro, currency }) {
           )}
         </table>
       </div>
-
       {lines.length > 0 && (
         <div className="mt-2 text-xs text-brand-faint text-right">
           Order Form Value: <strong style={{color:NAVY}}>{sym}{total.toLocaleString('en-IN')}</strong>
@@ -317,8 +302,7 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
           </select>
           {fee.isCustomFeeType && (
             <input value={fee.feeType||''} onChange={e=>u('feeType',e.target.value)}
-              placeholder="Enter fee type name…"
-              className={`${inp} w-full mt-1.5`} style={{borderColor:'#00C3B5'}}/>
+              placeholder="Enter fee type name…" className={`${inp} w-full mt-1.5`} style={{borderColor:'#00C3B5'}}/>
           )}
         </div>
         <div>
@@ -397,11 +381,8 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
                 ).map(([mode,lbl])=>(
                   <button key={mode} type="button"
                     onClick={()=> {
-                      if (fee.feeType === 'Transaction Fee') {
-                        u('transactionFeeIsPercent', mode==='percent');
-                      } else {
-                        u('resourceFeeIsVariable', mode==='variable');
-                      }
+                      if (fee.feeType === 'Transaction Fee') { u('transactionFeeIsPercent', mode==='percent'); }
+                      else { u('resourceFeeIsVariable', mode==='variable'); }
                     }}
                     className="text-[10px] px-2 py-0.5 rounded-md font-bold transition-all"
                     style={
@@ -409,9 +390,7 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
                         ? ((!fee.transactionFeeIsPercent&&mode==='fixed')||(fee.transactionFeeIsPercent&&mode==='percent'))
                         : ((!fee.resourceFeeIsVariable&&mode==='fixed')||(fee.resourceFeeIsVariable&&mode==='variable'))
                       ) ? {background:NAVY,color:'#fff'} : {color:'#94a3b8'}
-                    }>
-                    {lbl}
-                  </button>
+                    }>{lbl}</button>
                 ))}
               </div>
             )}
@@ -430,24 +409,18 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
             </p>
           )}
           {fee.transactionFeeIsPercent && fee.commercialValue && (
-            <p className="text-[10px] mt-1 text-blue-600">
-              {fee.commercialValue}% per transaction · billed {fee.billingCycle?.toLowerCase()||'as agreed'} · variable
-            </p>
+            <p className="text-[10px] mt-1 text-blue-600">{fee.commercialValue}% per transaction · billed {fee.billingCycle?.toLowerCase()||'as agreed'} · variable</p>
           )}
           {!fee.transactionFeeIsPercent && fee.feeType === 'Transaction Fee' && fee.commercialValue && (
-            <p className="text-[10px] mt-1 text-blue-600">
-              Variable — excluded from OF value calculation
-            </p>
+            <p className="text-[10px] mt-1 text-blue-600">Variable — excluded from OF value calculation</p>
           )}
           {fee.feeType === 'Resource Fee' && fee.resourceFeeIsVariable && (
-            <p className="text-[10px] mt-1 text-blue-600">
-              Variable — excluded from OF value calculation
-            </p>
+            <p className="text-[10px] mt-1 text-blue-600">Variable — excluded from OF value calculation</p>
           )}
         </div>
       )}
 
-      {/* ── Step-up pricing ─────────────────────────────────────────────────── */}
+      {/* ── Step-up pricing ── */}
       {canStep && !fee.isLogistics && fee.pricingModel==='flat' && (
         <div className="mb-3">
           <label className="flex items-center gap-2 text-xs font-medium cursor-pointer mb-2 text-slate-600">
@@ -456,46 +429,37 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
           {fee.stepUpPricing && (
             <div className="rounded-lg p-3 bg-amber-50 border border-amber-200 space-y-3">
               <p className="text-[10px] text-amber-700 font-medium">
-                Each period has its own date range, billing cycle, and rate.
-                OF contribution = rate × cycles in that period.
+                Each period has its own date range, billing cycle, and rate. OF contribution = rate × cycles in that period.
               </p>
               {(fee.stepUpValues||[]).map((sv, i) => {
                 const rate   = parseFloat(sv.rate != null ? sv.rate : sv.value) || 0;
                 const cycles = (sv.startDate && sv.endDate && sv.billingCycle)
                   ? cyclesInDateRange(sv.startDate, sv.endDate, sv.billingCycle) : null;
-                const periodTotal = (cycles !== null && rate > 0) ? rate * cycles : null;
                 const updSv = patch => u('stepUpValues', (fee.stepUpValues||[]).map((s,j) => j===i ? {...s,...patch} : s));
                 return (
                   <div key={sv.id||i} className="rounded-lg border border-amber-200 bg-white p-3">
                     <div className="flex justify-between items-center mb-2.5">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Period {i+1}</span>
-                      <button type="button"
-                        onClick={()=>u('stepUpValues',(fee.stepUpValues||[]).filter((_,j)=>j!==i))}
+                      <button type="button" onClick={()=>u('stepUpValues',(fee.stepUpValues||[]).filter((_,j)=>j!==i))}
                         className="text-xs text-red-500">✕ Remove</button>
                     </div>
                     <div className="grid grid-cols-2 gap-2 mb-2">
                       <div>
                         <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">Start date</div>
-                        <input type="date" value={sv.startDate||''}
-                          onChange={e=>updSv({startDate:e.target.value})}
-                          className="w-full text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white"
-                          style={{borderColor:'#fcd34d'}}/>
+                        <input type="date" value={sv.startDate||''} onChange={e=>updSv({startDate:e.target.value})}
+                          className="w-full text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white" style={{borderColor:'#fcd34d'}}/>
                       </div>
                       <div>
                         <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">End date</div>
-                        <input type="date" value={sv.endDate||''}
-                          onChange={e=>updSv({endDate:e.target.value})}
-                          className="w-full text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white"
-                          style={{borderColor:'#fcd34d'}}/>
+                        <input type="date" value={sv.endDate||''} onChange={e=>updSv({endDate:e.target.value})}
+                          className="w-full text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white" style={{borderColor:'#fcd34d'}}/>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-brand-faint">Billing cycle</div>
-                        <select value={sv.billingCycle||''}
-                          onChange={e=>updSv({billingCycle:e.target.value})}
-                          className="w-full text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white"
-                          style={{borderColor:'#fcd34d'}}>
+                        <select value={sv.billingCycle||''} onChange={e=>updSv({billingCycle:e.target.value})}
+                          className="w-full text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white" style={{borderColor:'#fcd34d'}}>
                           <option value="">Select…</option>
                           {['Monthly','Quarterly','Bi-Annually','Annually','One Time'].map(o=><option key={o}>{o}</option>)}
                         </select>
@@ -505,11 +469,9 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
                         <input type="number" value={sv.rate != null ? sv.rate : (sv.value||'')}
                           onChange={e=>updSv({rate:e.target.value, value:e.target.value})}
                           placeholder="0" min="0"
-                          className="w-full text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white font-mono"
-                          style={{borderColor:'#fcd34d'}}/>
+                          className="w-full text-xs px-2 py-1.5 rounded-lg border focus:outline-none bg-white font-mono" style={{borderColor:'#fcd34d'}}/>
                       </div>
                     </div>
-                    {/* Live calculation preview */}
                     {cycles !== null && rate > 0 ? (
                       <div className="mt-2.5 px-2.5 py-1.5 rounded-lg bg-amber-100 border border-amber-200 text-[11px] font-semibold text-amber-800">
                         {sym}{rate.toLocaleString('en-IN')} × {cycles} {sv.billingCycle} cycle{cycles!==1?'s':''} = <span style={{color:NAVY}}>{sym}{(rate*cycles).toLocaleString('en-IN')}</span>
@@ -522,10 +484,7 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
               })}
               <button type="button"
                 onClick={()=>u('stepUpValues',[...(fee.stepUpValues||[]),{id:uid(),startDate:'',endDate:'',billingCycle:'Monthly',rate:'',value:''}])}
-                className="text-xs font-semibold text-amber-800 hover:text-amber-900">
-                + Add period
-              </button>
-              {/* Grand total across all periods */}
+                className="text-xs font-semibold text-amber-800 hover:text-amber-900">+ Add period</button>
               {(fee.stepUpValues||[]).length > 1 && (() => {
                 const stepTotal = (fee.stepUpValues||[]).reduce((sum, sv) => {
                   const r = parseFloat(sv.rate != null ? sv.rate : sv.value) || 0;
@@ -562,10 +521,7 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
         </div>
       )}
       <div className="mb-3">
-        <InclusionsField
-          value={fee.inclusions}
-          onChange={arr => u('inclusions', arr)}
-        />
+        <InclusionsField value={fee.inclusions} onChange={arr => u('inclusions', arr)}/>
       </div>
       <div className="grid grid-cols-1 gap-3">
         <div>
@@ -573,19 +529,15 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
           <select
             value={fee.isCustomPaymentTrigger ? '__custom__' : (fee.paymentTrigger||'')}
             onChange={e => {
-              if (e.target.value === '__custom__') {
-                onChange({ ...fee, isCustomPaymentTrigger: true, paymentTrigger: '' });
-              } else {
-                onChange({ ...fee, isCustomPaymentTrigger: false, paymentTrigger: e.target.value });
-              }
+              if (e.target.value === '__custom__') onChange({ ...fee, isCustomPaymentTrigger: true, paymentTrigger: '' });
+              else onChange({ ...fee, isCustomPaymentTrigger: false, paymentTrigger: e.target.value });
             }} className={inp} style={s6}>
             {PAY_TRIGGERS.map(o=><option key={o} value={o}>{o||'— None —'}</option>)}
             <option value="__custom__">Custom…</option>
           </select>
           {fee.isCustomPaymentTrigger && (
             <input value={fee.paymentTrigger||''} onChange={e=>u('paymentTrigger',e.target.value)}
-              placeholder="Enter payment trigger…"
-              className={`${inp} w-full mt-1.5`} style={{borderColor:'#00C3B5'}}/>
+              placeholder="Enter payment trigger…" className={`${inp} w-full mt-1.5`} style={{borderColor:'#00C3B5'}}/>
           )}
         </div>
       </div>
@@ -594,23 +546,55 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
 }
 
 // ── Service block ─────────────────────────────────────────────────────────────
-function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency }) {
+function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency,
+                    onDragStart, onDragOver, onDrop, onDragEnd, isDragOver }) {
   const letter     = String.fromCharCode(97 + idx);
   const subOptions = SUB_SERVICES[svc.name] || [];
   const selected   = svc.subServices || [];
   const isGaaS     = svc.name === 'GaaS';
   const sym        = getSym(currency || 'INR');
 
-  const addFee     = () => onChange({ ...svc, fees:[...(svc.fees||[]), newFee()] });
-  const updFee     = (fi,u) => onChange({ ...svc, fees:svc.fees.map((f,i)=>i===fi?u:f) });
-  const remFee     = fi => onChange({ ...svc, fees:svc.fees.filter((_,i)=>i!==fi) });
-  const toggleSub  = val => onChange({ ...svc, subServices: selected.includes(val) ? selected.filter(v=>v!==val) : [...selected, val] });
+  const addFee  = () => onChange({ ...svc, fees:[...(svc.fees||[]), newFee()] });
+  const updFee  = (fi,u) => onChange({ ...svc, fees:svc.fees.map((f,i)=>i===fi?u:f) });
+  const remFee  = fi => onChange({ ...svc, fees:svc.fees.filter((_,i)=>i!==fi) });
+  const toggleSub = val => onChange({ ...svc, subServices: selected.includes(val) ? selected.filter(v=>v!==val) : [...selected, val] });
+
+  // ── Fee drag-and-drop (within this service block) ─────────────────────────
+  const dragFeeIdx    = useRef(null);
+  const [dragOverFeeIdx, setDragOverFeeIdx] = useState(null);
+
+  const handleFeeDragStart = (i) => { dragFeeIdx.current = i; };
+  const handleFeeDragOver  = (e, i) => { e.preventDefault(); setDragOverFeeIdx(i); };
+  const handleFeeDrop      = (i) => {
+    if (dragFeeIdx.current === null || dragFeeIdx.current === i) { setDragOverFeeIdx(null); return; }
+    const fees = [...(svc.fees||[])];
+    const [moved] = fees.splice(dragFeeIdx.current, 1);
+    fees.splice(i, 0, moved);
+    onChange({ ...svc, fees });
+    dragFeeIdx.current = null;
+    setDragOverFeeIdx(null);
+  };
+  const handleFeeDragEnd = () => { dragFeeIdx.current = null; setDragOverFeeIdx(null); };
 
   return (
-    <div className="border rounded-2xl mb-4 overflow-hidden" style={{borderColor: isGaaS ? '#99f6e4' : '#e2e8f0'}}>
+    <div
+      draggable={!ro}
+      onDragStart={!ro ? onDragStart : undefined}
+      onDragOver={!ro ? onDragOver : undefined}
+      onDrop={!ro ? onDrop : undefined}
+      onDragEnd={!ro ? onDragEnd : undefined}
+      className="border rounded-2xl mb-4 overflow-hidden transition-all"
+      style={{
+        borderColor: isDragOver ? T : (isGaaS ? '#99f6e4' : '#e2e8f0'),
+        boxShadow: isDragOver ? `0 0 0 2px ${T}` : 'none',
+        opacity: isDragOver ? 0.85 : 1,
+      }}>
+
       <div className="flex items-center justify-between px-5 py-3 border-b"
         style={{background: isGaaS ? '#f0fdfa' : '#f8fafc', borderColor: isGaaS ? '#99f6e4' : '#e2e8f0'}}>
         <div className="flex items-center gap-3">
+          {/* Service drag handle */}
+          {!ro && <DragHandle />}
           <span className="text-xs font-bold text-brand-faint">{letter}.</span>
           {ro
             ? <span className="text-sm font-semibold" style={{color:NAVY}}>{svc.name||'—'}</span>
@@ -630,8 +614,7 @@ function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency }) {
                 </select>
                 {svc.isCustomService && (
                   <input value={svc.name||''} onChange={e=>onChange({...svc, name:e.target.value})}
-                    placeholder="Enter service name…"
-                    className="text-xs px-2 py-1 rounded-lg border"
+                    placeholder="Enter service name…" className="text-xs px-2 py-1 rounded-lg border"
                     style={{borderColor:'#00C3B5', color:NAVY, background:'#fff'}}/>
                 )}
               </div>}
@@ -671,66 +654,77 @@ function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency }) {
               </div>
             )}
 
-            {/* ── Read-only fee display ── */}
-            {(svc.fees||[]).map((fee,fi)=>(
-              ro
-                ? <div key={fee.id} className="border rounded-xl p-3 mb-2 text-xs bg-slate-50" style={{borderColor:'#e2e8f0'}}>
-                    <div className="flex flex-wrap gap-x-2 gap-y-1 items-baseline">
-                      <span className="font-semibold" style={{color:NAVY}}>{fee.feeType}</span>
-                      {fee.billingCycle && <span className="text-brand-muted">· {fee.billingCycle}</span>}
-
-                      {fee.isLogistics
-                        ? <span className="text-brand-muted">
-                            · As per rate card
-                            {fee.logisticsRateCard && <> (<a href={fee.logisticsRateCard} target="_blank" rel="noreferrer" className="underline" style={{color:T}}>link</a>)</>}
-                          </span>
-
-                        : fee.pricingModel === 'graduated'
-                          ? <span className="text-brand-muted">
-                              · Slabs:&nbsp;
-                              {(fee.slabs||[]).map((sl,si) => (
-                                <span key={sl.id||si} className="font-mono">
-                                  {sl.from}–{sl.to||'∞'} @ {sl.rate} {sl.rateType==='Others' ? sl.rateTypeCustom : sl.rateType}
-                                  {si < (fee.slabs||[]).length - 1 ? ',  ' : ''}
-                                </span>
-                              ))}
-                            </span>
-
-                          : fee.stepUpPricing && (fee.stepUpValues||[]).length > 0
-                            ? <span className="text-brand-muted">
-                                · Step-up:&nbsp;
-                                {(fee.stepUpValues||[]).map((sv, si) => {
-                                  const rate = parseFloat(sv.rate != null ? sv.rate : sv.value) || 0;
-                                  const cycles = (sv.startDate && sv.endDate && sv.billingCycle)
-                                    ? cyclesInDateRange(sv.startDate, sv.endDate, sv.billingCycle) : null;
-                                  const label = (sv.startDate && sv.endDate)
-                                    ? `${sv.startDate} – ${sv.endDate}`
-                                    : (sv.label || `Period ${si+1}`);
-                                  return (
-                                    <span key={sv.id||si} className="font-mono">
-                                      {label}{sv.billingCycle ? ` (${sv.billingCycle})` : ''}:
-                                      {' '}{sym}{rate.toLocaleString('en-IN')}/cycle
-                                      {cycles ? ` × ${cycles} = ${sym}${(rate*cycles).toLocaleString('en-IN')}` : ''}
-                                      {si < (fee.stepUpValues||[]).length - 1 ? ',  ' : ''}
-                                    </span>
-                                  );
-                                })}
-                              </span>
-
-                            : <span className="font-mono font-semibold" style={{color:NAVY}}>
-                                · {fee.commercialValue||'—'}{fee.transactionFeeIsPercent?'%':''}{fee.resourceFeeIsVariable?' (variable)':''}
-                              </span>
-                      }
-
-                      {toIncArray(fee.inclusions).length > 0 && (
-                        <span className="text-brand-muted">
-                          · Inclusions: {toIncArray(fee.inclusions).map(incLabel).join(', ')}
+            {/* ── Fee rows with per-fee drag ── */}
+            {(svc.fees||[]).map((fee, fi) => (
+              ro ? (
+                <div key={fee.id} className="border rounded-xl p-3 mb-2 text-xs bg-slate-50" style={{borderColor:'#e2e8f0'}}>
+                  <div className="flex flex-wrap gap-x-2 gap-y-1 items-baseline">
+                    <span className="font-semibold" style={{color:NAVY}}>{fee.feeType}</span>
+                    {fee.billingCycle && <span className="text-brand-muted">· {fee.billingCycle}</span>}
+                    {fee.isLogistics
+                      ? <span className="text-brand-muted">· As per rate card
+                          {fee.logisticsRateCard && <> (<a href={fee.logisticsRateCard} target="_blank" rel="noreferrer" className="underline" style={{color:T}}>link</a>)</>}
                         </span>
-                      )}
-                      {fee.paymentTrigger && <span className="text-brand-muted">· {fee.paymentTrigger}</span>}
-                    </div>
+                      : fee.pricingModel === 'graduated'
+                        ? <span className="text-brand-muted">· Slabs:&nbsp;
+                            {(fee.slabs||[]).map((sl,si) => (
+                              <span key={sl.id||si} className="font-mono">
+                                {sl.from}–{sl.to||'∞'} @ {sl.rate} {sl.rateType==='Others' ? sl.rateTypeCustom : sl.rateType}
+                                {si < (fee.slabs||[]).length - 1 ? ',  ' : ''}
+                              </span>
+                            ))}
+                          </span>
+                        : fee.stepUpPricing && (fee.stepUpValues||[]).length > 0
+                          ? <span className="text-brand-muted">· Step-up:&nbsp;
+                              {(fee.stepUpValues||[]).map((sv, si) => {
+                                const rate = parseFloat(sv.rate != null ? sv.rate : sv.value) || 0;
+                                const cycles = (sv.startDate && sv.endDate && sv.billingCycle)
+                                  ? cyclesInDateRange(sv.startDate, sv.endDate, sv.billingCycle) : null;
+                                const label = (sv.startDate && sv.endDate) ? `${sv.startDate} – ${sv.endDate}` : (sv.label || `Period ${si+1}`);
+                                return (
+                                  <span key={sv.id||si} className="font-mono">
+                                    {label}{sv.billingCycle ? ` (${sv.billingCycle})` : ''}:
+                                    {' '}{sym}{rate.toLocaleString('en-IN')}/cycle
+                                    {cycles ? ` × ${cycles} = ${sym}${(rate*cycles).toLocaleString('en-IN')}` : ''}
+                                    {si < (fee.stepUpValues||[]).length - 1 ? ',  ' : ''}
+                                  </span>
+                                );
+                              })}
+                            </span>
+                          : <span className="font-mono font-semibold" style={{color:NAVY}}>
+                              · {fee.commercialValue||'—'}{fee.transactionFeeIsPercent?'%':''}{fee.resourceFeeIsVariable?' (variable)':''}
+                            </span>
+                    }
+                    {toIncArray(fee.inclusions).length > 0 && (
+                      <span className="text-brand-muted">· Inclusions: {toIncArray(fee.inclusions).map(incLabel).join(', ')}</span>
+                    )}
+                    {fee.paymentTrigger && <span className="text-brand-muted">· {fee.paymentTrigger}</span>}
                   </div>
-                : <FeeRow key={fee.id} fee={fee} idx={fi} onChange={u=>updFee(fi,u)} onRemove={()=>remFee(fi)} termMonths={termMonths} currency={currency}/>
+                </div>
+              ) : (
+                // ── Draggable fee row wrapper ──
+                <div
+                  key={fee.id}
+                  draggable
+                  onDragStart={e => { e.stopPropagation(); handleFeeDragStart(fi); }}
+                  onDragOver={e => { e.preventDefault(); e.stopPropagation(); handleFeeDragOver(e, fi); }}
+                  onDrop={e => { e.stopPropagation(); handleFeeDrop(fi); }}
+                  onDragEnd={e => { e.stopPropagation(); handleFeeDragEnd(); }}
+                  className="transition-all"
+                  style={{
+                    borderRadius: '12px',
+                    outline: dragOverFeeIdx === fi ? `2px solid ${T}` : 'none',
+                    opacity: dragFeeIdx.current === fi ? 0.5 : 1,
+                  }}>
+                  {/* Fee drag handle strip */}
+                  <div className="flex items-center gap-1.5 px-3 pt-2 pb-0 cursor-grab active:cursor-grabbing"
+                    style={{color:'#cbd5e1'}}>
+                    <DragHandle />
+                    <span className="text-[10px] font-medium text-slate-300 select-none">drag to reorder</span>
+                  </div>
+                  <FeeRow fee={fee} idx={fi} onChange={u=>updFee(fi,u)} onRemove={()=>remFee(fi)} termMonths={termMonths} currency={currency}/>
+                </div>
+              )
             ))}
 
             {!ro && (
@@ -746,6 +740,7 @@ function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency }) {
   );
 }
 
+// ── StepFees ──────────────────────────────────────────────────────────────────
 export default function StepFees({ form, set, ro }) {
   const services   = form.services_fees || [];
   const termMonths = form.of_term_months || 12;
@@ -755,6 +750,23 @@ export default function StepFees({ form, set, ro }) {
   const updSvc  = (i,s) => set('services_fees', services.map((sv,j)=>j===i?s:sv));
   const remSvc  = i => set('services_fees', services.filter((_,j)=>j!==i));
   const isBundle= services.length > 1;
+
+  // ── Service drag-and-drop ─────────────────────────────────────────────────
+  const dragSvcIdx    = useRef(null);
+  const [dragOverSvcIdx, setDragOverSvcIdx] = useState(null);
+
+  const handleSvcDragStart = (i) => { dragSvcIdx.current = i; };
+  const handleSvcDragOver  = (e, i) => { e.preventDefault(); setDragOverSvcIdx(i); };
+  const handleSvcDrop      = (i) => {
+    if (dragSvcIdx.current === null || dragSvcIdx.current === i) { setDragOverSvcIdx(null); return; }
+    const reordered = [...services];
+    const [moved] = reordered.splice(dragSvcIdx.current, 1);
+    reordered.splice(i, 0, moved);
+    set('services_fees', reordered);
+    dragSvcIdx.current = null;
+    setDragOverSvcIdx(null);
+  };
+  const handleSvcDragEnd = () => { dragSvcIdx.current = null; setDragOverSvcIdx(null); };
 
   useEffect(() => {
     if (ro) return;
@@ -791,9 +803,25 @@ export default function StepFees({ form, set, ro }) {
         </div>
       )}
 
-      {services.map((svc,i)=>(
-        <SvcBlock key={svc.id} svc={svc} idx={i} termMonths={termMonths} ro={ro} currency={form.committed_currency||'INR'}
-          onChange={s=>!ro&&updSvc(i,s)} onRemove={()=>!ro&&remSvc(i)}/>
+      {!ro && services.length > 1 && (
+        <p className="text-[11px] text-slate-400 mb-3 flex items-center gap-1.5">
+          <span style={{fontSize:'16px'}}>⠿</span> Drag the grip icon on a service or fee row to reorder it.
+        </p>
+      )}
+
+      {services.map((svc,i) => (
+        <SvcBlock
+          key={svc.id}
+          svc={svc} idx={i} termMonths={termMonths} ro={ro}
+          currency={form.committed_currency||'INR'}
+          onChange={s=>!ro&&updSvc(i,s)}
+          onRemove={()=>!ro&&remSvc(i)}
+          isDragOver={dragOverSvcIdx === i}
+          onDragStart={() => handleSvcDragStart(i)}
+          onDragOver={e => handleSvcDragOver(e, i)}
+          onDrop={() => handleSvcDrop(i)}
+          onDragEnd={handleSvcDragEnd}
+        />
       ))}
 
       {!ro && (
