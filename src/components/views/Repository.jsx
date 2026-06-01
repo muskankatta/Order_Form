@@ -12,7 +12,6 @@ import { generateRepositoryReport } from '../../utils/reports.js';
 
 const NAVY='#1B2B4B'; const T='#00C3B5';
 
-// ── Entity helpers ────────────────────────────────────────────────────────────
 const ENTITY_META = {
   yavi: { label:'Yavi', color:'#4f46e5', bg:'#eef2ff', border:'#c7d2fe' },
   fynd: { label:'Fynd', color:'#0f766e', bg:'#f0fdfa', border:'#99f6e4' },
@@ -214,13 +213,15 @@ export default function Repository() {
   const svcRows = [];
   sorted.forEach(f => (f.services_fees||[]).forEach(svc => svcRows.push({f,svc})));
 
+  // ── Deduplicated list — used for BOTH the table and all stats/counts ──────
   const dedupedSorted = (() => {
     const seen = new Map();
     sorted.forEach(f => {
       if (!f.of_number) return;
       const existing = seen.get(f.of_number);
       if (!existing) { seen.set(f.of_number, f); return; }
-      const fBetter = (f.signed_date && !existing.signed_date) || (!existing.signed_date && (f.created_at||'') > (existing.created_at||''));
+      const fBetter = (f.signed_date && !existing.signed_date) ||
+        (!existing.signed_date && (f.created_at||'') > (existing.created_at||''));
       if (fBetter) seen.set(f.of_number, f);
     });
     const noNum = sorted.filter(f => !f.of_number);
@@ -251,10 +252,10 @@ export default function Repository() {
   const TO_USD = { USD:v=>v, INR:v=>v/91, AED:v=>v/3.6725, MYR:v=>v/4.30, IDR:v=>v/16950, GBP:v=>v/0.80, EUR:v=>v/0.90, SGD:v=>v/1.35, SAR:v=>v/3.75, AUD:v=>v/1.55 };
   const toUSD = (amt, cur) => (TO_USD[cur] || (v=>v))(Number(amt||0));
 
-  // ── Summary stats — split by entity ──────────────────────────────────────
-  const fyndIndia  = filtered.filter(f => f.entity!=='yavi' && f.sales_team==='India');
-  const fyndGlobal = filtered.filter(f => f.entity!=='yavi' && f.sales_team!=='India');
-  const yaviOFs    = filtered.filter(f => f.entity==='yavi');
+  // ── Summary stats — all derived from dedupedSorted (not raw filtered) ─────
+  const fyndIndia  = dedupedSorted.filter(f => f.entity!=='yavi' && f.sales_team==='India');
+  const fyndGlobal = dedupedSorted.filter(f => f.entity!=='yavi' && f.sales_team!=='India');
+  const yaviOFs    = dedupedSorted.filter(f => f.entity==='yavi');
 
   const summaryFyndINR = fyndIndia.reduce((s,f)  => s + Number(f.committed_revenue||0), 0);
   const summaryFyndUSD = fyndGlobal.reduce((s,f) => s + toUSD(f.committed_revenue, f.committed_currency||'USD'), 0);
@@ -269,11 +270,8 @@ export default function Repository() {
   const hasActiveFilters = qtrFilter!=='all' || fyFilter!=='all' || dateFrom || dateTo ||
     channelFilter!=='all' || leadCatFilter!=='all' || signedFrom || signedTo || entityFilter!=='all';
 
-  // Active filter summary pill for quarter/FY/month range
   const activeFilterLabel = (() => {
-    if (signedFrom && signedTo) {
-      return `Signing: ${signedFrom} → ${signedTo}`;
-    }
+    if (signedFrom && signedTo) return `Signing: ${signedFrom} → ${signedTo}`;
     if (qtrFilter!=='all' && fyFilter!=='all') return `${qtrFilter} FY${String(fyFilter).slice(2)}`;
     if (qtrFilter!=='all') return qtrFilter;
     if (fyFilter!=='all')  return `FY${String(fyFilter).slice(2)}`;
@@ -286,7 +284,7 @@ export default function Repository() {
         <div>
           <h2 className="text-xl font-bold" style={{ color:NAVY }}>Repository</h2>
           <p className="text-sm mt-0.5 text-brand-faint">
-            {filtered.filter(f=>['approved','signed'].includes(f.status)).length} active · {filtered.length} OFs shown
+            {dedupedSorted.filter(f=>['approved','signed'].includes(f.status)).length} active · {dedupedSorted.length} OFs shown
             {activeFilterLabel && (
               <span className="ml-2 font-semibold px-2 py-0.5 rounded-full text-[11px]" style={{ background:'#e0f7f5', color:'#00897b' }}>
                 {activeFilterLabel}
@@ -296,8 +294,8 @@ export default function Repository() {
         </div>
         <div className="flex gap-2 items-center">
           {tab==='of' && <ColumnPicker visible={visibleCols} onChange={setVisibleCols}/>}
-          <Btn variant="ghost" onClick={() => tab==='of' ? exportOFIndex(filtered) : exportServiceIndex(filtered)}>⬇ Export CSV</Btn>
-          <Btn variant="ghost" onClick={() => generateRepositoryReport(filtered)}>📊 Report</Btn>
+          <Btn variant="ghost" onClick={() => tab==='of' ? exportOFIndex(dedupedSorted) : exportServiceIndex(filtered)}>⬇ Export CSV</Btn>
+          <Btn variant="ghost" onClick={() => generateRepositoryReport(dedupedSorted)}>📊 Report</Btn>
         </div>
       </div>
 
@@ -342,8 +340,6 @@ export default function Repository() {
             </select>
           </>
         )}
-
-        {/* Entity filter */}
         <select value={entityFilter} onChange={e=>setEntityFilter(e.target.value)}
           className="text-sm border rounded-xl px-3 py-2.5 bg-white border-slate-200"
           style={entityFilter!=='all' ? { borderColor: entityFilter==='yavi'?'#4f46e5':'#0f766e', boxShadow:`0 0 0 2px ${entityFilter==='yavi'?'#c7d2fe':'#99f6e4'}` } : {}}>
@@ -351,7 +347,6 @@ export default function Repository() {
           <option value="fynd">Fynd (Shopsense)</option>
           <option value="yavi">Yavi Technologies FZCO</option>
         </select>
-
         <select value={qtrFilter} onChange={e=>setQtrFilter(e.target.value)}
           className="text-sm border rounded-xl px-3 py-2.5 bg-white border-slate-200"
           style={qtrFilter!=='all'?{borderColor:T,boxShadow:`0 0 0 2px ${T}33`}:{}}>
@@ -429,13 +424,13 @@ export default function Repository() {
         )}
       </div>
 
-      {/* Summary stats — entity-split */}
+      {/* Summary stats — entity-split, all from dedupedSorted */}
       <div className="grid grid-cols-4 gap-3 mb-4">
         <div className="bg-white rounded-xl border px-4 py-3" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
           <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">OFs shown</div>
-          <div className="text-2xl font-black" style={{color:NAVY}}>{filtered.length}</div>
+          <div className="text-2xl font-black" style={{color:NAVY}}>{dedupedSorted.length}</div>
           <div className="text-[10px] text-brand-faint mt-1">
-            <span className="font-semibold" style={{color:ENTITY_META.fynd.color}}>{filtered.filter(f=>f.entity!=='yavi').length} Fynd</span>
+            <span className="font-semibold" style={{color:ENTITY_META.fynd.color}}>{dedupedSorted.filter(f=>f.entity!=='yavi').length} Fynd</span>
             {' · '}
             <span className="font-semibold" style={{color:ENTITY_META.yavi.color}}>{yaviOFs.length} Yavi</span>
           </div>
@@ -512,11 +507,7 @@ export default function Repository() {
                             <div className="text-xs text-brand-faint">{f.brand_name}</div>
                           </td>
                         )}
-                        {show('entity') && (
-                          <td className="px-4 py-3.5">
-                            <EntityBadge form={f}/>
-                          </td>
-                        )}
+                        {show('entity') && <td className="px-4 py-3.5"><EntityBadge form={f}/></td>}
                         {show('services')  && (
                           <td className="px-4 py-3.5">
                             <div className="flex flex-wrap gap-1">
@@ -636,9 +627,7 @@ export default function Repository() {
                         <div className="font-semibold text-xs" style={{ color:NAVY }}>{f.customer_name}</div>
                         <div className="text-xs text-brand-faint">{f.brand_name}</div>
                       </td>
-                      <td className="px-4 py-3.5">
-                        <EntityBadge form={f}/>
-                      </td>
+                      <td className="px-4 py-3.5"><EntityBadge form={f}/></td>
                       <td className="px-4 py-3.5">
                         <span className="text-xs px-2 py-0.5 rounded-full bg-teal-light text-teal-dark font-semibold">{svc.name||'—'}</span>
                       </td>
