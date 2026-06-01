@@ -619,12 +619,18 @@ export function ChurnVoidRequest() {
 
   const isOthers = req.customer === 'Others';
 
-  const relevantOFs = useMemo(() =>
-    isOthers || !req.customer ? [] :
-    approvedForms
+  const relevantOFs = useMemo(() => {
+    if (isOthers || !req.customer) return [];
+    const seen = new Set();
+    return approvedForms
       .filter(f => f.customer_name?.trim().toLowerCase() === req.customer.trim().toLowerCase())
-      .sort((a,b)=>(a.of_number||'').localeCompare(b.of_number||'')),
-  [approvedForms, req.customer, isOthers]);
+      .sort((a,b) => (a.of_number||'').localeCompare(b.of_number||''))
+      .filter(f => {
+        if (!f.of_number || seen.has(f.of_number)) return false;
+        seen.add(f.of_number);
+        return true;
+      });
+  }, [approvedForms, req.customer, isOthers]);
 
   const selectedForm = useMemo(() =>
     req.of_number && !isOthers
