@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Inp, Sel, TA, SHdr, FileUpload } from '../../ui/index.jsx';
+import { Inp, Sel, TA, SHdr } from '../../ui/index.jsx';
 import { SEGMENTS, SALES_TEAMS, LEAD_TYPES, LEAD_CATS, SALE_TYPES,
          COUNTRIES, SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES } from '../../../constants/formOptions.js';
 import { SALES_REPS } from '../../../constants/users.js';
@@ -21,7 +21,65 @@ function isValidTaxNumber(val) {
   return /^[A-Z0-9\-]{3,30}$/.test(val);
 }
 
+function isValidUrl(v) {
+  if (!v) return false;
+  try {
+    const url = new URL(v.trim());
+    return /^https?:$/.test(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
+const looksLikeDrive = v => /(drive|docs)\.google\.com/i.test(v || '');
+
 const toTitleCase = v => v.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+
+// ── SoW link field — Sales Rep pastes a Google Drive link; any role can open it ──
+function SowLink({ label, req, value, onChange, ro, hint }) {
+  const val = (value || '').trim();
+  const valid = isValidUrl(val);
+  const drive = valid && looksLikeDrive(val);
+
+  return (
+    <div className="mb-4">
+      <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
+        {label}{req && <span className="text-red-400 ml-1">*</span>}
+      </label>
+
+      {ro ? (
+        val ? (
+          <a href={val} target="_blank" rel="noopener noreferrer"
+             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-teal-50 border border-teal-200 text-teal-700 text-sm font-medium hover:bg-teal-100 break-all">
+            🔗 Open Scope of Work
+          </a>
+        ) : (
+          <input value="— no link provided —" readOnly className="field-input" style={{ background:'#f8fafc', color:'#94a3b8' }}/>
+        )
+      ) : (
+        <>
+          <input
+            type="url"
+            value={val}
+            onChange={e => onChange(e.target.value.trim())}
+            placeholder="https://drive.google.com/…"
+            className="field-input font-mono text-sm"
+            style={{ borderColor: val ? (valid ? '#4ade80' : '#fca5a5') : '#e2e8f0' }}
+          />
+          {val && !valid && <p className="text-xs mt-1 text-red-500">Enter a valid link starting with https://</p>}
+          {valid && !drive && <p className="text-xs mt-1 text-amber-600">This doesn't look like a Google Drive / Docs link — double-check it.</p>}
+          {valid && (
+            <a href={val} target="_blank" rel="noopener noreferrer" className="inline-block text-xs mt-1 text-teal-600 hover:underline">
+              ↗ Open link in new tab
+            </a>
+          )}
+        </>
+      )}
+
+      {hint && <p className="text-xs mt-1 text-brand-faint">{hint}</p>}
+    </div>
+  );
+}
 
 export default function StepClient({ form, set, ro }) {
   const { user } = useAuth();
@@ -350,10 +408,30 @@ export default function StepClient({ form, set, ro }) {
         <>
           <SHdr c="Scope of Work (SoW)"/>
           <div className={`p-4 rounded-xl mb-4 text-sm ${needsSoW ? 'bg-amber-50 border border-amber-200 text-amber-800' : 'bg-slate-50 border border-slate-200 text-slate-500'}`}>
-            {needsSoW ? `⚠️ A signed SoW is mandatory for ${form.sale_type}.` : 'No SoW required for this sale type.'}
+            {needsSoW
+              ? `⚠️ A signed SoW is mandatory for ${form.sale_type}. Paste the Google Drive link to the signed document below.`
+              : 'No SoW required for this sale type.'}
           </div>
-          {needsSoW && <FileUpload label="Signed Scope of Work (PDF)" req value={form.sow_document} onChange={v=>u('sow_document',v)} disabled={ro} hint="PDF only · Max 10 MB"/>}
-          {needsRef  && <FileUpload label={`Previous SoW for reference (${form.sale_type})`} req value={form.sow_reference_document} onChange={v=>u('sow_reference_document',v)} disabled={ro} hint="Upload the earlier SoW being superseded"/>}
+          {needsSoW && (
+            <SowLink
+              label="Signed Scope of Work — Google Drive link"
+              req
+              value={form.sow_link}
+              onChange={v=>u('sow_link', v)}
+              ro={ro}
+              hint="Paste a shareable Google Drive / Docs link. Set sharing so anyone at Fynd with the link can open it — every role (Sales, RevOps, Finance) views the SoW through this link."
+            />
+          )}
+          {needsRef && (
+            <SowLink
+              label={`Previous SoW for reference (${form.sale_type}) — Google Drive link`}
+              req
+              value={form.sow_reference_link}
+              onChange={v=>u('sow_reference_link', v)}
+              ro={ro}
+              hint="Paste the Google Drive link to the earlier SoW being superseded."
+            />
+          )}
         </>
       )}
     </div>
