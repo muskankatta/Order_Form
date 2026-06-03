@@ -2,7 +2,17 @@ import { useState, useCallback } from 'react';
 import { BLANK_FORM } from '../constants/formOptions.js';
 import { uid } from '../utils/dates.js';
 import { calcMetrics, calcOFValue } from '../utils/calculations.js';
-import { SOW_REQUIRED_TYPES } from '../constants/formOptions.js';
+import { SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES } from '../constants/formOptions.js';
+
+function isValidUrl(v) {
+  if (!v) return false;
+  try {
+    const url = new URL(String(v).trim());
+    return /^https?:$/.test(url.protocol);
+  } catch {
+    return false;
+  }
+}
 
 export function useFormWizard(initial = null) {
   const [step, setStep]     = useState(0);
@@ -115,9 +125,19 @@ export function useFormWizard(initial = null) {
     if (form.lead_type === 'Indirect' && !form.lead_name)
       e.push('Partner name is required');
 
-    // ── SoW ──────────────────────────────────────────────────────────────────
-    if (form.sale_type && SOW_REQUIRED_TYPES.has(form.sale_type) && !form.sow_document)
-      e.push('Signed SoW document is required for ' + form.sale_type);
+    // ── SoW (Google Drive link) ───────────────────────────────────────────────
+    if (form.sale_type && SOW_REQUIRED_TYPES.has(form.sale_type)) {
+      if (!form.sow_link)
+        e.push('Signed SoW Google Drive link is required for ' + form.sale_type);
+      else if (!isValidUrl(form.sow_link))
+        e.push('Signed SoW link must be a valid URL starting with https://');
+    }
+    if (form.sale_type && SOW_REFERENCE_TYPES.has(form.sale_type)) {
+      if (!form.sow_reference_link)
+        e.push('Previous SoW Google Drive link is required for ' + form.sale_type);
+      else if (!isValidUrl(form.sow_reference_link))
+        e.push('Previous SoW link must be a valid URL starting with https://');
+    }
 
     // ── Client representative (StepCommercial) ────────────────────────────────
     if (!form.client_rep_name)
