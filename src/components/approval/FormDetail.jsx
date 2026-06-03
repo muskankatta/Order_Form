@@ -61,11 +61,16 @@ async function slackPI(pi,event){
   if(!BOLTIC) return null;
   try{
     const ch=CH[pi.sales_team]||CH['India'];
-    const salesTag = pi.sales_rep_slack_id ? `<@${pi.sales_rep_slack_id}>` : pi.created_by_name;
+    // Sales Rep tag
+    const salesTag = pi.sales_rep_slack_id
+      ? `<@${pi.sales_rep_slack_id}>`
+      : pi.created_by_name;
+    // RevOps tag
     const primaryRevopsSlack = pi.revops_approvers_slack_ids?.[0];
     const revopsTag = primaryRevopsSlack
       ? `*Assigned to:* <@${primaryRevopsSlack}>`
-      : pi.revops_approvers_names?.[0] ? `*Assigned to:* ${pi.revops_approvers_names[0]}` : '';
+      : pi.revops_approvers_names?.[0]
+        ? `*Assigned to:* ${pi.revops_approvers_names[0]}` : '';
     const msgs={
       submitted:`🧾 *Proforma Invoice Raised* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*By:* ${salesTag}  |  *Amount:* ${fmtAmt(pi.grand_total,pi.currency)}${revopsTag?'\n'+revopsTag:''}\n⏳ Awaiting RevOps Approval\n🔗 <${PI_PLATFORM_URL}|Review on OF Platform>`,
     };
@@ -315,6 +320,7 @@ export default function FormDetail({ form: initial }) {
   const [salesRevopsApprovers, setSalesRevopsApprovers] = useState([]);
   const [submitErrors, setSubmitErrors] = useState([]);
 
+  // ── PI state ──
   const [pis,        setPIs]        = useState([]);
   const [piLoading,  setPILoading]  = useState(false);
   const [showPIForm, setShowPIForm] = useState(false);
@@ -325,6 +331,8 @@ export default function FormDetail({ form: initial }) {
     || (form.of_number||'').startsWith('OFYT')
     || (form.of_number||'').startsWith('OF-YT-');
   const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
+
+  // Notes tab is editable only by Finance (or Universal)
   const canEditNotes = edit && (user?.role === 'finance' || user?.isUniversal);
 
   // ── Full validation — mirrors useFormWizard.validate() ────────────────────
@@ -418,6 +426,7 @@ export default function FormDetail({ form: initial }) {
     fees:       <StepFees       form={live} set={set} ro={!edit}/>,
     terms:      <StepTerms      form={live} set={set} ro={!edit}/>,
     signatory:  <StepSignatory  form={live} set={set} ro={!edit}/>,
+    // Notes: editable only by Finance/Universal in edit mode
     notes:      <StepNotes      form={live} set={set} ro={!canEditNotes}/>,
   };
 
@@ -512,6 +521,7 @@ export default function FormDetail({ form: initial }) {
             className="flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all"
             style={tab===t.id ? {background:'#fff',color:NAVY,boxShadow:'0 1px 3px rgba(0,0,0,0.08)'} : {color:'#94a3b8'}}>
             {t.lbl}
+            {/* Lock icon on Notes tab for non-Finance */}
             {t.id==='notes' && !(user?.role==='finance'||user?.isUniversal) && (
               <span className="ml-1 text-slate-300">🔒</span>
             )}
@@ -570,7 +580,11 @@ export default function FormDetail({ form: initial }) {
           )}
           {edit && (
             <div className="mb-4">
-              <Btn variant="navy" onClick={async () => { await updateDraft(form.id, ef); setEdit(false); show('Draft saved!'); }}>💾 Save edits</Btn>
+              <Btn variant="navy" onClick={async () => {
+                await updateDraft(form.id, ef);
+                setEdit(false);
+                show('Draft saved!');
+              }}>💾 Save edits</Btn>
             </div>
           )}
           <MultiSelect
@@ -626,7 +640,11 @@ export default function FormDetail({ form: initial }) {
           )}
           {edit && (
             <div className="mb-4">
-              <Btn variant="navy" onClick={async () => { await updateDraft(form.id, ef); setEdit(false); show('Draft saved!'); }}>💾 Save edits</Btn>
+              <Btn variant="navy" onClick={async () => {
+                await updateDraft(form.id, ef);
+                setEdit(false);
+                show('Draft saved!');
+              }}>💾 Save edits</Btn>
             </div>
           )}
           <MultiSelect
@@ -853,7 +871,10 @@ export default function FormDetail({ form: initial }) {
                 <input type="url" value={signedLink} onChange={e=>setSignedLink(e.target.value)}
                   placeholder="https://drive.google.com/..."
                   className="field-input flex-1" style={{ borderColor:'#e2e8f0' }}/>
-                <Btn size="sm" onClick={async () => { await updateDraft(form.id, { signed_of_link: signedLink }); show('Signed PDF link saved ✓'); }}>Save link</Btn>
+                <Btn size="sm" onClick={async () => {
+                  await updateDraft(form.id, { signed_of_link: signedLink });
+                  show('Signed PDF link saved ✓');
+                }}>Save link</Btn>
               </div>
               {form.signed_of_link && (
                 <a href={form.signed_of_link} target="_blank" rel="noreferrer"
@@ -876,7 +897,7 @@ export default function FormDetail({ form: initial }) {
         </Card>
       )}
 
-      {/* PROFORMA INVOICES SECTION */}
+      {/* ── PROFORMA INVOICES SECTION ─────────────────────────────────────── */}
       {['revops_approved','approved','signed'].includes(form.status) && (
         <Card className="mt-4 p-5">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
@@ -922,7 +943,7 @@ export default function FormDetail({ form: initial }) {
                       <td className="px-4 py-2.5 text-slate-400">{pi.revops_reviewer||'—'}</td>
                       <td className="px-4 py-2.5">
                         {(pi.status==='approved'||pi.status==='fully_collected') && (
-                          <a href="/#/proforma-invoices"
+                          <a href={PI_PLATFORM_URL}
                             className="text-xs font-semibold px-2 py-1 rounded-lg"
                             style={{background:'#d1fae5',color:'#065f46',textDecoration:'none',display:'inline-block'}}>
                             Download PDF
