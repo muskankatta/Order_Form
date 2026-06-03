@@ -15,12 +15,11 @@ const COLLECTION = 'order_forms';
 const REVOPS_EMAILS = 'samikshamane@gofynd.com,raginivarma@gofynd.com,ronakmodi@gofynd.com,nayanlathiya@gofynd.com,atharvashetye@gofynd.com,omkarsp@gofynd.com';
 const FINANCE_EMAILS = 'rahulmandowara@gofynd.com,abhimanyumallik@gofynd.com,rasikajadhav@gofynd.com,somaydugar@gofynd.com';
 
-// ── HELPERS ───────────────────────────────────────────────────────────────────
+// ── Strip large base64 blobs before writing to Firestore ──────────────────────
 const toFirestore = form => {
   const { sow_document, sow_reference_document, ...rest } = form;
   return {
     ...rest,
-    // Strip base64 data from attachments — store metadata only in Firestore
     attachments: (form.attachments || []).map(({ data, ...meta }) => meta),
     _updatedAt: serverTimestamp(),
     sow_document_name: sow_document?.name || null,
@@ -28,6 +27,19 @@ const toFirestore = form => {
     sow_reference_document_name: sow_reference_document?.name || null,
   };
 };
+
+// ── Strip large base64 blobs before writing to localStorage ──────────────────
+// SoW is now stored as a link, not a base64 blob. Old records may still have
+// .data fields — strip them so they never fill up the ~5MB quota.
+const toStorage = (forms) => forms.map(f => ({
+  ...f,
+  sow_document: f.sow_document?.data
+    ? { name: f.sow_document.name, size: f.sow_document.size, type: f.sow_document.type }
+    : f.sow_document,
+  sow_reference_document: f.sow_reference_document?.data
+    ? { name: f.sow_reference_document.name, size: f.sow_reference_document.size, type: f.sow_reference_document.type }
+    : f.sow_reference_document,
+}));
 
 const ARRAY_FIELDS = new Set(['services_fees','revops_approvers','finance_approvers','stepUpValues','slabs','fees','attachments']);
 const OBJ_FIELDS   = new Set(['sow_document','sow_reference_document']);
@@ -43,14 +55,14 @@ const fromFirestore = snap => {
     }
     if (ARRAY_FIELDS.has(key) && !Array.isArray(d[key])) d[key] = [];
   });
-  // Auto-tag existing OFYT / OF-YT OFs as Yavi entity
   if (!d.entity && d.of_number &&
       (d.of_number.startsWith('OFYT') || d.of_number.startsWith('OF-YT'))) {
     d.entity = 'yavi';
   }
   return d;
 };
-// ── RENEWAL HELPERS ───────────────────────────────────────────────────────────
+
+// ── Renewal helpers ───────────────────────────────────────────────────────────
 function addMonthsMinus1(dateStr, months) {
   if (!dateStr || !months) return '';
   const d = new Date(dateStr);
@@ -73,7 +85,7 @@ function getRenewalNumber(forms, baseOfNumber) {
   return `${base}-R${maxR + 1}`;
 }
 
-// ── PROVIDER ──────────────────────────────────────────────────────────────────
+// ── Provider ──────────────────────────────────────────────────────────────────
 export function FormsProvider({ children }) {
   const { user }   = useAuth();
   const [forms,    setForms]   = useState(() => storage.get());
@@ -87,16 +99,15 @@ export function FormsProvider({ children }) {
     const q = collection(db, COLLECTION);
     unsubRef.current = onSnapshot(q, snap => {
       const docs = snap.docs.map(fromFirestore);
-      // Merge with localStorage to preserve binary data (sow, attachments)
-      // that is stripped from Firestore writes due to size limits
+      // Merge with localStorage to restore attachment binary data only.
+      // SoW is now a link — no need to merge base64 sow_document back.
       const localForms = storage.get();
       const merged = docs.map(d => {
         const local = localForms.find(f => f.id === d.id);
         if (!local) return d;
         return {
           ...d,
-          sow_document: local.sow_document || d.sow_document,
-          sow_reference_document: local.sow_reference_document || d.sow_reference_document,
+          // Attachments may still carry binary data locally
           attachments: (d.attachments || []).map((a, i) => ({
             ...a,
             data: local.attachments?.[i]?.data || a.data || null,
@@ -104,7 +115,8 @@ export function FormsProvider({ children }) {
         };
       });
       setForms(merged);
-      storage.set(merged);
+      // Strip blobs before writing to localStorage to prevent quota errors
+      storage.set(toStorage(merged));
       setSynced(true);
     }, err => {
       console.error('[Firestore] listener error:', err);
@@ -131,7 +143,6 @@ export function FormsProvider({ children }) {
 
       const endDate = new Date(f.end_date);
       endDate.setHours(0, 0, 0, 0);
-
       if (endDate >= today) continue;
 
       const renewalExists = currentForms.some(r =>
@@ -146,7 +157,6 @@ export function FormsProvider({ children }) {
       }
 
       await persistOneDirect({ ...f, status: 'completed', completed_at: new Date().toISOString() });
-
       if (f.auto_renewal !== 'Yes') continue;
 
       const renewalOfNum = getRenewalNumber(currentForms, f.of_number || '');
@@ -193,7 +203,7 @@ export function FormsProvider({ children }) {
       setForms(prev => {
         const exists = prev.find(f => f.id === form.id);
         const updated = exists ? prev.map(f => f.id === form.id ? form : f) : [...prev, form];
-        storage.set(updated);
+        storage.set(toStorage(updated));
         return updated;
       });
     }
@@ -203,7 +213,7 @@ export function FormsProvider({ children }) {
     setForms(prev => {
       const exists = prev.find(f => f.id === form.id);
       const updated = exists ? prev.map(f => f.id === form.id ? form : f) : [...prev, form];
-      storage.set(updated);
+      storage.set(toStorage(updated));
       return updated;
     });
     if (isConfigured && db) {
@@ -215,11 +225,15 @@ export function FormsProvider({ children }) {
     if (isConfigured && db) {
       await deleteDoc(doc(db, COLLECTION, id));
     } else {
-      setForms(prev => { const u = prev.filter(f => f.id !== id); storage.set(u); return u; });
+      setForms(prev => {
+        const u = prev.filter(f => f.id !== id);
+        storage.set(toStorage(u));
+        return u;
+      });
     }
   }, []);
 
-  // ── ACTIONS ───────────────────────────────────────────────────────────────
+  // ── Actions ───────────────────────────────────────────────────────────────
   const saveDraft = useCallback(async (formData) => {
     const f = { ...formData, id: uid(), status: 'draft', created_at: new Date().toISOString() };
     await persistOne(f); return f;
@@ -253,8 +267,8 @@ export function FormsProvider({ children }) {
       'Log in to review:\nhttps://muskankatta.github.io/Order_Form/'
     );
     const ts = await notifySlack('submitted', f, {});
-if (ts) await persistOne({ ...f, slack_thread_ts: ts });
-return f;
+    if (ts) await persistOne({ ...f, slack_thread_ts: ts });
+    return f;
   }, [persistOne]);
 
   const revopsApprove = useCallback(async (id, { editedForm, comment, financeApprovers }) => {
@@ -269,10 +283,8 @@ return f;
       [f.sales_rep_email, ...financeApprovers].filter(Boolean).join(','),
       threadSubject(f.customer_name),
       '✅ Approved by RevOps — Pending Finance Approval\n\n' +
-      'Customer: ' + f.customer_name + '\n' +
-      'Brand: ' + (f.brand_name || '—') + '\n' +
-      'Sales Rep: ' + f.sales_rep_name + '\n' +
-      'Service(s): ' + svcNames(f) + '\n' +
+      'Customer: ' + f.customer_name + '\nBrand: ' + (f.brand_name || '—') + '\n' +
+      'Sales Rep: ' + f.sales_rep_name + '\nService(s): ' + svcNames(f) + '\n' +
       'OF Value: ' + (f.committed_currency || 'INR') + ' ' + Number(f.of_value || 0).toLocaleString('en-IN') + '\n\n' +
       'Log in to the platform:\nhttps://muskankatta.github.io/Order_Form/'
     );
@@ -291,8 +303,7 @@ return f;
       f.sales_rep_email,
       threadSubject(f.customer_name),
       '❌ Action Required — Order Form Returned\n\n' +
-      'Customer: ' + f.customer_name + '\n' +
-      'Brand: ' + (f.brand_name || '—') + '\n' +
+      'Customer: ' + f.customer_name + '\nBrand: ' + (f.brand_name || '—') + '\n' +
       'Reason: ' + (comment || 'See platform for details') + '\n\n' +
       'Please log in to review and resubmit:\nhttps://muskankatta.github.io/Order_Form/'
     );
@@ -307,19 +318,16 @@ return f;
       finance_approver: user?.name,
     };
     await persistOne(f);
-    const revopsEmails = (f.revops_approvers || []).filter(Boolean);
+    const revopsEmails  = (f.revops_approvers  || []).filter(Boolean);
     const financeEmails = (f.finance_approvers || []).filter(Boolean);
     false && sendEmail(
       [f.sales_rep_email, ...revopsEmails, ...financeEmails].filter(Boolean).join(','),
       threadSubject(f.customer_name),
       '🎉 Finance Approved — OF# ' + ofNumber + '\n\n' +
-      'Customer: ' + f.customer_name + '\n' +
-      'Brand: ' + (f.brand_name || '—') + '\n' +
-      'OF Number: ' + ofNumber + '\n' +
-      'Service(s): ' + svcNames(f) + '\n' +
+      'Customer: ' + f.customer_name + '\nBrand: ' + (f.brand_name || '—') + '\n' +
+      'OF Number: ' + ofNumber + '\nService(s): ' + svcNames(f) + '\n' +
       'OF Value: ' + (f.committed_currency || 'INR') + ' ' + Number(f.of_value || 0).toLocaleString('en-IN') + '\n' +
-      'Start Date: ' + (f.start_date || '—') + '\n' +
-      'End Date: ' + (f.end_date || '—') + '\n\n' +
+      'Start Date: ' + (f.start_date || '—') + '\nEnd Date: ' + (f.end_date || '—') + '\n\n' +
       'Log in to the platform:\nhttps://muskankatta.github.io/Order_Form/'
     );
     await notifySlack('approved', f, {});
@@ -333,11 +341,10 @@ return f;
       f.sales_rep_email,
       threadSubject(f.customer_name),
       '❌ Action Required — Returned by Finance\n\n' +
-      'Customer: ' + f.customer_name + '\n' +
-      'Brand: ' + (f.brand_name || '—') + '\n' +
+      'Customer: ' + f.customer_name + '\nBrand: ' + (f.brand_name || '—') + '\n' +
       'Reason: ' + (comment || 'See platform for details') + '\n\n' +
       'Please log in to review:\nhttps://muskankatta.github.io/Order_Form/'
-      );
+    );
     await notifySlack('finance_rejected', f, { comment });
   }, [forms, persistOne, user]);
 
