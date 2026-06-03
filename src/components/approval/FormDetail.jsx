@@ -13,7 +13,7 @@ import { FINANCE_USERS, REVOPS_USERS } from '../../constants/users.js';
 import { fmtDate, fmtShort } from '../../utils/dates.js';
 import { openPDF } from '../../utils/pdf.js';
 import { useToast } from '../../hooks/useToast.js';
-import { SERVICES as PI_SERVICES_FALLBACK_IMPORT, SOW_REQUIRED_TYPES } from '../../constants/formOptions.js';
+import { SERVICES as PI_SERVICES_FALLBACK_IMPORT, SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES } from '../../constants/formOptions.js';
 
 const NAVY='#1B2B4B'; const T='#00C3B5';
 const TABS = [
@@ -361,8 +361,16 @@ export default function FormDetail({ form: initial }) {
     if (f.lead_type === 'Indirect' && !f.lead_name)
       e.push('Partner name is required');
 
-    if (f.sale_type && SOW_REQUIRED_TYPES.has(f.sale_type) && !f.sow_document)
-      e.push('Signed SoW document is required for ' + f.sale_type);
+    if (f.sale_type && SOW_REQUIRED_TYPES.has(f.sale_type)) {
+      if (!f.sow_link)
+        e.push('Signed SoW Google Drive link is required for ' + f.sale_type);
+      else if (!/^https?:\/\/.+/.test((f.sow_link||'').trim()))
+        e.push('Signed SoW link must be a valid URL starting with https://');
+    }
+    if (f.sale_type && SOW_REFERENCE_TYPES?.has(f.sale_type)) {
+      if (!f.sow_reference_link)
+        e.push('Previous SoW Google Drive link is required for ' + f.sale_type);
+    }
 
     if (!f.client_rep_name)       e.push('Client representative name is required');
     if (!f.client_rep_mobile)     e.push('Client representative mobile number is required');
