@@ -184,7 +184,7 @@ function DetailPanel({ pi, canDownload, canApprove, canRecord, setSelPI, setShow
             </span>
           </div>
           <p className="text-sm font-semibold text-slate-700">{pi.customer_name}</p>
-          <p className="text-xs text-slate-400 mt-0.5">OF: {pi.of_number} · Created by {pi.created_by_name}</p>
+          <p className="text-xs text-slate-400 mt-0.5">{pi.of_number ? <>OF: <span className="font-mono">{pi.of_number}</span> · </> : ''}Created by {pi.created_by_name}</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           {canDownload && (pi.status==='approved'||pi.status==='fully_collected') && (
