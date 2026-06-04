@@ -253,6 +253,12 @@ export const openPDF = function(form) {
   var sigDesig = form.signatory_designation || 'Authorised Signatory';
   var sigEmail = form.signatory_email || '';
 
+  // Format numbers: Indian system for INR, international for all other currencies
+  var numFmt = function(n) {
+    var locale = (!form.committed_currency || form.committed_currency === 'INR') ? 'en-IN' : 'en-US';
+    return Number(n||0).toLocaleString(locale);
+  };
+
   var entitySignatoryName  = isYavi ? 'Vishesh Kumar'               : 'Sreeraman Mohan Girija';
   var entitySignatoryDesig = isYavi ? 'Founding Director'           : 'Whole-time Director';
   var entitySignatoryLabel = isYavi ? 'For: Yavi Technologies FZCO' : 'For: Shopsense Retail Technologies Limited';
@@ -333,15 +339,15 @@ export const openPDF = function(form) {
           ? (sv.startDate + ' \u2013 ' + sv.endDate + (sv.billingCycle ? ' (' + sv.billingCycle + ')' : ''))
           : (sv.label || 'Period ' + (pi + 1));
         if (cycles) {
-          return label + ': ' + sym + rate.toLocaleString('en-IN') + '/cycle \u00d7 ' + cycles + ' = ' + sym + (rate * cycles).toLocaleString('en-IN');
+          return label + ': ' + sym + numFmt(rate) + '/cycle \u00d7 ' + cycles + ' = ' + sym + numFmt(rate * cycles);
         }
-        return label + ': ' + sym + rate.toLocaleString('en-IN');
+        return label + ': ' + sym + numFmt(rate);
       }).join('<br/>');
     } else {
       cv = fee.commercialValue
         ? (fee.transactionFeeIsPercent
             ? fee.commercialValue + '%'
-            : sym + parseFloat(fee.commercialValue||0).toLocaleString('en-IN'))
+            : sym + numFmt(parseFloat(fee.commercialValue||0))
         : '\u2014';
     }
     return '<tr>' +
@@ -371,7 +377,7 @@ export const openPDF = function(form) {
     '<table class="kv" style="margin-bottom:1px">' +
     '<tr><td>Client Name</td><td><strong>' + custName + '</strong></td><td>OF Number</td><td><strong>' + ofNum + '</strong></td></tr>' +
     '<tr><td>Brand / Trade Name</td><td>' + (form.brand_name||'\u2014') + '</td><td>Billing Currency</td><td>' + (form.committed_currency||'\u2014') + '</td></tr>' +
-    '<tr><td>Billing Address</td><td>' + (form.billing_address||'\u2014').replace(/\n/g,'<br/>') + '</td><td>Order Form Value</td><td><strong>' + sym + parseFloat(form.of_value||0).toLocaleString('en-IN') + '</strong></td></tr>' +
+    '<tr><td>Billing Address</td><td>' + (form.billing_address||'\u2014').replace(/\n/g,'<br/>') + '</td><td>Order Form Value</td><td><strong>' + sym + numFmt(form.of_value) + '</strong></td></tr>' +
     (isYavi
       ? '<tr><td>Tax Details</td><td colspan="3">' + (form.tax_number||'\u2014') + '</td></tr>'
       : (function() {
