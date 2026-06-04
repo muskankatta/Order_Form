@@ -61,6 +61,7 @@ var SHARED_STYLES =
   'th{background:#f0f4f8;font-weight:700;text-align:left;padding:6px 10px;border:1px solid #ccc}' +
   'td{padding:5px 10px;border:1px solid #e0e0e0;vertical-align:top}' +
   '.kv td:first-child{background:#f8f9fa;font-weight:600;width:33%}' +
+  '.kv td:nth-child(3){background:#f8f9fa;font-weight:600}' +
   '.st-block{padding:10px 14px;border:1px solid #ddd;font-size:10.5px;line-height:1.7;white-space:pre-wrap}' +
   '.sign-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:20px}' +
   '.sign-box{border:1px solid #ccc;border-radius:4px;padding:28px;min-height:280px}' +
@@ -361,7 +362,7 @@ export const openPDF = function(form) {
     '<table class="kv" style="margin-bottom:1px">' +
     '<tr><td>Client Name</td><td><strong>' + custName + '</strong></td><td>OF Number</td><td><strong>' + ofNum + '</strong></td></tr>' +
     '<tr><td>Brand / Trade Name</td><td>' + (form.brand_name||'\u2014') + '</td><td>Billing Currency</td><td>' + (form.committed_currency||'\u2014') + '</td></tr>' +
-    '<tr><td>Billing Address</td><td>' + (form.billing_address||'\u2014').replace(/\n/g,'<br/>') + '</td><td>OF Value</td><td><strong>' + sym + parseFloat(form.of_value||0).toLocaleString('en-IN') + '</strong></td></tr>' +
+    '<tr><td>Billing Address</td><td>' + (form.billing_address||'\u2014').replace(/\n/g,'<br/>') + '</td><td>Order Form Value</td><td><strong>' + sym + parseFloat(form.of_value||0).toLocaleString('en-IN') + '</strong></td></tr>' +
     (isYavi
       ? '<tr><td>Tax Details</td><td colspan="3">' + (form.tax_number||'\u2014') + '</td></tr>'
       : (function() {
