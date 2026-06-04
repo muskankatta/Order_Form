@@ -141,7 +141,26 @@ export function SignedOFs() {
     return [...seen.values()];
   };
 
-  const allApproved = baseFilter(forms.filter(f => f.status==='approved' && !f.signed_date));
+  // ── Set of OF numbers where ANY document has been voided / churned / dropped.
+  // Used to exclude those OFs from the Pending Signing list even when sibling
+  // Firestore documents for the same OF number still carry status='approved'.
+  const terminalOfNums = useMemo(() =>
+    new Set(
+      forms
+        .filter(f => ['void','churn','dropped'].includes(f.status))
+        .map(f => f.of_number)
+        .filter(Boolean)
+    ),
+  [forms]);
+
+  const allApproved = baseFilter(
+    forms.filter(f =>
+      f.status === 'approved' &&
+      !f.signed_date &&
+      (!f.of_number || !terminalOfNums.has(f.of_number))
+    )
+  );
+
   const overdueCount = allApproved.filter(f => {
     const sentDate = f.approved_at || f.submitted_at;
     if (!sentDate) return false;
@@ -561,7 +580,7 @@ export function SignedOFs() {
   );
 }
 
-// ── ChurnVoidRequest form ─────────────────────────────────────────────────────
+// ── ChurnVoidRequest form — unchanged ─────────────────────────────────────────
 export function ChurnVoidRequest() {
   const { forms, submitChurnVoidRequest } = useForms();
   const { user }  = useAuth();
@@ -585,13 +604,11 @@ export function ChurnVoidRequest() {
   const [validationErrors, setValidationErrors] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
-  // ── Searchable customer dropdown state ────────────────────────────────────
   const [customerSearch,       setCustomerSearch]       = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
   const u = (k,v) => setReq(r=>({...r,[k]:v}));
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e) => {
       if (customerDropdownRef.current && !customerDropdownRef.current.contains(e.target)) {
@@ -610,11 +627,9 @@ export function ChurnVoidRequest() {
     [...new Set(approvedForms.map(f=>f.customer_name?.trim()))].filter(Boolean).sort((a,b)=>a.localeCompare(b)),
   [approvedForms]);
 
-  // Filtered list — matches search input
   const filteredCustomers = useMemo(() => {
     const s = customerSearch.toLowerCase().trim();
-    const names = s ? customerNames.filter(n => n.toLowerCase().includes(s)) : customerNames;
-    return names;
+    return s ? customerNames.filter(n => n.toLowerCase().includes(s)) : customerNames;
   }, [customerNames, customerSearch]);
 
   const isOthers = req.customer === 'Others';
@@ -666,12 +681,12 @@ export function ChurnVoidRequest() {
   const handleSubmit = async () => {
     const errs = [];
     const finalCustomer = isOthers ? req.customer_manual?.trim() : req.customer;
-    if (!req.customer)           errs.push('Select a customer');
-    if (isOthers && !req.customer_manual?.trim()) errs.push('Enter the customer name');
-    if (!isOthers && !req.of_number)  errs.push('Select an Order Form number');
-    if (!req.reason?.trim())     errs.push('Enter a reason / justification');
-    if (!req.effective_date)     errs.push('Enter the effective date of Churn/Void');
-    if (!req.finance_dris.length) errs.push('Select at least one Finance DRI');
+    if (!req.customer)                                errs.push('Select a customer');
+    if (isOthers && !req.customer_manual?.trim())     errs.push('Enter the customer name');
+    if (!isOthers && !req.of_number)                  errs.push('Select an Order Form number');
+    if (!req.reason?.trim())                          errs.push('Enter a reason / justification');
+    if (!req.effective_date)                          errs.push('Enter the effective date of Churn/Void');
+    if (!req.finance_dris.length)                     errs.push('Select at least one Finance DRI');
     setValidationErrors(errs);
     if (errs.length) return;
     setSubmitting(true);
@@ -717,39 +732,28 @@ export function ChurnVoidRequest() {
       <p className="text-sm text-brand-muted mb-6">File a request to Finance to mark a deal as Churn or Void.</p>
       <Card className="p-6 max-w-2xl">
         <div className="grid grid-cols-2 gap-x-4">
-
-          {/* ── Searchable customer dropdown ── */}
           <div className="mb-4" ref={customerDropdownRef}>
             <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
               Client / Customer <span className="text-red-400">*</span>
             </label>
             <div className="relative">
-              <input
-                type="text"
-                value={customerSearch}
+              <input type="text" value={customerSearch}
                 onChange={e => {
                   setCustomerSearch(e.target.value);
                   setShowCustomerDropdown(true);
-                  // If user clears the field, also clear selection
                   if (!e.target.value) { u('customer', ''); u('of_number', ''); }
                 }}
                 onFocus={() => setShowCustomerDropdown(true)}
                 placeholder="Type to search customer…"
                 className="field-input w-full pr-8"
-                style={{
-                  borderColor: req.customer ? T : '#e2e8f0',
-                }}
+                style={{ borderColor: req.customer ? T : '#e2e8f0' }}
                 autoComplete="off"
               />
-              {/* Clear button */}
               {(customerSearch || req.customer) && (
                 <button type="button"
                   onClick={() => { setCustomerSearch(''); u('customer',''); u('of_number',''); setShowCustomerDropdown(false); }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold">
-                  ✕
-                </button>
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold">✕</button>
               )}
-              {/* Dropdown list */}
               {showCustomerDropdown && (
                 <div className="absolute z-50 left-0 right-0 top-full mt-1 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden"
                   style={{maxHeight:'260px', overflowY:'auto'}}>
@@ -758,16 +762,13 @@ export function ChurnVoidRequest() {
                   ) : (
                     <>
                       {filteredCustomers.map(name => (
-                        <button key={name} type="button"
-                          onMouseDown={() => handleCustomerSelect(name)}
+                        <button key={name} type="button" onMouseDown={() => handleCustomerSelect(name)}
                           className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors"
                           style={req.customer === name ? {background:'#e0f7f5', color:'#00897b', fontWeight:600} : {color:'#1e293b'}}>
                           {name}
                         </button>
                       ))}
-                      {/* Others option always at bottom */}
-                      <button type="button"
-                        onMouseDown={() => handleCustomerSelect('Others')}
+                      <button type="button" onMouseDown={() => handleCustomerSelect('Others')}
                         className="w-full text-left px-4 py-2.5 text-sm border-t border-slate-100 hover:bg-slate-50 transition-colors"
                         style={req.customer === 'Others' ? {background:'#e0f7f5', color:'#00897b', fontWeight:600} : {color:'#64748b'}}>
                         — Others (no Order Form) —
@@ -777,27 +778,18 @@ export function ChurnVoidRequest() {
                 </div>
               )}
             </div>
-            {/* Show selected value as a pill if chosen */}
             {req.customer && req.customer !== 'Others' && (
-              <p className="text-[11px] mt-1 font-semibold" style={{color:'#00897b'}}>
-                ✓ {req.customer}
-              </p>
+              <p className="text-[11px] mt-1 font-semibold" style={{color:'#00897b'}}>✓ {req.customer}</p>
             )}
           </div>
 
-          {/* Custom name when Others */}
           {isOthers ? (
             <div className="mb-4">
               <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
                 Customer name <span className="text-red-400">*</span>
               </label>
-              <input
-                type="text"
-                value={req.customer_manual}
-                onChange={e=>u('customer_manual',e.target.value)}
-                placeholder="Enter full customer name…"
-                className="field-input"
-              />
+              <input type="text" value={req.customer_manual} onChange={e=>u('customer_manual',e.target.value)}
+                placeholder="Enter full customer name…" className="field-input"/>
             </div>
           ) : (
             <div className="mb-4">
@@ -818,7 +810,6 @@ export function ChurnVoidRequest() {
           )}
         </div>
 
-        {/* Selected form preview */}
         {selectedForm && (
           <div className="mb-4 p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs">
             <div className="flex items-center gap-3 mb-1">
@@ -836,14 +827,12 @@ export function ChurnVoidRequest() {
           </div>
         )}
 
-        {/* Others — no form notice */}
         {isOthers && (
           <div className="mb-4 p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-sm">
             ℹ️ No Order Form will be updated. This request is for a customer without an OF in the system.
           </div>
         )}
 
-        {/* Status requested */}
         <div className="mb-4">
           <Lbl c="Status requested" req/>
           <div className="flex gap-3">
@@ -857,7 +846,6 @@ export function ChurnVoidRequest() {
           </div>
         </div>
 
-        {/* Churn amount — Finance/Universal only */}
         {req.status_requested==='Churn' && isFinanceOrAdmin && (
           <Inp label="Churn amount" value={req.churn_value} onChange={v=>u('churn_value',v)}
             placeholder="e.g. 150000" mono hint="This amount will be deducted from the OF's committed revenue"/>
