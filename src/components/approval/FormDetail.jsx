@@ -702,21 +702,22 @@ export default function FormDetail({ form: initial }) {
             value={finDRIs}
             onChange={setFinDRIs}
           />
-          <div className="flex gap-3 flex-wrap mt-2">
-            {edit && <Btn variant="navy" onClick={async () => { await updateDraft(form.id, ef); setEdit(false); show('Edits saved ✓'); }}>💾 Save edits</Btn>}
-            <Btn onClick={async () => {
+          {submitErrors.length > 0 && (
+      <div className="mb-3 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">
+        <p className="font-bold mb-1">Fix these before submitting:</p>
+        {submitErrors.map((e,i) => <p key={i}>• {e}</p>)}
+      </div>
+    )}
+    <div className="flex gap-3 flex-wrap mt-2">
+      {edit && <Btn variant="navy" onClick={async () => { await updateDraft(form.id, ef); setEdit(false); show('Edits saved ✓'); }}>💾 Save edits</Btn>}
+      <Btn onClick={async () => {
               const errs = validateForSubmit(edit ? ef : form);
               if (errs.length) { setSubmitErrors(errs); window.scrollTo(0,400); return; }
               if (!finDRIs.length) { setSubmitErrors(['Select at least one RevOps reviewer.']); return; }
               setSubmitErrors([]);
-              const now = new Date().toISOString();
-              await revopsApprove(form.id, {
-                editedForm: { ...form, status:'submitted', submitted_at: now, revops_approvers: finDRIs },
-                comment: 'Submitted by Universal user',
-                financeApprovers: [],
-              });
+              await submitForm(edit ? ef : form, finDRIs);
               show('Draft submitted for RevOps review!');
-            }}>Submit for RevOps review →</Btn>
+            }}>Submit for RevOps review →</Btn>          
           </div>
         </Card>
       )}
