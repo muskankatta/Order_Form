@@ -352,7 +352,7 @@ export const openPDF = function(form) {
   }).join('');
 
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
-    '<title>OF ' + ofNum + '</title>' +
+    '<title>' + (custName || 'Order Form') + ' ' + ofNum + '</title>' +
     '<style>' + SHARED_STYLES + '</style></head><body>' +
     '<div id="of-content">' +
     hdrHtml +
