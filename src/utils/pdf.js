@@ -347,7 +347,7 @@ export const openPDF = function(form) {
       cv = fee.commercialValue
         ? (fee.transactionFeeIsPercent
             ? fee.commercialValue + '%'
-            : sym + numFmt(parseFloat(fee.commercialValue||0))
+            : sym + numFmt(parseFloat(fee.commercialValue||0)))
         : '\u2014';
     }
     return '<tr>' +
