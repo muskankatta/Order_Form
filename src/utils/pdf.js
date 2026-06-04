@@ -60,8 +60,17 @@ var SHARED_STYLES =
   'table{width:100%;border-collapse:collapse;font-size:10.5px}' +
   'th{background:#f0f4f8;font-weight:700;text-align:left;padding:6px 10px;border:1px solid #ccc}' +
   'td{padding:5px 10px;border:1px solid #e0e0e0;vertical-align:top}' +
-  '.kv td:first-child{background:#f8f9fa;font-weight:600;width:33%}' +
-  '.kv td:nth-child(3){background:#f8f9fa;font-weight:600}' +
+  '.kv td:first-child{background:#f8f9fa;font-weight:600;width:19%}' +
+  '.kv td:nth-child(2){width:31%}' +
+  '.kv td:nth-child(3){background:#f8f9fa;font-weight:600;width:19%}' +
+  '.kv td:nth-child(4){width:31%}' +
+  '.fee-table{table-layout:fixed;width:100%}' +
+  '.fee-table th:nth-child(1){width:16%}' +
+  '.fee-table th:nth-child(2){width:13%}' +
+  '.fee-table th:nth-child(3){width:22%}' +
+  '.fee-table th:nth-child(4){width:33%}' +
+  '.fee-table th:nth-child(5){width:16%}' +
+  '.fee-table td{word-wrap:break-word;overflow-wrap:break-word}' +
   '.st-block{padding:10px 14px;border:1px solid #ddd;font-size:10.5px;line-height:1.7;white-space:pre-wrap}' +
   '.sign-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:20px}' +
   '.sign-box{border:1px solid #ccc;border-radius:4px;padding:28px;min-height:280px}' +
@@ -348,7 +357,7 @@ export const openPDF = function(form) {
     return '<div style="margin-bottom:18px">' +
       '<div style="background:#f0f4f8;padding:6px 14px;font-weight:700;font-size:10.5px;border:1px solid #ddd;border-bottom:none">' +
       String.fromCharCode(97+i) + '. ' + (svc.name||'\u2014') + '</div>' +
-      '<table><thead><tr><th>Fee Type</th><th>Billing Cycle</th><th>Commercial Value</th><th>Inclusions</th><th>Charged On</th></tr></thead>' +
+      '<table class="fee-table"><thead><tr><th>Fee Type</th><th>Billing Cycle</th><th>Commercial Value</th><th>Inclusions</th><th>Charged On</th></tr></thead>' +
       '<tbody>' + (svc.fees||[]).map(feeRow).join('') + '</tbody></table></div>';
   }).join('');
 
