@@ -943,11 +943,11 @@ export default function FormDetail({ form: initial }) {
                       <td className="px-4 py-2.5 text-slate-400">{pi.revops_reviewer||'—'}</td>
                       <td className="px-4 py-2.5">
                         {(pi.status==='approved'||pi.status==='fully_collected') && (
-                          <a href={PI_PLATFORM_URL}
+                          <button onClick={()=>navigate('/proforma-invoices')}
                             className="text-xs font-semibold px-2 py-1 rounded-lg"
-                            style={{background:'#d1fae5',color:'#065f46',textDecoration:'none',display:'inline-block'}}>
+                            style={{background:'#d1fae5',color:'#065f46',border:'none',cursor:'pointer'}}>
                             Download PDF
-                          </a>
+                          </button>
                         )}
                       </td>
                     </tr>
