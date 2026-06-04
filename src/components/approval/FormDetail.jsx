@@ -712,7 +712,7 @@ export default function FormDetail({ form: initial }) {
       {edit && <Btn variant="navy" onClick={async () => { await updateDraft(form.id, ef); setEdit(false); show('Edits saved ✓'); }}>💾 Save edits</Btn>}
       <Btn onClick={async () => {
               const errs = validateForSubmit(edit ? ef : form);
-              if (errs.length) { setSubmitErrors(errs); window.scrollTo(0,400); return; }
+              if (errs.length) { setSubmitErrors(errs); setTimeout(() => window.scrollTo({top: document.body.scrollHeight, behavior:'smooth'}), 50); return; }
               if (!finDRIs.length) { setSubmitErrors(['Select at least one RevOps reviewer.']); return; }
               setSubmitErrors([]);
               await submitForm(edit ? ef : form, finDRIs);
