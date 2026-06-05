@@ -1,8 +1,8 @@
 export const SERVICES = [
   'Konnect','Storefront (B2C)','Storefront (B2B)','WMS (B2C)','WMS (B2B)',
-  'StoreOS','AI Photoshoot','DaaS','TMS','TMS (Logistics)','Kaily','GlamAR',
+  'StoreOS','Fynd Snap','DaaS','TMS','TMS (Logistics)','Kaily','GlamAR',
   'Boltic','GaaS','PixelBin','AI PIM','Logistics','Engage',
-  'Partner (Extensions)','AI Studio',
+  'Partner (Extensions)','Fynd Studio',
 ];
 
 export const SEGMENTS    = ['AI/SaaS','AI Commerce','Commerce'];
