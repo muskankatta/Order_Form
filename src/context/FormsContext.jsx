@@ -7,13 +7,14 @@ import { storage } from '../utils/storage.js';
 import { uid } from '../utils/dates.js';
 import { sendEmail, svcNames, threadSubject } from '../utils/email.js';
 import { notifySlack } from '../utils/slack.js';
+import { autoSyncCommercials } from '../utils/sheets.js';
 import { useAuth } from './AuthContext.jsx';
 
 const FormsContext = createContext(null);
 const COLLECTION = 'order_forms';
 
-const REVOPS_EMAILS = 'samikshamane@gofynd.com,raginivarma@gofynd.com,ronakmodi@gofynd.com,nayanlathiya@gofynd.com,atharvashetye@gofynd.com,omkarsp@gofynd.com';
-const FINANCE_EMAILS = 'rahulmandowara@gofynd.com,abhimanyumallik@gofynd.com,rasikajadhav@gofynd.com,somaydugar@gofynd.com';
+const REVOPS_EMAILS = 'samikshamane@gofynd.com,raginivarma@gofynd.com,ronakmodi@gofynd.com,nayanlathiya@gofynd.com,atharvashetye@gofynd.com,omkarsp@gofynd.com,muskankatta2@gofynd.com';
+const FINANCE_EMAILS = 'rahulmandowara@gofynd.com,abhimanyumallik@gofynd.com,rasikajadhav@gofynd.com,somaydugar@gofynd.com,aditisinha@gofynd.com';
 
 // ── Strip large base64 blobs before writing to Firestore ──────────────────────
 const toFirestore = form => {
@@ -84,6 +85,11 @@ function getRenewalNumber(forms, baseOfNumber) {
   });
   return `${base}-R${maxR + 1}`;
 }
+
+// Merge an updated form into the current list (state updates are async, so the
+// closure's `forms` is pre-update — splice the new version in for the sync).
+const withForm = (forms, f) =>
+  forms.some(x => x.id === f.id) ? forms.map(x => x.id === f.id ? f : x) : [...forms, f];
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 export function FormsProvider({ children }) {
@@ -331,6 +337,7 @@ export function FormsProvider({ children }) {
       'Log in to the platform:\nhttps://muskankatta.github.io/Order_Form/'
     );
     await notifySlack('approved', f, {});
+    autoSyncCommercials(withForm(forms, f));   // real-time: approve writes the row(s)
   }, [forms, persistOne, user]);
 
   const financeReject = useCallback(async (id, { comment }) => {
@@ -357,6 +364,7 @@ export function FormsProvider({ children }) {
     };
     await persistOne(f);
     await notifySlack('signed', f, {});
+    autoSyncCommercials(withForm(forms, f));   // real-time: signing updates the row(s)
   }, [forms, persistOne, user]);
 
   const markCompleted = useCallback(async (id) => {
@@ -366,7 +374,9 @@ export function FormsProvider({ children }) {
 
   const applyDealStatus = useCallback(async (id, patch) => {
     const base = forms.find(f => f.id === id) || {};
-    await persistOne({ ...base, ...patch });
+    const next = { ...base, ...patch };
+    await persistOne(next);
+    autoSyncCommercials(withForm(forms, next));  // real-time: live date / deal status update
   }, [forms, persistOne]);
 
   const submitChurnVoidRequest = useCallback(async (payload) => {
