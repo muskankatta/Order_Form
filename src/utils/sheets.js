@@ -13,6 +13,7 @@
 import { getQtr, getFY } from './dates.js';
 import { STATUS } from '../constants/status.js';
 import { getSym, cyclesInDateRange } from './formatting.js';
+import { getRepRegion } from '../constants/users.js';
 
 // ── HELPERS ──────────────────────────────────────────────────────────────────
 const fmt = v => (v === null || v === undefined) ? '' : String(v);
@@ -269,6 +270,9 @@ const isYavi = f =>
   (f.of_number || '').startsWith('OFYT') ||
   (f.of_number || '').startsWith('OF-YT');
 
+// Region: explicit form value, else inferred from the sales rep (same as the app's views)
+const regionOf = f => f.region || getRepRegion(f.sales_rep_email) || '';
+
 // Strip the parenthetical from a unit metric: "BCA (Brand Calculated Amount)" -> "BCA"
 const shortMetric = m => (m ? String(m).split(' (')[0].trim() : '');
 
@@ -334,19 +338,19 @@ const hyperlink = (url, label) =>
 // ── Column model ─────────────────────────────────────────────────────────────
 // Groups define the coloured header bands (and their column spans, in order).
 const COMM_GROUPS = [
-  { label: 'Order form',        cols: 20, band: '#B5D4F4', title: '#EAF1FA', text: '#042C53' },
+  { label: 'Order form',        cols: 21, band: '#B5D4F4', title: '#EAF1FA', text: '#042C53' },
   { label: 'Status & signing',  cols: 7,  band: '#9FE1CB', title: '#E7F5EF', text: '#04342C' },
   { label: 'Service',           cols: 2,  band: '#CECBF6', title: '#F0EFFB', text: '#26215C' },
   { label: 'Fee line',          cols: 10, band: '#D3D1C7', title: '#F4F3EE', text: '#2C2C2A' },
 ];
 
 const COMM_HEADERS = [
-  // Order form (0–19)
+  // Order form (0–20)
   'OF Number', 'Entity', 'Customer Name', 'Brand / Trade Name', 'Sales Type',
-  'Sales Channel', 'Lead Category', 'Lead Name', 'Segment', 'Sales Team',
+  'Sales Channel', 'Lead Category', 'Lead Name', 'Segment', 'Sales Team', 'Region',
   'Sales Rep', 'Sales Rep Email', 'Billing Currency', 'Order Form Value', 'OF Term',
   'Service Period Start', 'Service Period End', 'Auto Renewal', 'Renewal Frequency', 'Payment Terms',
-  // Status & signing (20–26)
+  // Status & signing (21–27)
   'Status', 'Approved At', 'Signing Date', 'Signing Quarter', 'Signing FY', 'Signed OF Link', 'Live Date',
   // Service (27–28)
   'Bundle Service', 'Service Name',
@@ -356,7 +360,7 @@ const COMM_HEADERS = [
 ];
 
 const COL = {
-  salesType: 4, leadCategory: 6, status: 20, pricingModel: 31,
+  salesType: 4, leadCategory: 6, status: 21, pricingModel: 32,
 };
 const TOTAL_COLS = COMM_HEADERS.length; // 39
 const DATA_START_ROW = 2;               // rows 0=band, 1=titles, 2+=data
@@ -376,7 +380,7 @@ function buildCommercials(forms) {
     const signedLink = hyperlink(f.signed_of_link, 'View signed OF');
     const ofHead = [
       fmt(f.of_number), entity, fmt(f.customer_name), fmt(f.brand_name), fmt(f.sale_type),
-      fmt(f.lead_type), fmt(f.lead_category), fmt(f.lead_name), fmt(f.segment), fmt(f.sales_team),
+      fmt(f.lead_type), fmt(f.lead_category), fmt(f.lead_name), fmt(f.segment), fmt(f.sales_team), regionOf(f),
       fmt(f.sales_rep_name), fmt(f.sales_rep_email), fmt(f.committed_currency || 'INR'),
       fmt(f.of_value), fmt(f.of_term || (f.of_term_months ? f.of_term_months + ' Months' : '')),
       fmt(f.start_date), fmt(f.end_date), fmt(f.auto_renewal), fmt(f.renewal_term), fmt(f.payment_terms),
