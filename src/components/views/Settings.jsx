@@ -3,7 +3,7 @@ import { Card, Btn, Inp, Toast } from '../ui/index.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
 import { useToast } from '../../hooks/useToast.js';
-import { syncAllToSheets, syncCommercialsToSheets } from '../../utils/sheets.js';
+import { syncAllToSheets, syncCommercialsToSheets, getAccessToken } from '../../utils/sheets.js';
 import { requestSheetsToken, importFromSheets } from '../../utils/sheetsImport.js';
 import { db, isConfigured } from '../../firebase.js';
 import { doc, setDoc } from 'firebase/firestore';
@@ -52,8 +52,10 @@ export default function Settings() {
     if (!settings.sheetsId) { alert('Enter a Google Sheet ID first.'); return; }
     setSyncing(true); setSyncStatus('');
     try {
-      const result = await syncAllToSheets(forms, msg => setSyncStatus(msg));
-      const comm = await syncCommercialsToSheets(forms, msg => setSyncStatus(msg));
+      setSyncStatus('Requesting Google Sheets access…');
+      const token = await getAccessToken();
+      const result = await syncAllToSheets(forms, msg => setSyncStatus(msg), token);
+      const comm = await syncCommercialsToSheets(forms, msg => setSyncStatus(msg), token);
       show(`✓ Synced ${result.indexRows} OFs, ${result.serviceRows} service rows, ${comm.feeRows} commercial lines`);
     } catch(e) {
       setSyncStatus('Error: ' + e.message);
