@@ -361,11 +361,16 @@ const COL = {
 const TOTAL_COLS = COMM_HEADERS.length; // 39
 const DATA_START_ROW = 2;               // rows 0=band, 1=titles, 2+=data
 
+// Sort key: approval time (fallbacks for legacy/edge rows). Ascending → newest last.
+const approvalKey = f =>
+  Date.parse(f.approved_at || f.signed_at || f.signed_date || f.created_at || '') || 0;
+
 // Build the data rows (one per fee line) and the per-OF banding blocks.
 function buildCommercials(forms) {
   const rows = [];
   const blocks = [];                // { start, end } row indices (sheet-absolute) per OF
-  forms.filter(isExported).forEach(f => {
+  const ordered = forms.filter(isExported).slice().sort((a, b) => approvalKey(a) - approvalKey(b));
+  ordered.forEach(f => {
     const entity     = isYavi(f) ? 'Yavi' : 'Fynd';
     const bundle     = (f.services_fees || []).filter(Boolean).length > 1 ? 'Yes' : 'No';
     const signedLink = hyperlink(f.signed_of_link, 'View signed OF');
