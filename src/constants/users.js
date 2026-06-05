@@ -16,6 +16,7 @@ export const SALES_REPS = [
   { id:'2233', name:'Ragini Varma',      slack:'U4E0RBPJ6',   email:'raginivarma@gofynd.com',       team:'India',  role:'CBO',             target:null,      targetCurrency:'INR' },
   { id:'2649', name:'Rakesh Jaiswal',    slack:'U074JJV27GW', email:'rakeshjaiswal@gofynd.com',     team:'India',  role:'Sales',           target:15800000,  targetCurrency:'INR' },
   { id:'3030', name:'Shireen Ahmed',     slack:'U094CCGLYFM', email:'shireenahmed@gofynd.com',      team:'India',  role:'Sales',           target:9000000,   targetCurrency:'INR' },
+  { id:'3204', name:'Shraddha Sharma',     slack:'U0B1CB95K1U', email:'shraddhas@gofynd.com',      team:'India',  role:'Sales',           target:null,   targetCurrency:'INR' },
   { id:'1953', name:'Shweta Lamba',      slack:'U03PXBAHU68', email:'shwetalamba@gofynd.com',       team:'India',  role:'Inside Sales',    target:null,      targetCurrency:'INR' },
   { id:'3089', name:'Swati Gupta',       slack:'U09EK4RG31B', email:'swatigupta1@gofynd.com',       team:'India',  role:'KAM',             target:null,      targetCurrency:'INR' },
   { id:'1989', name:'Vaibhav Puthalath', slack:'U03RT8TJY74', email:'vaibhavp@gofynd.com',          team:'India',  role:'KAM',             target:null,      targetCurrency:'INR' },
