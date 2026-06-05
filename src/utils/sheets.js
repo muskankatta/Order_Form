@@ -174,9 +174,19 @@ async function writeTab(sheetsId, tabName, values, token) {
 
 // ── PUBLIC API ───────────────────────────────────────────────────────────────
 
-/** Get a fresh OAuth2 access token with Sheets write scope */
-export function getAccessToken() {
+// Cache the access token in memory (valid ~1h) so repeated syncs in the same
+// session reuse it instead of triggering a second OAuth popup (which browsers
+// block outside a user gesture — COOP / popup-blocker).
+let _tokenCache = { value: null, exp: 0 };
+
+/** Get an OAuth2 access token with Sheets write scope (cached while valid) */
+export function getAccessToken(forceNew = false) {
   return new Promise((resolve, reject) => {
+    const now = Date.now();
+    if (!forceNew && _tokenCache.value && _tokenCache.exp > now + 60000) {
+      resolve(_tokenCache.value);
+      return;
+    }
     if (!window.google?.accounts?.oauth2) {
       reject(new Error('Google Identity Services not loaded'));
       return;
@@ -186,8 +196,12 @@ export function getAccessToken() {
       client_id: clientId,
       scope: 'https://www.googleapis.com/auth/spreadsheets',
       callback: (resp) => {
-        if (resp.error) reject(new Error(resp.error));
-        else resolve(resp.access_token);
+        if (resp.error) { reject(new Error(resp.error)); return; }
+        _tokenCache = {
+          value: resp.access_token,
+          exp: Date.now() + (Number(resp.expires_in || 3600) * 1000),
+        };
+        resolve(resp.access_token);
       },
     });
     client.requestAccessToken({ prompt: '' });
@@ -195,12 +209,12 @@ export function getAccessToken() {
 }
 
 /** Sync all forms to Google Sheets — Index tab + Service Index tab */
-export async function syncAllToSheets(forms, onProgress) {
+export async function syncAllToSheets(forms, onProgress, tokenIn) {
   const sheetsId = getSheetId();
   if (!sheetsId) throw new Error('No Google Sheet ID configured. Go to Settings to add one.');
 
   onProgress?.('Requesting Google Sheets access...');
-  const token = await getAccessToken();
+  const token = tokenIn || await getAccessToken();
 
   // Build Index data
   onProgress?.('Building Index tab...');
