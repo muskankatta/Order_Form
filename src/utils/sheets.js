@@ -27,6 +27,16 @@ const unsignedAging = f => {
   if (!f.approved_at) return '';
   return Math.floor((new Date() - new Date(f.approved_at)) / 86400000);
 };
+// Inclusions is an array of { text, metric } (or legacy string). Render like the OF.
+const inclusionsText = val => {
+  if (!val) return '';
+  if (Array.isArray(val)) {
+    return val.map(item =>
+      typeof item === 'string' ? item : (item.metric ? `${item.text} ${item.metric}` : item.text)
+    ).filter(Boolean).join(' | ');
+  }
+  return String(val);
+};
 
 // ── INDEX ROW (41 columns, matching Excel exactly) ───────────────────────────
 const INDEX_HEADERS = [
@@ -118,7 +128,7 @@ const toServiceRows = (f, startIdx) => {
         fee.isLogistics ? 'As per rate card' :
           fee.pricingModel === 'graduated' ? 'Variable' :
           fmt(fee.commercialValue),
-        fmt(fee.inclusions),
+        inclusionsText(fee.inclusions),
         fmt(fee.unitMetric),
         fmt(f.segment),
         fmt(f.sales_team),
@@ -378,7 +388,7 @@ function buildCommercials(forms) {
         ...ofHead, ...statusSign, bundle, fmt(svcName),
         fmt(fee?.feeType), fmt(fee?.billingCycle), fee ? pricingModelOf(fee) : '',
         fee ? feeBasisOf(fee) : '', fee ? numericValueOf(fee) : '',
-        fee ? chargedOnOf(fee) : '', fmt(fee?.inclusions),
+        fee ? chargedOnOf(fee) : '', inclusionsText(fee?.inclusions),
         fee ? slabDetailOf(fee) : '', fee ? stepUpDetailOf(fee, f.committed_currency) : '',
         fmt(f.special_terms),
       ]);
