@@ -1,17 +1,18 @@
 import { getQtr, getFY } from './dates.js';
 import { STATUS } from '../constants/status.js';
+import { formBusinessUnits } from '../constants/formOptions.js';
 
 const esc = v => `"${(v||'').toString().replace(/"/g,'""')}"`;
 const row = cols => cols.map(esc).join(',');
 
 export const exportOFIndex = forms => {
-  const hdr = ['#','OF No','QTR','FY','Customer','Brand','Services','Segment',
+  const hdr = ['#','OF No','QTR','FY','Customer','Brand','Services','Business Unit(s)',
     'Team','Rep','Lead Type','Sale Type','Start','End','ARR','Committed Revenue','Currency','Status'];
   const rows = forms.map((f,i) => [
     i+1, f.of_number||'', getQtr(f.start_date), getFY(f.start_date),
     f.customer_name, f.brand_name,
     (f.services_fees||[]).map(s=>s.name).join('; '),
-    f.segment, f.sales_team, f.sales_rep_name, f.lead_type, f.sale_type,
+    formBusinessUnits(f).join('; '), f.sales_team, f.sales_rep_name, f.lead_type, f.sale_type,
     f.start_date, f.end_date,
     (f.arr_text||'').replace(/\n/g,' | '),
     f.committed_revenue, f.committed_currency||'INR',
