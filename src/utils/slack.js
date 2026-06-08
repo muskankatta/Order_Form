@@ -7,7 +7,7 @@ const BOLTIC_URL = import.meta.env.VITE_BOLTIC_SLACK_URL || '';
 const CHANNELS = {
   India:    'C0392LXA3B4',
   Global:   'C08CBBNRAKZ',
-  'AI/SaaS':'C0978TZNGM8',
+  RJW:      'C0978TZNGM8',
 };
 
 const SLACK_IDS = {
