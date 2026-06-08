@@ -13,7 +13,7 @@ export const BUSINESS_UNITS = [
 // Order here = order in the Services dropdown.
 export const SERVICE_GROUPS = [
   { bu:'Agentic Retail Commerce', services:[
-    'Storefront (B2C)','Konnect (OMS)','StoreOS','TMS','TMS (Logistics)',
+    'Storefront (B2C)','Storefront (B2B)','Konnect (OMS)','StoreOS','TMS','TMS (Logistics)',
     'WMS (B2C)','WMS (B2B)','Engage','Kaily','Boltic','GlamAR','AI PIM',
     'Quick Commerce','QSR Commerce','Mall Commerce','Logistics','Partners','Extensions',
   ]},
