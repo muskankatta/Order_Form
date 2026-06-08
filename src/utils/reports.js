@@ -151,7 +151,7 @@ export function generateSignedOFReport(signedForms) {
   const kpis = [
     ['Total Signed OFs', signedForms.length],
     ['Committed Revenue — India (INR)', fmtINR(totalINR)],
-    ['Committed Revenue — Global + AI/SaaS (USD)', fmtUSD(totalUSD)],
+    ['Committed Revenue — Global (USD)', fmtUSD(totalUSD)],
   ];
   kpis.forEach(([label, val], i) => {
     ws1[`A${row+i}`] = { v:label, t:'s', s: cellStyle({bold:true, fill:GREY}) };
@@ -165,7 +165,7 @@ export function generateSignedOFReport(signedForms) {
   // By team
   row = writeRows(ws1, [sectionHeader('Revenue by Team', COLS)], row);
   row = writeRows(ws1, [headerRow(['Team','OF Count','Revenue (INR)','Revenue (USD)'])], row);
-  const teams = ['India','Global','AI/SaaS'];
+  const teams = ['India','Global','RJW'];
   teams.forEach((team, i) => {
     const tForms = signedForms.filter(f=>f.sales_team===team);
     const tINR = team==='India' ? tForms.reduce((s,f)=>s+Number(f.committed_revenue||0),0) : 0;
@@ -244,7 +244,7 @@ export function generateUnsignedOFReport(unsignedForms) {
     ['Total Unsigned OFs', unsignedForms.length],
     ['Overdue (≥30 days)', overdue],
     ['Committed Revenue — India (INR)', fmtINR(totalINR)],
-    ['Committed Revenue — Global + AI/SaaS (USD)', fmtUSD(totalUSD)],
+    ['Committed Revenue — Global (USD)', fmtUSD(totalUSD)],
   ];
   kpis.forEach(([label, val], i) => {
     ws1[`A${row+i}`] = { v:label, t:'s', s: cellStyle({bold:true, fill:GREY}) };
@@ -299,7 +299,7 @@ export function generateRepositoryReport(filteredForms) {
   const totalUSD = filteredForms.filter(f=>f.sales_team!=='India').reduce((s,f)=>s+toUSD(f.committed_revenue,f.committed_currency||'USD'),0);
 
   // Summary row
-  const kpis = [['Total OFs',filteredForms.length],['Revenue — India (INR)',fmtINR(totalINR)],['Revenue — Global + AI/SaaS (USD)',fmtUSD(totalUSD)]];
+  const kpis = [['Total OFs',filteredForms.length],['Revenue — India (INR)',fmtINR(totalINR)],['Revenue — Global (USD)',fmtUSD(totalUSD)]];
   kpis.forEach(([label,val],i)=>{
     ws[`A${row+i}`]={v:label,t:'s',s:cellStyle({bold:true,fill:GREY})};
     ws[`B${row+i}`]={v:val,t:'s',s:cellStyle({bold:true,fontColor:NAVY})};
@@ -352,7 +352,7 @@ export function generateDashboardReport(forms, repData, teamFilter) {
   const stats = [
     ['Total OFs',forms.length],['Signed OFs',signed.length],['Approved (Unsigned)',approved.length],
     ['Pending RevOps',submitted.length],['Active Contracts',active.length],
-    ['Revenue — India INR',fmtINR(totalINR)],['Revenue — Global+AI/SaaS USD',fmtUSD(totalUSD)],
+    ['Revenue — India INR',fmtINR(totalINR)],['Revenue — Global USD',fmtUSD(totalUSD)],
   ];
   stats.forEach(([label,val],i)=>{
     ws1[`A${row+i}`]={v:label,t:'s',s:cellStyle({bold:i>=5,fill:GREY})};
@@ -376,7 +376,7 @@ export function generateDashboardReport(forms, repData, teamFilter) {
   // By team
   row = writeRows(ws1, [sectionHeader('Signed Revenue by Team', COLS)], row);
   row = writeRows(ws1, [headerRow(['Team','Signed OFs','Revenue (INR)','Revenue (USD)'])], row);
-  ['India','Global','AI/SaaS'].forEach((team,i)=>{
+  ['India','Global','RJW'].forEach((team,i)=>{
     const tf=signed.filter(f=>f.sales_team===team);
     const inr=team==='India'?tf.reduce((s,f)=>s+Number(f.committed_revenue||0),0):0;
     const usd=team!=='India'?tf.reduce((s,f)=>s+toUSD(f.committed_revenue,f.committed_currency||'USD'),0):0;
