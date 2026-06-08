@@ -1,12 +1,103 @@
-export const SERVICES = [
-  'Konnect','Storefront (B2C)','Storefront (B2B)','WMS (B2C)','WMS (B2B)',
-  'StoreOS','Fynd Snap','DaaS','TMS','TMS (Logistics)','Kaily','GlamAR',
-  'Boltic','GaaS','PixelBin','AI PIM','Logistics','Engage',
-  'Partner (Extensions)','Fynd Studio',
+// ── Business Units (segments) — per the Fynd Product Chart ─────────────────────
+export const BUSINESS_UNITS = [
+  'Agentic Retail Commerce',
+  'Physical AI',
+  'Manufacturing',
+  'AI/SaaS Others',
+  'Media',
+  'RBL & Strategic Projects',
+  'JCP + Central Billing',
 ];
 
-export const SEGMENTS    = ['AI/SaaS','AI Commerce','Commerce'];
-export const SALES_TEAMS = ['India','Global','AI/SaaS'];
+// ── Services grouped by Business Unit (drives the dropdown + the auto-BU tag) ──
+// Order here = order in the Services dropdown.
+export const SERVICE_GROUPS = [
+  { bu:'Agentic Retail Commerce', services:[
+    'Storefront (B2C)','Konnect (OMS)','StoreOS','TMS','TMS (Logistics)',
+    'WMS (B2C)','WMS (B2B)','Engage','Kaily','Boltic','GlamAR','AI PIM',
+    'Quick Commerce','QSR Commerce','Mall Commerce','Logistics','Partners','Extensions',
+  ]},
+  { bu:'Physical AI', services:[
+    'Fynd Kio','Digital Signage','Fynd KIN','Autri','Gauze',
+  ]},
+  { bu:'Manufacturing', services:[
+    'Fynd Create','DaaS','Fynd Snap',
+  ]},
+  { bu:'AI/SaaS Others', services:[
+    'PixelBin',
+  ]},
+  { bu:'Media', services:[
+    'Fynd Studio','Fynd Press',
+  ]},
+  { bu:'RBL & Strategic Projects', services:[
+    'ALP','Samarth +','Commerce RBL','Jio BP','Horizon',
+  ]},
+  { bu:'JCP + Central Billing', services:[
+    'Tira','JCP','Impetus','Granary','RCPL','Netmeds',
+  ]},
+];
+
+// Flat list for the Services dropdown
+export const SERVICES = SERVICE_GROUPS.flatMap(g => g.services);
+
+// Service → default Business Unit (canonical names)
+export const SERVICE_BU = SERVICE_GROUPS.reduce((map, g) => {
+  g.services.forEach(s => { map[s] = g.bu; });
+  return map;
+}, {});
+
+// Legacy / historical service names → current canonical service name.
+// Applied for reporting + auto-BU derivation so old OFs roll up correctly.
+export const SERVICE_ALIASES = {
+  'AI Photoshoot':           'Fynd Snap',
+  'AI Studio':               'Fynd Studio',
+  'GaaS':                    'Fynd Create',
+  'Storefront':              'Storefront (B2C)',
+  'Konnect':                 'Konnect (OMS)',
+  'Konnet':                  'Konnect (OMS)',
+  'Konnect - 3P Storefront': 'Konnect (OMS)',
+  'WMS - B2C':               'WMS (B2C)',
+  'WMS - B2B':               'WMS (B2B)',
+  'Partner (Extensions)':    'Partners',
+  'Extension':               'Extensions',
+  'CoPilot':                 'Kaily',
+};
+
+// Legacy service names that aren't renamed but need a BU mapping
+const LEGACY_SERVICE_BU = {
+  'GoFynd': 'Agentic Retail Commerce',
+};
+
+/** Resolve a (possibly legacy) service name to its current canonical name. */
+export function canonicalService(name) {
+  if (!name) return name;
+  return SERVICE_ALIASES[name] || name;
+}
+
+/** Default Business Unit for a service (handles legacy names). */
+export function buForService(name) {
+  if (!name) return '';
+  const canon = canonicalService(name);
+  return SERVICE_BU[canon] || LEGACY_SERVICE_BU[name] || LEGACY_SERVICE_BU[canon] || '';
+}
+
+/** Distinct Business Units across a form's services. Uses the per-service
+ *  `bu` override when Finance has set one, else the auto-derived default. */
+export function formBusinessUnits(form) {
+  const seen = [];
+  (form?.services_fees || []).forEach(s => {
+    const bu = s.bu || buForService(s.name);
+    if (bu && !seen.includes(bu)) seen.push(bu);
+  });
+  return seen;
+}
+
+// Services that use SKU-based ("Garment Sale") commercials. 'GaaS' kept for
+// legacy records that still carry the old name.
+export const SKU_SERVICE_NAMES = ['Fynd Create', 'GaaS'];
+export const isSkuService = name => SKU_SERVICE_NAMES.includes(name);
+
+export const SALES_TEAMS = ['India','Global','RJW'];
 export const LEAD_TYPES  = ['Direct','Indirect'];
 // Direct: Event, Inside Sales/Pre-Sales | Indirect: Partner only
 export const LEAD_CATS = {
