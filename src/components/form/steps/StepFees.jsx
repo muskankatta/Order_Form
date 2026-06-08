@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Lbl, SHdr } from '../../ui/index.jsx';
 import { SERVICES, FEE_TYPES, FEE_RULES, UNIT_METRICS, PAY_TRIGGERS,
-         GRADUATED_ELIGIBLE, STEP_UP_ELIGIBLE, SLAB_RATE_UNITS } from '../../../constants/formOptions.js';
+         GRADUATED_ELIGIBLE, STEP_UP_ELIGIBLE, SLAB_RATE_UNITS,
+         BUSINESS_UNITS, buForService, isSkuService } from '../../../constants/formOptions.js';
+import { useAuth } from '../../../context/AuthContext.jsx';
 import { uid } from '../../../utils/dates.js';
 import { cyclesInTerm, getSym, cyclesInDateRange } from '../../../utils/formatting.js';
 import { calcMetrics, calcOFValue } from '../../../utils/calculations.js';
@@ -10,7 +12,7 @@ import { newFee } from '../../../hooks/useFormWizard.js';
 const T = '#00C3B5'; const NAVY = '#1B2B4B';
 
 const SUB_SERVICES = {
-  'Konnect': ['3P Storefront','3P Marketplace'],
+  'Konnect (OMS)': ['3P Storefront','3P Marketplace'],
   'StoreOS': ['Clienteling','POS','Endless Aisle','Scan & Go','Self Checkout Kiosk'],
   'GlamAR':  ['3D Model Creation','3D Configurator','3D Virtual Photography','360 Degree Product Viewer','Virtual Try-On (VTO)','AR Ads','AI Skin Analysis'],
 };
@@ -546,13 +548,14 @@ function FeeRow({ fee, onChange, onRemove, idx, termMonths, currency }) {
 }
 
 // ── Service block ─────────────────────────────────────────────────────────────
-function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency,
+function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency, isFinance,
                     onDragStart, onDragOver, onDrop, onDragEnd, isDragOver }) {
   const letter     = String.fromCharCode(97 + idx);
   const subOptions = SUB_SERVICES[svc.name] || [];
   const selected   = svc.subServices || [];
-  const isGaaS     = svc.name === 'GaaS';
+  const isGaaS     = isSkuService(svc.name);
   const sym        = getSym(currency || 'INR');
+  const bu         = svc.bu || buForService(svc.name);
 
   const addFee  = () => onChange({ ...svc, fees:[...(svc.fees||[]), newFee()] });
   const updFee  = (fi,u) => onChange({ ...svc, fees:svc.fees.map((f,i)=>i===fi?u:f) });
@@ -602,9 +605,9 @@ function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency,
                 <select value={svc.isCustomService ? '__others__' : (svc.name||'')}
                   onChange={e => {
                     if (e.target.value === '__others__') {
-                      onChange({...svc, name:'', isCustomService:true, subServices:[], gaas_lines:[], gaas_total:0});
+                      onChange({...svc, name:'', isCustomService:true, subServices:[], gaas_lines:[], gaas_total:0, bu:''});
                     } else {
-                      onChange({...svc, name:e.target.value, isCustomService:false, subServices:[], gaas_lines:[], gaas_total:0});
+                      onChange({...svc, name:e.target.value, isCustomService:false, subServices:[], gaas_lines:[], gaas_total:0, bu:buForService(e.target.value)});
                     }
                   }}
                   className="text-sm font-semibold border-none bg-transparent focus:outline-none cursor-pointer" style={{color:NAVY}}>
@@ -619,6 +622,21 @@ function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency,
                 )}
               </div>}
           {isGaaS && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">SKU-based</span>}
+
+          {/* Business Unit — auto-tagged from the service, editable by Finance only. Internal reporting use. */}
+          <div className="flex items-center gap-1.5 ml-1" title="Business Unit — internal reporting only">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">BU</span>
+            {isFinance && !ro ? (
+              <select value={bu} onChange={e=>onChange({...svc, bu:e.target.value})}
+                className="text-[11px] font-semibold rounded-lg border px-1.5 py-0.5 cursor-pointer"
+                style={{borderColor:'#cbd5e1', color:NAVY, background:'#fff'}}>
+                <option value="">— Select BU —</option>
+                {BUSINESS_UNITS.map(b=><option key={b} value={b}>{b}</option>)}
+              </select>
+            ) : (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{bu || '—'}</span>
+            )}
+          </div>
         </div>
         {!ro && <button type="button" onClick={onRemove} className="text-xs font-medium text-red-500">Remove</button>}
       </div>
@@ -627,7 +645,7 @@ function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency,
         {isGaaS ? (
           <div>
             <div className="mb-3 p-3 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-xs">
-              <strong>GaaS (Garment as a Service)</strong> — PDF will show as <strong>"Garment Sale"</strong>. Enter SKU-level commercials below. Revenue is auto-calculated from the SKU total.
+              <strong>Fynd Create</strong> — SKU-based commercials. PDF will show as <strong>"Garment Sale"</strong>. Enter SKU-level commercials below. Revenue is auto-calculated from the SKU total.
             </div>
             <GaasSKUBlock svc={svc} onChange={s=>onChange(s)} ro={ro} currency={currency}/>
           </div>
@@ -742,11 +760,13 @@ function SvcBlock({ svc, idx, onChange, onRemove, termMonths, ro, currency,
 
 // ── StepFees ──────────────────────────────────────────────────────────────────
 export default function StepFees({ form, set, ro }) {
+  const { user }   = useAuth();
+  const isFinance  = user?.role === 'finance' || user?.isUniversal;
   const services   = form.services_fees || [];
   const termMonths = form.of_term_months || 12;
-  const isGaaSForm = services.some(s => s.name === 'GaaS');
+  const isGaaSForm = services.some(s => isSkuService(s.name));
 
-  const addSvc  = () => set('services_fees', [...services, {id:uid(), name:'', subServices:[], fees:[newFee()], gaas_lines:[], gaas_total:0}]);
+  const addSvc  = () => set('services_fees', [...services, {id:uid(), name:'', subServices:[], fees:[newFee()], gaas_lines:[], gaas_total:0, bu:''}]);
   const updSvc  = (i,s) => set('services_fees', services.map((sv,j)=>j===i?s:sv));
   const remSvc  = i => set('services_fees', services.filter((_,j)=>j!==i));
   const isBundle= services.length > 1;
@@ -770,7 +790,7 @@ export default function StepFees({ form, set, ro }) {
 
   useEffect(() => {
     if (ro) return;
-    const gaasRevenue = services.filter(s=>s.name==='GaaS').reduce((sum,s)=>sum+(s.gaas_total||0),0);
+    const gaasRevenue = services.filter(s=>isSkuService(s.name)).reduce((sum,s)=>sum+(s.gaas_total||0),0);
     if (isGaaSForm) {
       if (form.committed_revenue !== String(gaasRevenue) && form.committed_revenue !== gaasRevenue) {
         set('committed_revenue', gaasRevenue || '');
@@ -798,7 +818,7 @@ export default function StepFees({ form, set, ro }) {
       )}
       {isGaaSForm && (
         <div className="flex items-center gap-2 mb-4 px-4 py-3 rounded-xl bg-teal-50 border border-teal-200">
-          <span className="text-sm font-semibold text-teal-800">GaaS Order — SKU-based pricing</span>
+          <span className="text-sm font-semibold text-teal-800">Fynd Create — SKU-based pricing</span>
           <span className="text-xs text-teal-600">PDF will be generated as Order Confirmation</span>
         </div>
       )}
@@ -812,7 +832,7 @@ export default function StepFees({ form, set, ro }) {
       {services.map((svc,i) => (
         <SvcBlock
           key={svc.id}
-          svc={svc} idx={i} termMonths={termMonths} ro={ro}
+          svc={svc} idx={i} termMonths={termMonths} ro={ro} isFinance={isFinance}
           currency={form.committed_currency||'INR'}
           onChange={s=>!ro&&updSvc(i,s)}
           onRemove={()=>!ro&&remSvc(i)}
