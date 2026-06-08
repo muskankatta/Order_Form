@@ -7,11 +7,11 @@ import { useToast } from '../../hooks/useToast.js';
 import { fmtDate } from '../../utils/dates.js';
 import { SERVICES } from '../../constants/formOptions.js';
 import { REVOPS_USERS } from '../../constants/users.js';
+import { CHANNELS as CH } from '../../utils/slack.js';
 
 const NAVY = '#1B2B4B';
 const FEE_TYPES     = ['Setup Fee','One Time Fee','Subscription Fee'];
 const SAC_MAP       = {'Setup Fee':'998314','One Time Fee':'998314','Subscription Fee':'998599'};
-const CH            = {India:'C0392LXA3B4',Global:'C08CBBNRAKZ',RJW:'C0978TZNGM8'};
 const BOLTIC        = import.meta.env.VITE_BOLTIC_SLACK_URL||'';
 const PAYMENT_MODES = ['NEFT','RTGS','Cheque','Wire Transfer','Online / UPI','Other'];
 
