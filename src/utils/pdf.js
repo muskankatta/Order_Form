@@ -1,6 +1,7 @@
 import { fmtDate } from './dates.js';
 import { getSym } from './formatting.js';
 import { YAVI_HEADER_IMG } from './yaviHeader.js';
+import { isSkuService } from '../constants/formOptions.js';
 
 // ── Number to Indian words ────────────────────────────────────────────────────
 function numToWordsIN(amount) {
@@ -90,7 +91,7 @@ var makeActionBar = function(ofNum, isYavi) {
 // ── GaaS Order Confirmation PDF ───────────────────────────────────────────────
 export const openGaaSPDF = function(form) {
   var svcs     = form.services_fees || [];
-  var gaasSvc  = svcs.find(function(s) { return s.name === 'GaaS'; }) || {};
+  var gaasSvc  = svcs.find(function(s) { return isSkuService(s.name); }) || {};
   var lines    = gaasSvc.gaas_lines || [];
   var sym      = '\u20b9';
   var ofNum    = form.of_number || 'DRAFT';
@@ -239,7 +240,7 @@ export const openGaaSPDF = function(form) {
 
 // ── Order Form PDF (Fynd or Yavi) ─────────────────────────────────────────────
 export const openPDF = function(form) {
-  if ((form.services_fees||[]).some(function(s) { return s.name === 'GaaS'; })) {
+  if ((form.services_fees||[]).some(function(s) { return isSkuService(s.name); })) {
     return openGaaSPDF(form);
   }
 
