@@ -4,7 +4,7 @@ import { Card, Btn, Lbl, Sel, TA, Inp, MultiSelect, Toast } from '../ui/index.js
 import { useForms } from '../../context/FormsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { FINANCE_USERS } from '../../constants/users.js';
-import { getRepRegion } from '../../constants/users.js';
+import { getRepRegion, formRegion, matchesTeamFilter, TEAM_FILTERS } from '../../constants/users.js';
 import { fmtDate, uid } from '../../utils/dates.js';
 import { useToast } from '../../hooks/useToast.js';
 import { db, isConfigured } from '../../firebase.js';
@@ -13,23 +13,9 @@ import { generateSignedOFReport, generateUnsignedOFReport } from '../../utils/re
 
 const NAVY = '#1B2B4B'; const T = '#00C3B5';
 
-function formRegion(f) { return f.region || getRepRegion(f.sales_rep_email) || null; }
-function matchesRegion(f, filter) {
-  if (filter === 'all')       return true;
-  if (filter === 'India')     return f.sales_team === 'India';
-  if (filter === 'AI/SaaS')   return f.sales_team === 'AI/SaaS';
-  if (filter === 'MEA')       return f.sales_team === 'Global' && formRegion(f) === 'MEA';
-  if (filter === 'SEA & RoW') return f.sales_team === 'Global' && formRegion(f) === 'SEA & RoW';
-  return true;
-}
+const matchesRegion = matchesTeamFilter;
 
-const REGION_FILTERS = [
-  { id:'all',       lbl:'All' },
-  { id:'India',     lbl:'India' },
-  { id:'MEA',       lbl:'Global · MEA' },
-  { id:'SEA & RoW', lbl:'Global · SEA & RoW' },
-  { id:'AI/SaaS',   lbl:'AI/SaaS' },
-];
+const REGION_FILTERS = TEAM_FILTERS;
 
 function getSigningPeriod(dateStr) {
   if (!dateStr) return null;
@@ -180,8 +166,8 @@ export function SignedOFs() {
   const toUSD = (amt, cur) => (TO_USD[cur] || (v=>v))(Number(amt||0));
   const calcSummary = (arr) => ({
     count: arr.length,
-    inr:   arr.filter(f=>f.sales_team==='India').reduce((s,f)=>s+Number(f.committed_revenue||0),0),
-    usd:   arr.filter(f=>f.sales_team!=='India').reduce((s,f)=>s+toUSD(f.committed_revenue,f.committed_currency||'USD'),0),
+    inr:   arr.filter(f=>f.sales_team==='India'||f.sales_team==='RJW').reduce((s,f)=>s+Number(f.committed_revenue||0),0),
+    usd:   arr.filter(f=>f.sales_team!=='India'&&f.sales_team!=='RJW').reduce((s,f)=>s+toUSD(f.committed_revenue,f.committed_currency||'USD'),0),
   });
 
   const approvedSummary = calcSummary(allApproved);
@@ -370,7 +356,7 @@ export function SignedOFs() {
               </div>
             </div>
             <div className="bg-white rounded-xl border px-4 py-3" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">Committed Revenue · Global + AI/SaaS (USD)</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">Committed Revenue · Global (USD)</div>
               <div className="text-xl font-black" style={{color:'#7c3aed'}}>
                 {cvTab==='requests' ? '—' : '$'+Math.round(s.usd).toLocaleString('en-US')}
               </div>
@@ -407,7 +393,7 @@ export function SignedOFs() {
                           <td className="px-4 py-3 text-xs">{f.committed_currency} {Number(f.committed_revenue||0).toLocaleString('en-IN')}</td>
                           <td className="px-4 py-3 text-xs">
                             {f.sales_team==='India'?<span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700">India</span>
-                             :f.sales_team==='AI/SaaS'?<span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700">AI/SaaS</span>
+                             :f.sales_team==='RJW'?<span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700">RJW</span>
                              :region?<span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700">{region}</span>
                              :<span className="text-slate-300">—</span>}
                           </td>
@@ -550,7 +536,7 @@ export function SignedOFs() {
                       <td className="px-4 py-3 font-medium" style={{color:NAVY}}>{f.customer_name}</td>
                       <td className="px-4 py-3 text-xs">
                         {f.sales_team==='India'?<span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700">India</span>
-                         :f.sales_team==='AI/SaaS'?<span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700">AI/SaaS</span>
+                         :f.sales_team==='RJW'?<span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700">RJW</span>
                          :region?<span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700">{region}</span>
                          :<span className="text-slate-300">—</span>}
                       </td>
