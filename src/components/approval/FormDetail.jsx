@@ -13,7 +13,7 @@ import { FINANCE_USERS, REVOPS_USERS } from '../../constants/users.js';
 import { fmtDate, fmtShort } from '../../utils/dates.js';
 import { openPDF } from '../../utils/pdf.js';
 import { useToast } from '../../hooks/useToast.js';
-import { SERVICES as PI_SERVICES_FALLBACK_IMPORT, SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES } from '../../constants/formOptions.js';
+import { SERVICES as PI_SERVICES_FALLBACK_IMPORT, SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES, isSkuService } from '../../constants/formOptions.js';
 
 const NAVY='#1B2B4B'; const T='#00C3B5';
 const TABS = [
@@ -42,7 +42,7 @@ const subtot  = items => items.reduce((s,li)=>s+((parseFloat(li.qty)||0)*(parseF
 const blankLI = () => ({service:'',fee_type:'',description:'',qty:1,rate:0});
 
 const BOLTIC  = import.meta.env.VITE_BOLTIC_SLACK_URL||'';
-const CH      = {India:'C0392LXA3B4',Global:'C08CBBNRAKZ','AI/SaaS':'C0978TZNGM8'};
+const CH      = {India:'C0392LXA3B4',Global:'C08CBBNRAKZ',RJW:'C0978TZNGM8'};
 
 function getCurrentFY(){const n=new Date();const y=n.getMonth()>=3?n.getFullYear()+1:n.getFullYear();return String(y).slice(-2);}
 
@@ -341,7 +341,7 @@ export default function FormDetail({ form: initial }) {
     const isYavi   = f.entity === 'yavi' || (f.of_number||'').startsWith('OFYT') || (f.of_number||'').startsWith('OF-YT-');
     const isIndia  = !isYavi && (!f.country || f.country === 'India');
     const isGlobal = f.sales_team === 'Global';
-    const isGaaS   = (f.services_fees||[]).some(s => s.name === 'GaaS');
+    const isGaaS   = (f.services_fees||[]).some(s => isSkuService(s.name));
 
     if (!f.entity)                e.push('Issuing entity is required');
     if (!f.customer_name)         e.push('Customer name is required');
@@ -355,7 +355,6 @@ export default function FormDetail({ form: initial }) {
 
     if (!f.sales_rep_email)       e.push('Sales rep is required');
     if (!f.sales_team)            e.push('Sales team is required');
-    if (!f.segment)               e.push('Segment is required');
     if (!f.sale_type)             e.push('Sale type is required');
     if (!f.lead_type)             e.push('Sales channel is required');
     if (isGlobal && !f.region)    e.push('Region is required for Global team');
