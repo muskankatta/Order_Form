@@ -8,7 +8,7 @@ const NAVY = '#1B2B4B';
 const ROLES = ['sales', 'revops', 'finance'];
 const ROLE_LABELS = { sales: 'Sales Rep', revops: 'Business / RevOps', finance: 'Finance DRI' };
 const BASE_USERS = { sales: SALES_REPS, revops: REVOPS_USERS, finance: FINANCE_USERS };
-const TEAMS = ['India', 'Global', 'AI/SaaS'];
+const TEAMS = ['India', 'Global', 'RJW'];
 const LS_KEY = 'fynd_of_users_override';
 
 function loadOverrides() {
@@ -26,7 +26,7 @@ export function getMergedUsers(role) {
 
 const BLANK = { id:'', name:'', slack:'', email:'', team:'' };
 const thCls = "text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-brand-faint bg-slate-50";
-const teamColor = { India:'bg-blue-50 text-blue-700', Global:'bg-green-50 text-green-700', 'AI/SaaS':'bg-purple-50 text-purple-700' };
+const teamColor = { India:'bg-blue-50 text-blue-700', Global:'bg-green-50 text-green-700', RJW:'bg-purple-50 text-purple-700' };
 
 export default function AdminUsers() {
   const { user } = useAuth();
