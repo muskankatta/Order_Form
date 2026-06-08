@@ -12,6 +12,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { FINANCE_USERS, REVOPS_USERS } from '../../constants/users.js';
 import { fmtDate, fmtShort } from '../../utils/dates.js';
 import { openPDF } from '../../utils/pdf.js';
+import { CHANNELS as CH } from '../../utils/slack.js';
 import { useToast } from '../../hooks/useToast.js';
 import { SERVICES as PI_SERVICES_FALLBACK_IMPORT, SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES, isSkuService } from '../../constants/formOptions.js';
 
@@ -42,7 +43,7 @@ const subtot  = items => items.reduce((s,li)=>s+((parseFloat(li.qty)||0)*(parseF
 const blankLI = () => ({service:'',fee_type:'',description:'',qty:1,rate:0});
 
 const BOLTIC  = import.meta.env.VITE_BOLTIC_SLACK_URL||'';
-const CH      = {India:'C0392LXA3B4',Global:'C08CBBNRAKZ',RJW:'C0978TZNGM8'};
+
 
 function getCurrentFY(){const n=new Date();const y=n.getMonth()>=3?n.getFullYear()+1:n.getFullYear();return String(y).slice(-2);}
 
