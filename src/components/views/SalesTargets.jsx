@@ -171,7 +171,7 @@ export default function SalesTargets() {
               <option value="all">All teams</option>
               <option value="India">India</option>
               <option value="Global">Global</option>
-              <option value="AI/SaaS">AI/SaaS</option>
+              <option value="RJW">RJW</option>
             </select>
           )}
           <div className="flex gap-1 p-1 rounded-xl bg-slate-100">
@@ -297,7 +297,7 @@ export default function SalesTargets() {
         ))}
       </div>
       <p className="text-xs text-brand-faint mt-2">
-        Click any row to see the Order Forms counted for that rep's target. · India in INR · Global &amp; AI/SaaS in USD ($1 = ₹91 · AED 3.6725 · MYR 4.30 · IDR 16,950 · £0.80 · €0.90)
+        Click any row to see the Order Forms counted for that rep's target. · India in INR · Global in USD ($1 = ₹91 · AED 3.6725 · MYR 4.30 · IDR 16,950 · £0.80 · €0.90)
       </p>
 
       {/* Rep detail panel */}
