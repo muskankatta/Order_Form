@@ -8,6 +8,7 @@ import { uid } from '../utils/dates.js';
 import { sendEmail, svcNames, threadSubject } from '../utils/email.js';
 import { notifySlack } from '../utils/slack.js';
 import { autoSyncCommercials } from '../utils/sheets.js';
+import { canonicalService } from '../constants/formOptions.js';
 import { useAuth } from './AuthContext.jsx';
 
 const FormsContext = createContext(null);
@@ -56,6 +57,17 @@ const fromFirestore = snap => {
     }
     if (ARRAY_FIELDS.has(key) && !Array.isArray(d[key])) d[key] = [];
   });
+  // Display-only normalization: map legacy service names (e.g. Konnect →
+  // Konnect (OMS), AI Photoshoot → Fynd Snap, GaaS → Fynd Create) to their
+  // current names so the editor dropdown / sub-services / BU tag resolve.
+  // Non-destructive — Firestore only picks this up if the form is re-saved.
+  if (Array.isArray(d.services_fees)) {
+    d.services_fees = d.services_fees.map(s =>
+      (s && typeof s === 'object' && s.name)
+        ? { ...s, name: canonicalService(s.name) }
+        : s
+    );
+  }
   if (!d.entity && d.of_number &&
       (d.of_number.startsWith('OFYT') || d.of_number.startsWith('OF-YT'))) {
     d.entity = 'yavi';
