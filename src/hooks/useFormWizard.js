@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { BLANK_FORM } from '../constants/formOptions.js';
 import { uid } from '../utils/dates.js';
 import { calcMetrics, calcOFValue } from '../utils/calculations.js';
-import { SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES } from '../constants/formOptions.js';
+import { SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES, isSkuService } from '../constants/formOptions.js';
 
 function isValidUrl(v) {
   if (!v) return false;
@@ -61,7 +61,7 @@ export function useFormWizard(initial = null) {
     const isYavi   = form.entity === 'yavi';
     const isIndia  = !isYavi && (!form.country || form.country === 'India');
     const isGlobal = form.sales_team === 'Global';
-    const isGaaS   = (form.services_fees||[]).some(s => s.name === 'GaaS');
+    const isGaaS   = (form.services_fees||[]).some(s => isSkuService(s.name));
 
     // ── Entity ───────────────────────────────────────────────────────────────
     if (!form.entity)
@@ -102,8 +102,6 @@ export function useFormWizard(initial = null) {
     }
 
     // ── Sales information ────────────────────────────────────────────────────
-    if (!form.segment)
-      e.push('Segment is required');
     if (!form.sales_team)
       e.push('Sales team is required');
     if (!form.sales_rep_email)
