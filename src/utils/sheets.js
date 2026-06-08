@@ -14,6 +14,7 @@ import { getQtr, getFY } from './dates.js';
 import { STATUS } from '../constants/status.js';
 import { getSym, cyclesInDateRange } from './formatting.js';
 import { getRepRegion } from '../constants/users.js';
+import { formBusinessUnits } from '../constants/formOptions.js';
 
 // ── HELPERS ──────────────────────────────────────────────────────────────────
 const fmt = v => (v === null || v === undefined) ? '' : String(v);
@@ -42,7 +43,7 @@ const inclusionsText = val => {
 // ── INDEX ROW (41 columns, matching Excel exactly) ───────────────────────────
 const INDEX_HEADERS = [
   'SrNo', 'Order_Form_No', 'QTR', 'FY_for_Incentive',
-  'Customer_Name', 'Brand Name', 'Services', 'Segment',
+  'Customer_Name', 'Brand Name', 'Services', 'Business Unit(s)',
   'Sales Team', 'Sales_Representative', 'Lead_type', 'Lead_name', 'Lead_category',
   'Start_date', 'End_date', 'Auto_Renewal', 'Renewal_Term', 'Order_Form_Term',
   'Sent for Signing', 'Date_of_Signing',
@@ -63,7 +64,7 @@ const toIndexRow = (f, i) => [
   fmt(f.customer_name),                                         // Customer_Name
   fmt(f.brand_name),                                            // Brand Name
   (f.services_fees||[]).map(s=>s.name).filter(Boolean).join('; '), // Services
-  fmt(f.segment),                                               // Segment
+  fmt(formBusinessUnits(f).join('; ')),                                               // Segment
   fmt(f.sales_team),                                            // Sales Team
   fmt(f.sales_rep_name),                                        // Sales_Representative
   fmt(f.lead_type),                                             // Lead_type
@@ -104,7 +105,7 @@ const SERVICE_HEADERS = [
   'SrNo', 'Order_Form_No', 'QTR', 'FY_for_Incentive',
   'Customer_Name', 'Brand Name', 'Service',
   'Fee Type', 'Billing Cycle', 'Commercial Value', 'Inclusions', 'Unit/Metric',
-  'Segment', 'Sales Team', 'Sales_Representative',
+  'Business Unit(s)', 'Sales Team', 'Sales_Representative',
   'Lead_type', 'Lead_category',
   'Start_date', 'End_date', 'Order_Form_Term',
   'ARR', 'Committed Revenue', 'Committed Revenue Currency',
@@ -131,7 +132,7 @@ const toServiceRows = (f, startIdx) => {
           fmt(fee.commercialValue),
         inclusionsText(fee.inclusions),
         fmt(fee.unitMetric),
-        fmt(f.segment),
+        fmt(formBusinessUnits(f).join('; ')),
         fmt(f.sales_team),
         fmt(f.sales_rep_name),
         fmt(f.lead_type),
@@ -347,7 +348,7 @@ const COMM_GROUPS = [
 const COMM_HEADERS = [
   // Order form (0–20)
   'OF Number', 'Entity', 'Customer Name', 'Brand / Trade Name', 'Sales Type',
-  'Sales Channel', 'Lead Category', 'Lead Name', 'Segment', 'Sales Team', 'Region',
+  'Sales Channel', 'Lead Category', 'Lead Name', 'Business Unit(s)', 'Sales Team', 'Region',
   'Sales Rep', 'Sales Rep Email', 'Billing Currency', 'Order Form Value', 'OF Term',
   'Service Period Start', 'Service Period End', 'Auto Renewal', 'Renewal Frequency', 'Payment Terms',
   // Status & signing (21–27)
@@ -380,7 +381,7 @@ function buildCommercials(forms) {
     const signedLink = hyperlink(f.signed_of_link, 'View signed OF');
     const ofHead = [
       fmt(f.of_number), entity, fmt(f.customer_name), fmt(f.brand_name), fmt(f.sale_type),
-      fmt(f.lead_type), fmt(f.lead_category), fmt(f.lead_name), fmt(f.segment), fmt(f.sales_team), regionOf(f),
+      fmt(f.lead_type), fmt(f.lead_category), fmt(f.lead_name), fmt(formBusinessUnits(f).join('; ')), fmt(f.sales_team), regionOf(f),
       fmt(f.sales_rep_name), fmt(f.sales_rep_email), fmt(f.committed_currency || 'INR'),
       fmt(f.of_value), fmt(f.of_term || (f.of_term_months ? f.of_term_months + ' Months' : '')),
       fmt(f.start_date), fmt(f.end_date), fmt(f.auto_renewal), fmt(f.renewal_term), fmt(f.payment_terms),
