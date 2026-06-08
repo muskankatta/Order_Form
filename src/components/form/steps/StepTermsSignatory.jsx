@@ -1,5 +1,5 @@
 import { TA, SHdr, Inp } from '../../ui/index.jsx';
-import { GAAS_PAYMENT_TRIGGERS, GAAS_PAYMENT_NETS } from '../../../constants/formOptions.js';
+import { GAAS_PAYMENT_TRIGGERS, GAAS_PAYMENT_NETS, isSkuService } from '../../../constants/formOptions.js';
 
 const NAVY = '#1B2B4B'; const T = '#00C3B5';
 
@@ -55,7 +55,7 @@ const YAVI_DEFAULT_NOTES =
 export { FYND_DEFAULT_NOTES, YAVI_DEFAULT_NOTES };
 
 function isGaaSForm(form) {
-  return (form.services_fees || []).some(s => s.name === 'GaaS');
+  return (form.services_fees || []).some(s => isSkuService(s.name));
 }
 
 export function StepTerms({ form, set, ro }) {
