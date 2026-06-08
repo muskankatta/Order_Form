@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Inp, Sel, TA, SHdr } from '../../ui/index.jsx';
-import { SEGMENTS, SALES_TEAMS, LEAD_TYPES, LEAD_CATS, SALE_TYPES,
+import { SALES_TEAMS, LEAD_TYPES, LEAD_CATS, SALE_TYPES,
          COUNTRIES, SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES } from '../../../constants/formOptions.js';
-import { SALES_REPS } from '../../../constants/users.js';
+import { SALES_REPS, REGIONS } from '../../../constants/users.js';
 import { useAuth } from '../../../context/AuthContext.jsx';
 
-const REGIONS = ['MEA', 'SEA & RoW'];
+const REGION_LABELS = {
+  MEA: 'Middle East & Africa',
+  SEA: 'South East Asia',
+  RoW: 'Rest of World',
+  UK:  'United Kingdom',
+};
 
 const ENTITIES = [
   { value: 'fynd', label: 'Shopsense Retail Technologies Limited (Fynd)' },
@@ -309,7 +314,6 @@ export default function StepClient({ form, set, ro }) {
 
       <SHdr c="Sales information"/>
       <div className="grid grid-cols-2 gap-x-6">
-        <Sel label="Segment" req value={form.segment} onChange={v=>u('segment',v)} options={SEGMENTS} disabled={ro}/>
         <Sel label="Sales team" req value={form.sales_team} onChange={handleTeamChange} options={SALES_TEAMS} disabled={ro}
           hint="Selecting a team filters the rep dropdown below"/>
 
@@ -365,7 +369,7 @@ export default function StepClient({ form, set, ro }) {
             </select>
             {form.region && (
               <p className="text-xs mt-1 text-brand-faint">
-                {form.region === 'MEA' ? 'Middle East & Africa' : 'South East Asia & Rest of World'}
+                {REGION_LABELS[form.region] || form.region}
                 {form.sales_rep_email && !customRep && SALES_REPS.find(r=>r.email===form.sales_rep_email)?.region !== form.region && (
                   <span className="text-amber-600 ml-1">· Manually overridden</span>
                 )}
