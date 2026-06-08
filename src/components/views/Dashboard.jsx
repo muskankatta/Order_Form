@@ -4,7 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import { Card, StatusPill, Btn } from '../ui/index.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { SALES_REPS, getRepRegion } from '../../constants/users.js';
+import { SALES_REPS, getRepRegion, formRegion, matchesTeamFilter, TEAM_FILTERS, isUsdTeamFilter } from '../../constants/users.js';
 import { fmtShort, daysUntil } from '../../utils/dates.js';
 import { generateDashboardReport } from '../../utils/reports.js';
 
@@ -13,17 +13,8 @@ const NAVY='#1B2B4B'; const T='#00C3B5';
 const TO_USD = { USD:v=>v, INR:v=>v/91, AED:v=>v/3.6725, MYR:v=>v/4.30, IDR:v=>v/16950, GBP:v=>v/0.80, EUR:v=>v/0.90, SGD:v=>v/1.35, SAR:v=>v/3.75, AUD:v=>v/1.55 };
 const toUSD = (amt, cur) => (TO_USD[cur] || (v=>v))(amt);
 
-function formRegion(f) { return f.region || getRepRegion(f.sales_rep_email) || null; }
-function matchesFilter(f, filter) {
-  if (filter === 'all')       return true;
-  if (filter === 'India')     return f.sales_team === 'India';
-  if (filter === 'AI/SaaS')   return f.sales_team === 'AI/SaaS';
-  if (filter === 'MEA')       return f.sales_team === 'Global' && formRegion(f) === 'MEA';
-  if (filter === 'SEA & RoW') return f.sales_team === 'Global' && formRegion(f) === 'SEA & RoW';
-  if (filter === 'Global')    return f.sales_team === 'Global';
-  return true;
-}
-function isGlobalFilter(filter) { return filter === 'MEA' || filter === 'SEA & RoW' || filter === 'Global'; }
+const matchesFilter  = matchesTeamFilter;
+const isGlobalFilter = isUsdTeamFilter;
 
 function signingQtr(dateStr) {
   if (!dateStr) return null;
@@ -114,10 +105,10 @@ export default function Dashboard() {
   const signedForms = visible.filter(f=>f.status==='signed');
 
   const revenueINR = useMemo(() =>
-    visible.filter(f=>f.status==='signed'&&f.sales_team==='India').reduce((s,f)=>s+Number(f.committed_revenue||0),0),
+    visible.filter(f=>f.status==='signed'&&(f.sales_team==='India'||f.sales_team==='RJW')).reduce((s,f)=>s+Number(f.committed_revenue||0),0),
   [visible]);
   const revenueUSD = useMemo(() =>
-    visible.filter(f=>f.status==='signed'&&f.sales_team!=='India').reduce((s,f)=>s+toUSD(Number(f.committed_revenue||0),f.committed_currency||'INR'),0),
+    visible.filter(f=>f.status==='signed'&&f.sales_team!=='India'&&f.sales_team!=='RJW').reduce((s,f)=>s+toUSD(Number(f.committed_revenue||0),f.committed_currency||'INR'),0),
   [visible]);
 
   const availableFYs = useMemo(() => {
@@ -191,13 +182,7 @@ export default function Dashboard() {
     }
   };
 
-  const FILTERS = [
-    { id:'all', lbl:'All' },
-    { id:'India', lbl:'India' },
-    { id:'MEA', lbl:'Global · MEA' },
-    { id:'SEA & RoW', lbl:'Global · SEA & RoW' },
-    { id:'AI/SaaS', lbl:'AI/SaaS' },
-  ];
+  const FILTERS = TEAM_FILTERS;
 
   return (
     <div>
