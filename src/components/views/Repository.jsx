@@ -4,7 +4,7 @@ import { Card, StatusPill, Btn } from '../ui/index.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { STATUS } from '../../constants/status.js';
-import { SALES_TEAMS } from '../../constants/formOptions.js';
+import { SALES_TEAMS, formBusinessUnits } from '../../constants/formOptions.js';
 import { SALES_REPS } from '../../constants/users.js';
 import { fmtShort } from '../../utils/dates.js';
 import { exportOFIndex, exportServiceIndex } from '../../utils/csv.js';
@@ -59,7 +59,7 @@ const ALL_COLUMNS = [
   { id:'signed_date',label:'Signing Date',       default:true  },
   { id:'live_date',  label:'Live Date',          default:false },
   { id:'sale_type',  label:'Sale Type',          default:false },
-  { id:'segment',    label:'Segment',            default:false },
+  { id:'segment',    label:'Business Unit(s)',    default:false },
 ];
 
 function ColumnPicker({ visible, onChange }) {
@@ -253,8 +253,8 @@ export default function Repository() {
   const toUSD = (amt, cur) => (TO_USD[cur] || (v=>v))(Number(amt||0));
 
   // ── Summary stats — all derived from dedupedSorted (not raw filtered) ─────
-  const fyndIndia  = dedupedSorted.filter(f => f.entity!=='yavi' && f.sales_team==='India');
-  const fyndGlobal = dedupedSorted.filter(f => f.entity!=='yavi' && f.sales_team!=='India');
+  const fyndIndia  = dedupedSorted.filter(f => f.entity!=='yavi' && (f.sales_team==='India'||f.sales_team==='RJW'));
+  const fyndGlobal = dedupedSorted.filter(f => f.entity!=='yavi' && f.sales_team!=='India' && f.sales_team!=='RJW');
   const yaviOFs    = dedupedSorted.filter(f => f.entity==='yavi');
 
   const summaryFyndINR = fyndIndia.reduce((s,f)  => s + Number(f.committed_revenue||0), 0);
@@ -441,7 +441,7 @@ export default function Repository() {
           <div className="text-[10px] text-brand-faint mt-1">{fyndIndia.length} OFs</div>
         </div>
         <div className="bg-white rounded-xl border px-4 py-3" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-          <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">Fynd · Global + AI/SaaS (USD)</div>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">Fynd · Global (USD)</div>
           <div className="text-xl font-black" style={{color:'#7c3aed'}}>${Math.round(summaryFyndUSD).toLocaleString('en-US')}</div>
           <div className="text-[10px] text-brand-faint mt-1">{fyndGlobal.length} OFs</div>
         </div>
@@ -473,7 +473,7 @@ export default function Repository() {
                     {show('team')       && <th className={thCls}>Team</th>}
                     {show('rep')        && <th className={thCls}>Sales Rep</th>}
                     {show('sale_type')  && <th className={thCls}>Sale Type</th>}
-                    {show('segment')    && <th className={thCls}>Segment</th>}
+                    {show('segment')    && <th className={thCls}>Business Unit(s)</th>}
                     {show('status')     && <th className={thCls}>Status</th>}
                     {user?.isUniversal  && <th className={thCls}>Actions</th>}
                   </tr>
@@ -587,7 +587,7 @@ export default function Repository() {
                         {show('team')      && <td className="px-4 py-3.5 text-xs text-brand-muted">{f.sales_team||'—'}</td>}
                         {show('rep')       && <td className="px-4 py-3.5 text-xs text-brand-muted">{f.sales_rep_name}</td>}
                         {show('sale_type') && <td className="px-4 py-3.5 text-xs text-brand-muted">{f.sale_type||'—'}</td>}
-                        {show('segment')   && <td className="px-4 py-3.5 text-xs text-brand-muted">{f.segment||'—'}</td>}
+                        {show('segment')   && <td className="px-4 py-3.5 text-xs text-brand-muted">{formBusinessUnits(f).join(', ')||'—'}</td>}
                         {show('status')    && <td className="px-4 py-3.5"><StatusPill status={f.status}/></td>}
                         {user?.isUniversal && (
                           <td className="px-4 py-3.5" onClick={e=>e.stopPropagation()}>
