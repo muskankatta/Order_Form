@@ -280,6 +280,17 @@ export default function PendingRequests() {
       {/* ── REVOPS — OFs ── */}
       {(isRevops || user?.isUniversal) && (
         <>
+          {isRevops && salesRenewal.length > 0 && (
+            <Section
+              title="Renewal drafts — review & submit to Finance"
+              subtitle="Auto-created when contracts expired — update dates/fees, then submit directly to Finance"
+              color="#7c3aed"
+              forms={search(salesRenewal)}
+              onSelect={onSelect}
+              emptyMsg="No renewal drafts"
+              sectionRef={renewalsRef}
+            />
+          )}
           <Section
             title="Submitted by Sales — pending your review"
             subtitle="Review these Order Forms and approve to Finance or reject back to Sales"
