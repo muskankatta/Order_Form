@@ -410,10 +410,16 @@ export default function FormDetail({ form: initial }) {
   const isRevopsPrimary  = user?.email === revopsPrimaryEmail || user?.isUniversal;
   const isFinancePrimary = user?.email === financePrimaryEmail || user?.isUniversal;
 
+  // A renewal draft is auto-created (is_renewal) and still in draft. Any listed
+  // RevOps user (or Universal) may edit it and submit it straight to Finance.
+  const isRenewalDraft = !!form.is_renewal && form.status === 'draft';
+  const revopsActor    = isRevopsPrimary || (isRenewalDraft && (user?.role==='revops' || user?.isUniversal));
+
   const canEdit = user?.isUniversal
     || (user?.role==='sales' && ['draft','revops_rejected'].includes(form.status) && form.sales_rep_email===user.email)
     || (user?.role==='revops' && form.status==='submitted')
     || (user?.role==='revops' && form.status==='draft' && !!form.clone_of)
+    || (user?.role==='revops' && isRenewalDraft)
     || (user?.role==='finance');
 
   const canDelete = (user?.isUniversal) || (user?.role==='sales'&&form.status==='draft') || (user?.role==='revops'&&form.status==='submitted') || (user?.role==='finance'&&form.status==='revops_approved');
@@ -723,11 +729,11 @@ export default function FormDetail({ form: initial }) {
       )}
 
       {/* RevOps review panel */}
-      {(user?.role==='revops'||user?.isUniversal) && form.status==='submitted' && (
+      {(user?.role==='revops'||user?.isUniversal) && (form.status==='submitted' || isRenewalDraft) && (
         <Card className="mt-4 p-6">
           <div className="flex items-center gap-3 mb-4 flex-wrap">
-            <h3 className="font-bold" style={{ color:NAVY }}>🔍 RevOps review</h3>
-            {revopsPrimaryEmail && (
+            <h3 className="font-bold" style={{ color:NAVY }}>{isRenewalDraft ? '🔄 Submit renewal to Finance' : '🔍 RevOps review'}</h3>
+            {!isRenewalDraft && revopsPrimaryEmail && (
               <div className="flex items-center gap-2">
                 <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-teal-100 text-teal-700">
                   Primary DRI: {(REVOPS_USERS.find(u=>u.email===revopsPrimaryEmail)||{}).name || revopsPrimaryEmail}
@@ -740,13 +746,18 @@ export default function FormDetail({ form: initial }) {
               </div>
             )}
           </div>
-          {!isRevopsPrimary && (
+          {isRenewalDraft && (
+            <div className="mb-4 p-3 rounded-xl text-sm bg-purple-50 border border-purple-200 text-purple-700">
+              🔄 Renewal draft. Review the dates and fees, then forward it directly to Finance.
+            </div>
+          )}
+          {!isRenewalDraft && !isRevopsPrimary && (
             <div className="mb-4 p-3 rounded-xl text-sm bg-amber-50 border border-amber-200 text-amber-700">
               👁 You are CC'd on this review. Only the Primary DRI (<strong>{(REVOPS_USERS.find(u=>u.email===revopsPrimaryEmail)||{}).name || revopsPrimaryEmail}</strong>) can approve or reject.
             </div>
           )}
-          {edit && <div className="mb-4 p-3 rounded-xl text-sm bg-blue-50 border border-blue-200 text-blue-700">ℹ️ Save edits first, then approve or reject.</div>}
-          <TA label="Review comment (optional)" value={cmt} onChange={setCmt} disabled={!isRevopsPrimary}/>
+          {edit && <div className="mb-4 p-3 rounded-xl text-sm bg-blue-50 border border-blue-200 text-blue-700">ℹ️ Save edits first, then {isRenewalDraft ? 'submit to Finance.' : 'approve or reject.'}</div>}
+          <TA label="Review comment (optional)" value={cmt} onChange={setCmt} disabled={!revopsActor}/>
           <MultiSelect
             label="Forward to Finance DRI(s) — first selected is Primary DRI"
             req
@@ -760,11 +771,11 @@ export default function FormDetail({ form: initial }) {
               {finDRIs.length > 1 && <span className="ml-2 text-blue-500">CC: {finDRIs.slice(1).map(e=>(FINANCE_USERS.find(u=>u.email===e)||{}).name||e).join(', ')}</span>}
             </div>
           )}
-          {isRevopsPrimary && (
+          {revopsActor && (
             <div className="flex gap-3 flex-wrap mt-2">
               {edit && <Btn variant="navy" onClick={async () => { await updateDraft(form.id, ef); setEdit(false); show('Edits saved ✓'); }}>💾 Save edits</Btn>}
-              <Btn variant="success" onClick={handleRevopsApprove}>✓ Approve → Finance</Btn>
-              <Btn variant="danger"  onClick={handleRevopsReject}>✕ Reject</Btn>
+              <Btn variant="success" onClick={handleRevopsApprove}>{isRenewalDraft ? '✓ Submit to Finance →' : '✓ Approve → Finance'}</Btn>
+              {!isRenewalDraft && <Btn variant="danger" onClick={handleRevopsReject}>✕ Reject</Btn>}
             </div>
           )}
         </Card>
