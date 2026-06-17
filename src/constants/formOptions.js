@@ -50,7 +50,6 @@ export const SERVICE_BU = SERVICE_GROUPS.reduce((map, g) => {
 // Applied for reporting + auto-BU derivation so old OFs roll up correctly.
 export const SERVICE_ALIASES = {
   'AI Photoshoot':           'Fynd Snap',
-  'AI Studio':               'Fynd Studio',
   'GaaS':                    'Fynd Create',
   'Storefront':              'Storefront (B2C)',
   'Konnect':                 'Konnect (OMS)',
