@@ -343,6 +343,7 @@ const COMM_GROUPS = [
   { label: 'Status & signing',  cols: 7,  band: '#9FE1CB', title: '#E7F5EF', text: '#04342C' },
   { label: 'Service',           cols: 2,  band: '#CECBF6', title: '#F0EFFB', text: '#26215C' },
   { label: 'Fee line',          cols: 10, band: '#D3D1C7', title: '#F4F3EE', text: '#2C2C2A' },
+  { label: 'Client / Billing',  cols: 8,  band: '#F4D9B0', title: '#FBEFDA', text: '#4A2C02' },
 ];
 
 const COMM_HEADERS = [
@@ -353,17 +354,20 @@ const COMM_HEADERS = [
   'Service Period Start', 'Service Period End', 'Auto Renewal', 'Renewal Frequency', 'Payment Terms',
   // Status & signing (21–27)
   'Status', 'Approved At', 'Signing Date', 'Signing Quarter', 'Signing FY', 'Signed OF Link', 'Live Date',
-  // Service (27–28)
+  // Service (28–29)
   'Bundle Service', 'Service Name',
-  // Fee line (29–38)
+  // Fee line (30–39)
   'Fee Type', 'Billing Cycle', 'Pricing Model', 'Fee Basis', 'Commercial Value',
   'Charged On', 'Inclusions', 'Slab Detail', 'Step-up Detail', 'Special Terms / Notes',
+  // Client / Billing (40–47)
+  'Billing Address', 'Billing Email', 'GSTIN', 'PAN', 'Tax / VAT Number',
+  'Client Rep Name', 'Client Rep Email', 'Client Rep Mobile',
 ];
 
 const COL = {
   salesType: 4, leadCategory: 6, status: 21, pricingModel: 32,
 };
-const TOTAL_COLS = COMM_HEADERS.length; // 39
+const TOTAL_COLS = COMM_HEADERS.length; // 48
 const DATA_START_ROW = 2;               // rows 0=band, 1=titles, 2+=data
 
 // Sort key: approval time (fallbacks for legacy/edge rows). Ascending → newest last.
@@ -391,6 +395,11 @@ function buildCommercials(forms) {
       fmt(f.signed_date), fmt(getQtr(f.signed_date)), fmt(getFY(f.signed_date)),
       signedLink, fmt(f.live_date),
     ];
+    // Client / Billing — OF-level, repeated on each fee line (far-right group)
+    const clientBilling = [
+      fmt(f.billing_address), fmt(f.billing_email), fmt(f.gstin), fmt(f.pan), fmt(f.tax_number),
+      fmt(f.client_rep_name), fmt(f.client_rep_email), fmt(f.client_rep_mobile),
+    ];
     const blockStart = DATA_START_ROW + rows.length;
     const services = (f.services_fees || []).filter(Boolean);
     const pushFee = (svcName, fee) => {
@@ -401,6 +410,7 @@ function buildCommercials(forms) {
         fee ? chargedOnOf(fee) : '', inclusionsText(fee?.inclusions),
         fee ? slabDetailOf(fee) : '', fee ? stepUpDetailOf(fee, f.committed_currency) : '',
         fmt(f.special_terms),
+        ...clientBilling,
       ]);
     };
     if (!services.length) {
