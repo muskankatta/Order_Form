@@ -10,6 +10,7 @@ const ROLES = [
   { id:'sales',   lbl:'Sales',            desc:'Submit & track Order Forms',    icon:'🤝' },
   { id:'revops',  lbl:'Business / RevOps', desc:'Review & validate submissions', icon:'🔍' },
   { id:'finance', lbl:'Finance',           desc:'Assign OF# & final approval',   icon:'💼' },
+  { id:'cbo',     lbl:'CBO',               desc:'Leadership — view-only access',  icon:'📊' },
 ];
 
 export default function LoginPage() {
