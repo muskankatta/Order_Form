@@ -125,7 +125,9 @@ export function resolveRole(email) {
   if (email === UNIVERSAL_EMAIL) return 'universal';
   if (FINANCE_USERS.find(u => u.email === email)) return 'finance';
   if (REVOPS_USERS.find(u => u.email === email))  return 'revops';
-  if (SALES_REPS.find(u => u.email === email))    return 'sales';
+  const rep = SALES_REPS.find(u => u.email === email);
+  if (rep?.role === 'CBO') return 'cbo';   // read-only leadership view (full visibility)
+  if (rep)                 return 'sales';
   // Not in any list — auto-viewer for gofynd.com only
   return domain === 'gofynd.com' ? 'viewer' : null;
 }
