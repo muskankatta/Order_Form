@@ -4,7 +4,7 @@ import { useForms } from '../../context/FormsContext.jsx';
  
 const NAVY = '#1B2B4B';
 const T    = '#00C3B5';
-const ROLE_COLOR = { sales:NAVY, revops:'#7c3aed', finance:T, universal:'#ef4444' };
+const ROLE_COLOR = { sales:NAVY, revops:'#7c3aed', finance:T, cbo:'#0ea5e9', universal:'#ef4444' };
 
 export default function AppShell({ children }) {
   const { user, logout } = useAuth();
@@ -35,11 +35,11 @@ export default function AppShell({ children }) {
     { to:'/pending',    lbl:'Pending Requests', badge:myPendingCount>0?myPendingCount:null, badgeColor:'#ef4444' },
     { to:'/repository', lbl:'Repository' },
     { to:'/targets',    lbl:'Sales Targets' },
-    ...(user?.role==='finance'||user?.isUniversal ? [{
+    ...(user?.role==='finance'||user?.role==='cbo'||user?.isUniversal ? [{
       to:'/signed', lbl:'Signed OFs',
       badge:overdueCount>0?overdueCount:null, badgeColor:'#ef4444'
     }] : []),
-    ...(user?.role==='sales'||user?.role==='revops'||user?.isUniversal ? [{ to:'/churn-void', lbl:'Churn / Void' }] : []),
+    ...(user?.role==='sales'||user?.role==='revops'||user?.role==='cbo'||user?.isUniversal ? [{ to:'/churn-void', lbl:'Churn / Void' }] : []),
     // Proforma Invoices — visible to all roles
     { to:'/proforma-invoices', lbl:'Proforma Invoices' },
     ...(user?.isUniversal ? [
@@ -60,15 +60,17 @@ export default function AppShell({ children }) {
           <div className="text-[11px] mt-2" style={{ color:'rgba(255,255,255,0.35)' }}>OF Platform</div>
         </div>
 
-        <div className="px-3 pb-2">
-          <button onClick={() => navigate('/form/new')}
-            className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
-            style={pathname==='/form/new'
-              ? { background:'rgba(255,255,255,0.18)', color:'#fff' }
-              : { background:T, color:'#fff' }}>
-            + New Order Form
-          </button>
-        </div>
+        {user?.role!=='cbo' && (
+          <div className="px-3 pb-2">
+            <button onClick={() => navigate('/form/new')}
+              className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+              style={pathname==='/form/new'
+                ? { background:'rgba(255,255,255,0.18)', color:'#fff' }
+                : { background:T, color:'#fff' }}>
+              + New Order Form
+            </button>
+          </div>
+        )}
 
         <nav className="flex-1 px-3 py-2 space-y-0.5">
           {navItems.map(it => (
@@ -100,7 +102,7 @@ export default function AppShell({ children }) {
             <div>
               <div className="text-white text-xs font-semibold truncate w-28">{user?.name}</div>
               <div className="text-[11px] capitalize" style={{ color:'rgba(255,255,255,0.35)' }}>
-                {user?.isUniversal?'Universal':user?.role}
+                {user?.isUniversal?'Universal':(user?.role==='cbo'?'CBO':user?.role)}
               </div>
             </div>
           </div>
