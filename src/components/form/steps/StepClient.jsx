@@ -88,11 +88,13 @@ function SowLink({ label, req, value, onChange, ro, hint }) {
 
 // ── Attach-to-OF toggle — informational flag for RevOps/Finance. Standalone:
 //    does NOT affect whether a SoW link is required. No default (unset until chosen).
-function AttachSowToggle({ value, onChange, ro }) {
+//    Mandatory to choose (Yes or No) when a SoW is required — validated at submission.
+function AttachSowToggle({ value, onChange, ro, req }) {
+  const unset = value !== true && value !== false;
   return (
     <div className="mb-4">
       <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
-        Attach SoW to the Order Form?
+        Attach SoW to the Order Form?{req && <span className="text-red-400 ml-1">*</span>}
       </label>
       {ro ? (
         <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold ${
@@ -102,18 +104,22 @@ function AttachSowToggle({ value, onChange, ro }) {
           {value === true ? 'Yes — attach to OF' : value === false ? 'No — do not attach' : '— not specified —'}
         </span>
       ) : (
-        <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden">
-          <button type="button" onClick={() => onChange(true)}
-            className={`px-5 py-1.5 text-sm font-semibold transition-colors ${
-              value === true ? 'bg-teal-500 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
-            Yes
-          </button>
-          <button type="button" onClick={() => onChange(false)}
-            className={`px-5 py-1.5 text-sm font-semibold border-l border-slate-200 transition-colors ${
-              value === false ? 'bg-slate-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
-            No
-          </button>
-        </div>
+        <>
+          <div className="inline-flex rounded-lg border overflow-hidden"
+               style={{ borderColor: (req && unset) ? '#fca5a5' : '#e2e8f0' }}>
+            <button type="button" onClick={() => onChange(true)}
+              className={`px-5 py-1.5 text-sm font-semibold transition-colors ${
+                value === true ? 'bg-teal-500 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
+              Yes
+            </button>
+            <button type="button" onClick={() => onChange(false)}
+              className={`px-5 py-1.5 text-sm font-semibold border-l border-slate-200 transition-colors ${
+                value === false ? 'bg-slate-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
+              No
+            </button>
+          </div>
+          {req && unset && <p className="text-xs mt-1 text-red-500">Please select Yes or No — this is required before submitting.</p>}
+        </>
       )}
       <p className="text-xs mt-1 text-brand-faint">Tells RevOps &amp; Finance whether this SoW should be attached to the Order Form.</p>
     </div>
@@ -456,6 +462,7 @@ export default function StepClient({ form, set, ro }) {
                 value={form.sow_attach_to_of}
                 onChange={v=>u('sow_attach_to_of', v)}
                 ro={ro}
+                req
               />
               <SowLink
                 label="Signed Scope of Work — Google Drive link"
