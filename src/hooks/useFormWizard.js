@@ -129,6 +129,9 @@ export function useFormWizard(initial = null) {
         e.push('Signed SoW Google Drive link is required for ' + form.sale_type);
       else if (!isValidUrl(form.sow_link))
         e.push('Signed SoW link must be a valid URL starting with https://');
+      // Attach-to-OF choice is mandatory (No / false is a valid answer — only unset blocks)
+      if (typeof form.sow_attach_to_of !== 'boolean')
+        e.push('Select whether the SoW should be attached to the Order Form (Yes/No) for ' + form.sale_type);
     }
     if (form.sale_type && SOW_REFERENCE_TYPES.has(form.sale_type)) {
       if (!form.sow_reference_link)
