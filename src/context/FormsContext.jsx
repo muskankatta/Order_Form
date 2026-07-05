@@ -9,6 +9,7 @@ import { sendEmail, svcNames, threadSubject } from '../utils/email.js';
 import { notifySlack } from '../utils/slack.js';
 import { autoSyncCommercials } from '../utils/sheets.js';
 import { canonicalService } from '../constants/formOptions.js';
+import { entityFromOfNumber } from '../constants/entities.js';
 import { useAuth } from './AuthContext.jsx';
 
 const FormsContext = createContext(null);
@@ -68,9 +69,9 @@ const fromFirestore = snap => {
         : s
     );
   }
-  if (!d.entity && d.of_number &&
-      (d.of_number.startsWith('OFYT') || d.of_number.startsWith('OF-YT'))) {
-    d.entity = 'yavi';
+  if (!d.entity && d.of_number) {
+    const inferred = entityFromOfNumber(d.of_number);
+    if (inferred) d.entity = inferred;
   }
   return d;
 };
