@@ -15,6 +15,7 @@ import { openPDF } from '../../utils/pdf.js';
 import { CHANNELS as CH } from '../../utils/slack.js';
 import { useToast } from '../../hooks/useToast.js';
 import { SERVICES as PI_SERVICES_FALLBACK_IMPORT, SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES, isSkuService } from '../../constants/formOptions.js';
+import { getEntity, entityKeyOf, isVatEntity } from '../../constants/entities.js';
 
 const NAVY='#1B2B4B'; const T='#00C3B5';
 const TABS = [
@@ -36,7 +37,7 @@ const PI_SAC = {'Setup Fee':'998314','One Time Fee':'998314','Subscription Fee':
 const getSAC  = ft => PI_SAC[ft]||'998314';
 const symOf = cur => ({ USD:'$', AED:'AED ', GBP:'£', EUR:'€', SGD:'SGD ', SAR:'SAR ', QAR:'QAR ', OMR:'OMR ', KWD:'KWD ' }[cur] || (cur ? cur+' ' : '₹'));
 const fmtAmt  = (n,cur) => symOf(cur)+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
-const entityOf= of => { const n=of?.of_number||''; return (n.startsWith('OFYT')||n.startsWith('OF-YT-'))?'yavi':'fynd'; };
+const entityOf= of => entityKeyOf(of);
 const isIndia = of => of?.sales_team==='India'||(of?.country||'').toLowerCase()==='india';
 const fixedTax= of => entityOf(of)==='fynd'&&isIndia(of);
 const subtot  = items => items.reduce((s,li)=>s+((parseFloat(li.qty)||0)*(parseFloat(li.rate)||0)),0);
@@ -49,11 +50,11 @@ function getCurrentFY(){const n=new Date();const y=n.getMonth()>=3?n.getFullYear
 
 async function genPINum(ent){
   const fy=getCurrentFY();
-  const re=ent==='yavi'?/^PI-YT-(\d{5})-FY/:/^PI-A(\d{5})-FY/;
+  const re=ent==='yavi'?/^PI-YT-(\d{5})-FY/:ent==='fynduk'?/^PI-UK-(\d{5})-FY/:/^PI-A(\d{5})-FY/;
   const snap=await getDocs(collection(db,'proforma_invoices'));
   let max=0; snap.forEach(d=>{const m=(d.data().pi_number||'').match(re);if(m)max=Math.max(max,parseInt(m[1]));});
   const n=String(max+1).padStart(5,'0');
-  return ent==='yavi'?`PI-YT-${n}-FY${fy}`:`PI-A${n}-FY${fy}`;
+  return ent==='yavi'?`PI-YT-${n}-FY${fy}`:ent==='fynduk'?`PI-UK-${n}-FY${fy}`:`PI-A${n}-FY${fy}`;
 }
 
 const PI_PLATFORM_URL = 'https://muskankatta.github.io/Order_Form/#/proforma-invoices';
@@ -161,7 +162,7 @@ function PICreateForm({ form, user, onSubmitted }) {
   return (
     <div className="mt-4 space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[['Customer',form.customer_name||'—'],['Entity',entityOf(form)==='yavi'?'Yavi':'Fynd'],['Currency',cur],form.tax_number?['Tax / VAT',form.tax_number]:['GSTIN/PAN',form.gstin||form.pan||'—']].map(([k,v])=>(
+        {[['Customer',form.customer_name||'—'],['Entity',getEntity(entityOf(form)).short],['Currency',cur],form.tax_number?['Tax / VAT',form.tax_number]:['GSTIN/PAN',form.gstin||form.pan||'—']].map(([k,v])=>(
           <div key={k} className="bg-slate-50 rounded-xl p-3">
             <div className="text-xs text-slate-400 mb-1">{k}</div>
             <div className="text-xs font-semibold text-slate-700 truncate">{v}</div>
@@ -328,10 +329,7 @@ export default function FormDetail({ form: initial }) {
 
   const live = edit ? ef : form;
   const set  = (k,v) => setEf(prev => ({...prev,[k]:v}));
-  const isYaviForm = form.entity === 'yavi'
-    || (form.of_number||'').startsWith('OFYT')
-    || (form.of_number||'').startsWith('OF-YT-');
-  const ofPrefix = isYaviForm ? 'OF-YT-' : 'OF-FY-';
+  const ofPrefix = getEntity(entityKeyOf(form)).ofPrefix;
 
   // Notes tab is editable only by Finance (or Universal)
   const canEditNotes = edit && (user?.role === 'finance' || user?.isUniversal);
@@ -339,8 +337,8 @@ export default function FormDetail({ form: initial }) {
   // ── Full validation — mirrors useFormWizard.validate() ────────────────────
   const validateForSubmit = (f) => {
     const e = [];
-    const isYavi   = f.entity === 'yavi' || (f.of_number||'').startsWith('OFYT') || (f.of_number||'').startsWith('OF-YT-');
-    const isIndia  = !isYavi && (!f.country || f.country === 'India');
+    const vatEntity = isVatEntity(f.entity);
+    const isIndia  = !vatEntity && (!f.country || f.country === 'India');
     const isGlobal = f.sales_team === 'Global';
     const isGaaS   = (f.services_fees||[]).some(s => isSkuService(s.name));
 
@@ -348,11 +346,11 @@ export default function FormDetail({ form: initial }) {
     if (!f.customer_name)         e.push('Customer name is required');
     if (!f.brand_name)            e.push('Brand / trade name is required');
     if (!f.billing_address)       e.push('Customer billing address is required');
-    if (!isYavi && !f.country)    e.push('Country is required');
+    if (!vatEntity && !f.country) e.push('Country is required');
 
-    if (isYavi && !f.tax_number)              e.push('Tax / VAT / TRN Number is required for Yavi OFs');
-    if (isIndia && !f.pan)                    e.push('Customer PAN is required');
-    if (!isYavi && !isIndia && !f.tax_number) e.push('Tax / VAT Number is required for international OFs');
+    if (vatEntity && !f.tax_number)              e.push('Tax / VAT Number is required for this entity');
+    if (isIndia && !f.pan)                       e.push('Customer PAN is required');
+    if (!vatEntity && !isIndia && !f.tax_number) e.push('Tax / VAT Number is required for international OFs');
 
     if (!f.sales_rep_email)       e.push('Sales rep is required');
     if (!f.sales_team)            e.push('Sales team is required');
