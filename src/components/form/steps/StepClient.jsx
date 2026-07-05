@@ -3,6 +3,7 @@ import { Inp, Sel, TA, SHdr } from '../../ui/index.jsx';
 import { SALES_TEAMS, LEAD_TYPES, LEAD_CATS, SALE_TYPES,
          COUNTRIES, SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES } from '../../../constants/formOptions.js';
 import { SALES_REPS, REGIONS } from '../../../constants/users.js';
+import { ENTITY_OPTIONS, getEntity, isVatEntity } from '../../../constants/entities.js';
 import { useAuth } from '../../../context/AuthContext.jsx';
 
 const REGION_LABELS = {
@@ -11,11 +12,6 @@ const REGION_LABELS = {
   RoW: 'Rest of World',
   UK:  'United Kingdom',
 };
-
-const ENTITIES = [
-  { value: 'fynd', label: 'Shopsense Retail Technologies Limited (Fynd)' },
-  { value: 'yavi', label: 'Yavi Technologies FZCO' },
-];
 
 const LEAD_NAME_LABEL = {
   'Inside Sales/Pre-Sales': 'Rep / Contact name',
@@ -148,8 +144,9 @@ export default function StepClient({ form, set, ro }) {
   const sortedReps = [...teamReps].sort((a,b) => a.name.localeCompare(b.name));
   const isGlobal = form.sales_team === 'Global';
 
-  const isYavi  = form.entity === 'yavi';
-  const isIndia = !isYavi && form.country === 'India';
+  const ent       = getEntity(form.entity);
+  const vatEntity = isVatEntity(form.entity);        // Yavi or Fynd UK → single tax_number
+  const isIndia   = !vatEntity && form.country === 'India';
 
   const leadNameLabel = LEAD_NAME_LABEL[form.lead_category] || null;
 
@@ -185,16 +182,13 @@ export default function StepClient({ form, set, ro }) {
   };
 
   const handleEntityChange = v => {
+    const cfg = getEntity(v);
     u('entity', v);
-    if (v === 'yavi') {
-      if (!form.sales_team) u('sales_team', 'Global');
-      if (!form.committed_currency) u('committed_currency', 'USD');
-      u('gstin', '');
-      u('pan', '');
-    }
-    if (v === 'fynd') {
-      u('tax_number', '');
-    }
+    if (cfg.defaultTeam && !form.sales_team) u('sales_team', cfg.defaultTeam);
+    if (cfg.defaultRegion) u('region', cfg.defaultRegion);          // e.g. Fynd UK → UK (still changeable)
+    if (cfg.defaultCurrency && !form.committed_currency) u('committed_currency', cfg.defaultCurrency);
+    if (cfg.taxModel === 'vat') { u('gstin', ''); u('pan', ''); }   // VAT entities: clear India tax fields
+    if (cfg.taxModel === 'india') { u('tax_number', ''); }          // India entity: clear single tax field
   };
 
   const handleCountryChange = v => {
@@ -233,19 +227,13 @@ export default function StepClient({ form, set, ro }) {
         Select the entity issuing this Order Form. This controls the letterhead, T&amp;C, and signatory on the generated document.
       </div>
       <div className="grid grid-cols-2 gap-x-6 mb-2">
-        <Sel label="Issuing Entity" req value={form.entity || ''} onChange={handleEntityChange} options={ENTITIES} disabled={ro}
-          hint={form.entity === 'yavi' ? 'Yavi Technologies FZCO · Dubai CommerCity' : form.entity === 'fynd' ? 'Shopsense Retail Technologies Ltd. · Mumbai' : ''}/>
+        <Sel label="Issuing Entity" req value={form.entity || ''} onChange={handleEntityChange} options={ENTITY_OPTIONS} disabled={ro}
+          hint={form.entity ? ent.selectorHint : ''}/>
         <div className="flex items-end pb-4">
-          {form.entity === 'yavi' && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200">
-              <span className="text-xs font-bold text-indigo-700">YAVI</span>
-              <span className="text-xs text-indigo-500">OF series: OF-YT-XXXX</span>
-            </div>
-          )}
-          {form.entity === 'fynd' && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-teal-50 border border-teal-200">
-              <span className="text-xs font-bold text-teal-700">FYND</span>
-              <span className="text-xs text-teal-500">OF series: OF-FY-XXXX</span>
+          {form.entity && (
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${ent.chip.bg}`}>
+              <span className={`text-xs font-bold ${ent.chip.text}`}>{ent.chip.code}</span>
+              <span className={`text-xs ${ent.chip.codeText}`}>{ent.ofSeriesHint}</span>
             </div>
           )}
         </div>
@@ -263,8 +251,8 @@ export default function StepClient({ form, set, ro }) {
         <div className="mb-4">
           <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
             Country
-            {!isYavi && <span className="text-red-400 ml-1">*</span>}
-            {isYavi  && <span className="text-slate-400 ml-1">(for records)</span>}
+            {!vatEntity && <span className="text-red-400 ml-1">*</span>}
+            {vatEntity  && <span className="text-slate-400 ml-1">(for records)</span>}
           </label>
           {ro
             ? <input value={form.country||''} readOnly className="field-input" style={{background:'#f8fafc',color:'#64748b'}}/>
@@ -290,7 +278,7 @@ export default function StepClient({ form, set, ro }) {
           }
         </div>
 
-        {!isYavi && (
+        {!vatEntity && (
           <div className="mb-4">
             <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
               Customer GSTIN <span className="text-slate-400">(optional)</span>
@@ -309,7 +297,7 @@ export default function StepClient({ form, set, ro }) {
           </div>
         )}
 
-        {!isYavi && (
+        {!vatEntity && (
           <div className="mb-4">
             <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
               Customer PAN
@@ -329,14 +317,14 @@ export default function StepClient({ form, set, ro }) {
           </div>
         )}
 
-        {(isYavi || !isIndia) && (
-          <div className={`mb-4 ${!isYavi ? 'col-span-2' : ''}`}>
+        {(vatEntity || !isIndia) && (
+          <div className={`mb-4 ${!vatEntity ? 'col-span-2' : ''}`}>
             <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
-              {isYavi ? 'Tax / VAT / TRN Number' : 'Tax / VAT Number'} <span className="text-red-400">*</span>
+              {vatEntity ? ent.taxLabel : 'Tax / VAT Number'} <span className="text-red-400">*</span>
             </label>
             <input value={form.tax_number||''}
               onChange={e => { const val = e.target.value.toUpperCase().replace(/[^A-Z0-9\-]/g,'').slice(0,30); u('tax_number', val); }}
-              placeholder={isYavi ? 'e.g. 104789269800003' : 'e.g. AE100234567, GB123456789'}
+              placeholder={vatEntity ? (ent.taxPlaceholder || '') : 'e.g. AE100234567, GB123456789'}
               className="field-input font-mono"
               style={{ borderColor: form.tax_number ? (isValidTaxNumber(form.tax_number) ? '#4ade80' : '#fca5a5') : '#e2e8f0' }}
               maxLength={30} disabled={ro}/>
@@ -346,8 +334,8 @@ export default function StepClient({ form, set, ro }) {
             {form.tax_number && isValidTaxNumber(form.tax_number) && (
               <p className="text-xs mt-1 text-green-600">✓ Valid tax number format</p>
             )}
-            {isYavi  && <p className="text-xs mt-1 text-brand-faint">VAT / TRN number for Yavi Technologies FZCO client</p>}
-            {!isYavi && <p className="text-xs mt-1 text-brand-faint">Enter the applicable local tax identifier — VAT, TRN, GST, etc. · Country: {form.country}</p>}
+            {vatEntity  && <p className="text-xs mt-1 text-brand-faint">{ent.taxHint}</p>}
+            {!vatEntity && <p className="text-xs mt-1 text-brand-faint">Enter the applicable local tax identifier — VAT, TRN, GST, etc. · Country: {form.country}</p>}
           </div>
         )}
       </div>
