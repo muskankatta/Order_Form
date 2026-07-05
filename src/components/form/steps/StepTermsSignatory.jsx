@@ -1,58 +1,9 @@
 import { TA, SHdr, Inp } from '../../ui/index.jsx';
 import { GAAS_PAYMENT_TRIGGERS, GAAS_PAYMENT_NETS, isSkuService } from '../../../constants/formOptions.js';
+import { getEntity, entityKeyOf } from '../../../constants/entities.js';
 
 const NAVY = '#1B2B4B'; const T = '#00C3B5';
 
-// ── Entity signatory configs ──────────────────────────────────────────────────
-const ENTITY_SIGNATORIES = {
-  yavi: {
-    label:       'Yavi Technologies FZCO signatory (pre-filled)',
-    labelColor:  'text-indigo-800',
-    bgColor:     'bg-indigo-50 border border-indigo-200',
-    name:        'Vishesh Kumar',
-    designation: 'Founding Director',
-    email:       'accounts@yavitechnologies.com',
-  },
-  fynd: {
-    label:       'Fynd signatory (pre-filled)',
-    labelColor:  'text-green-800',
-    bgColor:     'bg-green-50 border border-green-200',
-    name:        'Sreeraman Mohan Girija',
-    designation: 'Whole-time Director',
-    email:       'legal@gofynd.com',
-  },
-};
-
-// ── Default Important Notes text ──────────────────────────────────────────────
-const FYND_DEFAULT_NOTES =
-`1. Entire Agreement — This Order Form, along with its accompanying schedules, annexures, Standard Operating Procedures (SOPs), Terms of Service (TOS), and Privacy Policy, if any, collectively constitute the entire agreement between the Parties (hereinafter "Agreement"). It supersedes and replaces all prior negotiations, discussions, understandings, writings, and agreements related to the subject matter herein.
-
-2. Term — The term of this Order Form (hereinafter referred to as the "Order Form Term") includes the initial Service Period and all subsequent Renewal Terms (if applicable). The Order Form becomes effective on the commencement date of the Service Period and shall continue until the end of the Order Form Term. Renewal shall be subject to the then-current list price prevailing at the time of renewal.
-
-3. Extension Fees — If the Client avails any of the Extension Service(s), they shall be charged an Extension Fee for that Service(s) over and above the Fees mentioned above in the Order Form.
-
-4. Fees and Payment Terms —
-a. The Client agrees to pay the fees outlined in this Order Form upon its execution and subsequently according to the Billing Frequency specified herein.
-b. All fees are exclusive of applicable taxes, which will be charged separately as per prevailing laws.
-c. Except for one-time fees, all recurring fees will be subject to a minimum increment of 8% on the then-current list price, as notified by Fynd at the time of renewal.
-d. In the event that the Client terminates this Order Form before the expiration of the Initial Term or any then-current Renewal Term—except where such termination is due to Fynd's uncured material breach as defined in the Terms of Service—the Client shall remain liable to pay the remaining fees due for the rest of the respective term, upon termination.
-
-5. Publicity Rights — By signing this Order Form, the Client grants Fynd the right, for the Term of this Order Form and thereafter, to use the Client's name, logo, trademark(s), and other brand identifiers for the purposes of publicity, public relations (PR), marketing, promotional, or branding activities, or otherwise disclosing its association with the Client, in any medium or format.
-
-6. Validity — This Order Form shall remain valid for a period of seven (7) working days from the date of issuance. If not signed and returned within this period, the Order Form shall be deemed null and void unless extended in writing by Fynd.`;
-
-const YAVI_DEFAULT_NOTES =
-`1. Ownership & Licensing — Shopsense Retail Technologies Limited ("Fynd") is the owner and licensor of the Software/Platform availed as Service(s) by the Client under this Order Form. Fynd has granted Yavi Technologies with licence to resell the Service(s) in the capacity of an exclusive authorized reseller by way of an independent licence agreement.
-
-2. Agreement Scope — This Order Form shall be read together with schedules, annexures, SOP(s), SoW(s), and/or any written documents executed between the Parties, read along with the online terms and policy documents of Fynd with respect to the Service(s) being availed by the Client and shall constitute the entire understanding and agreement between the parties and replaces all prior understandings, negotiations, discussions, writings and agreements with respect to the subject matter hereof.
-
-3. Term — The Service Period and all applicable Renewal Tenures are collectively referred to herein as the "Order Form Term". This Order Form is effective on the date the Service Period commences until the end of the Order Form Term. Renewal will be applicable on then-current list price.
-
-4. Fees — Client will be charged the fees set forth in this Order Form upon its execution and in accordance with the applicable Billing Frequency (as defined above) thereafter. All fees (commercial value) that Client is charged, including the fees set forth in this Order Form, will be exclusive of taxes. If Client terminates this Order Form prior to the expiration of the Initial Term or then-current Renewal Term (except to the extent such termination is due to Fynd's failure to cure a material breach in accordance with the Agreement (as defined in TOS)), then Client is responsible for paying the fees set forth in this Order Form for the remaining portion of the Initial Term or then-current Renewal Term upon termination. All fees except one time fee will be applicable for a minimal increment of 8% on then-current list price (shared by Fynd to Client) upon Renewal Term.
-
-5. Validity — This Order Form shall remain valid for a period of seven (7) working days from the date of issuance. If not signed and returned within this period, the Order Form shall be deemed null and void unless extended in writing by Fynd.`;
-
-export { FYND_DEFAULT_NOTES, YAVI_DEFAULT_NOTES };
 
 function isGaaSForm(form) {
   return (form.services_fees || []).some(s => isSkuService(s.name));
@@ -145,8 +96,11 @@ export function StepTerms({ form, set, ro }) {
 export function StepSignatory({ form, set, ro }) {
   const u = (k,v) => !ro && set(k,v);
 
-  const entityKey = form.entity === 'yavi' ? 'yavi' : 'fynd';
-  const sig = ENTITY_SIGNATORIES[entityKey];
+  const ent   = getEntity(entityKeyOf(form));
+  const panel = ent.signatoryPanel;
+  const sig   = ent.signatory;
+  const sigRows = [['Name', sig.name], ['Designation', sig.designation]];
+  if (sig.displayEmail !== false) sigRows.push(['Email', sig.email]);
 
   return (
     <div>
@@ -170,12 +124,12 @@ export function StepSignatory({ form, set, ro }) {
         ))}
       </div>
 
-      <div className={`mt-2 p-4 rounded-xl ${sig.bgColor}`}>
-        <div className={`text-xs font-bold uppercase tracking-wider mb-3 ${sig.labelColor}`}>
-          {sig.label}
+      <div className={`mt-2 p-4 rounded-xl ${panel.bgColor}`}>
+        <div className={`text-xs font-bold uppercase tracking-wider mb-3 ${panel.labelColor}`}>
+          {panel.label}
         </div>
         <div className="grid grid-cols-3 gap-x-4">
-          {[['Name', sig.name], ['Designation', sig.designation], ['Email', sig.email]].map(([l,v]) => (
+          {sigRows.map(([l,v]) => (
             <div key={l} className="mb-4">
               <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">{l}</label>
               <input value={v} readOnly className="field-input" style={{ background:'#f8fafc', color:'#64748b', borderColor:'#e2e8f0' }}/>
@@ -184,9 +138,9 @@ export function StepSignatory({ form, set, ro }) {
         </div>
       </div>
 
-      {form.entity === 'yavi' && (
-        <div className="mt-3 p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs">
-          <strong>Yavi OF</strong> — The generated PDF will use the Yavi Technologies FZCO letterhead and T&amp;C.
+      {form.entity && form.entity !== 'fynd' && (
+        <div className={`mt-3 p-3 rounded-xl text-xs ${panel.bgColor} ${panel.labelColor}`}>
+          <strong>{ent.short} OF</strong> — The generated PDF will use the {ent.legalName} letterhead and T&amp;C.
         </div>
       )}
     </div>
@@ -196,10 +150,8 @@ export function StepSignatory({ form, set, ro }) {
 // ── Step 6: Important Notes — Finance-editable T&C ────────────────────────────
 export function StepNotes({ form, set, ro }) {
   const u = (k,v) => !ro && set(k,v);
-  const isYavi = form.entity === 'yavi'
-    || (form.of_number || '').startsWith('OFYT')
-    || (form.of_number || '').startsWith('OF-YT-');
-  const defaultNotes = isYavi ? YAVI_DEFAULT_NOTES : FYND_DEFAULT_NOTES;
+  const ent = getEntity(entityKeyOf(form));
+  const defaultNotes = ent.defaultNotes;
 
   // Show saved value if exists, otherwise show the default text
   const displayValue = form.important_notes != null ? form.important_notes : defaultNotes;
@@ -245,7 +197,7 @@ export function StepNotes({ form, set, ro }) {
             onClick={() => u('important_notes', defaultNotes)}
             className="text-xs text-slate-400 hover:text-red-500 underline transition-colors"
           >
-            ↺ Reset to default {isYavi ? 'Yavi' : 'Fynd'} T&C
+            ↺ Reset to default {ent.short} T&C
           </button>
         </div>
       )}
@@ -254,7 +206,7 @@ export function StepNotes({ form, set, ro }) {
       <div className="mt-4 p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-700">
         {form.important_notes != null
           ? '✓ Using custom Important Notes saved by Finance.'
-          : `ℹ️ No custom notes saved yet — PDF will use the default ${isYavi ? 'Yavi' : 'Fynd'} T&C shown above.`
+          : `ℹ️ No custom notes saved yet — PDF will use the default ${ent.short} T&C shown above.`
         }
       </div>
     </div>
