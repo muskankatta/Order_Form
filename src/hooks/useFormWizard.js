@@ -3,6 +3,7 @@ import { BLANK_FORM } from '../constants/formOptions.js';
 import { uid } from '../utils/dates.js';
 import { calcMetrics, calcOFValue } from '../utils/calculations.js';
 import { SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES, isSkuService } from '../constants/formOptions.js';
+import { isVatEntity } from '../constants/entities.js';
 
 function isValidUrl(v) {
   if (!v) return false;
@@ -58,14 +59,14 @@ export function useFormWizard(initial = null) {
 
   const validate = useCallback(() => {
     const e = [];
-    const isYavi   = form.entity === 'yavi';
-    const isIndia  = !isYavi && (!form.country || form.country === 'India');
-    const isGlobal = form.sales_team === 'Global';
+    const vatEntity = isVatEntity(form.entity);   // Yavi or Fynd UK → single tax_number
+    const isIndia   = !vatEntity && (!form.country || form.country === 'India');
+    const isGlobal  = form.sales_team === 'Global';
     const isGaaS   = (form.services_fees||[]).some(s => isSkuService(s.name));
 
     // ── Entity ───────────────────────────────────────────────────────────────
     if (!form.entity)
-      e.push('Issuing entity is required (Fynd or Yavi)');
+      e.push('Issuing entity is required');
 
     // ── Customer basics ──────────────────────────────────────────────────────
     if (!form.customer_name)
@@ -74,15 +75,15 @@ export function useFormWizard(initial = null) {
       e.push('Brand / trade name is required');
     if (!form.billing_address)
       e.push('Customer billing address is required');
-    if (!isYavi && !form.country)
+    if (!vatEntity && !form.country)
       e.push('Country is required');
 
     // ── Tax fields — entity + country aware ──────────────────────────────────
-    if (isYavi) {
+    if (vatEntity) {
       if (!form.tax_number)
-        e.push('Tax / VAT / TRN Number is required for Yavi OFs');
+        e.push('Tax / VAT Number is required for this entity');
       else if (!/^[A-Z0-9\-]{3,30}$/.test(form.tax_number))
-        e.push('Tax / VAT / TRN Number format is invalid (alphanumeric, 3–30 chars)');
+        e.push('Tax / VAT Number format is invalid (alphanumeric, 3–30 chars)');
     } else if (isIndia) {
       if (!form.pan)
         e.push('Customer PAN is required');
