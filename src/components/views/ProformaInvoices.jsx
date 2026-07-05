@@ -8,6 +8,7 @@ import { fmtDate } from '../../utils/dates.js';
 import { SERVICES } from '../../constants/formOptions.js';
 import { REVOPS_USERS } from '../../constants/users.js';
 import { CHANNELS as CH } from '../../utils/slack.js';
+import { entityKeyOf } from '../../constants/entities.js';
 
 const NAVY = '#1B2B4B';
 const FEE_TYPES     = ['Setup Fee','One Time Fee','Subscription Fee'];
@@ -19,17 +20,17 @@ const getSAC   = ft => SAC_MAP[ft]||'998314';
 const symOf    = cur => ({USD:'$',AED:'AED ',GBP:'£',EUR:'€',SGD:'SGD ',SAR:'SAR ',QAR:'QAR ',OMR:'OMR ',KWD:'KWD '}[cur]||(cur?cur+' ':'₹'));
 const fmtAmt   = (n,cur)=>symOf(cur)+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const pctOf    = (col,tot)=>tot>0?Math.min(100,Math.round((col/tot)*100)):0;
-const entityOf = of=>{const n=of?.of_number||'';return(n.startsWith('OFYT')||n.startsWith('OF-YT-'))?'yavi':'fynd';};
+const entityOf = of=>entityKeyOf(of);
 const isIndia  = of=>of?.sales_team==='India'||(of?.country||'').toLowerCase()==='india';
 const fixedTax = of=>entityOf(of)==='fynd'&&isIndia(of);
 function getCurrentFY(){const n=new Date();const y=n.getMonth()>=3?n.getFullYear()+1:n.getFullYear();return String(y).slice(-2);}
 
 async function genPINumber(ent){
-  const fy=getCurrentFY();const re=ent==='yavi'?/^PI-YT-(\d{5})-FY/:/^PI-A(\d{5})-FY/;
+  const fy=getCurrentFY();const re=ent==='yavi'?/^PI-YT-(\d{5})-FY/:ent==='fynduk'?/^PI-UK-(\d{5})-FY/:/^PI-A(\d{5})-FY/;
   const snap=await getDocs(collection(db,'proforma_invoices'));
   let max=0;snap.forEach(d=>{const m=(d.data().pi_number||'').match(re);if(m)max=Math.max(max,parseInt(m[1]));});
   const n=String(max+1).padStart(5,'0');
-  return ent==='yavi'?`PI-YT-${n}-FY${fy}`:`PI-A${n}-FY${fy}`;
+  return ent==='yavi'?`PI-YT-${n}-FY${fy}`:ent==='fynduk'?`PI-UK-${n}-FY${fy}`:`PI-A${n}-FY${fy}`;
 }
 
 async function notifyPI(pi,event){
