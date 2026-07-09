@@ -38,8 +38,8 @@ const getSAC  = ft => PI_SAC[ft]||'998314';
 const symOf = cur => ({ USD:'$', AED:'AED ', GBP:'£', EUR:'€', SGD:'SGD ', SAR:'SAR ', QAR:'QAR ', OMR:'OMR ', KWD:'KWD ' }[cur] || (cur ? cur+' ' : '₹'));
 const fmtAmt  = (n,cur) => symOf(cur)+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const entityOf= of => entityKeyOf(of);
-const isIndia = of => of?.sales_team==='India'||(of?.country||'').toLowerCase()==='india';
-const fixedTax= of => entityOf(of)==='fynd'&&isIndia(of);
+const isIndia = of => (of?.country||'').toLowerCase()==='india';   // client country only — not sales team
+const fixedTax= of => entityOf(of)==='fynd'&&isIndia(of);          // only Fynd + India client → 18% GST
 const subtot  = items => items.reduce((s,li)=>s+((parseFloat(li.qty)||0)*(parseFloat(li.rate)||0)),0);
 const blankLI = () => ({service:'',fee_type:'',description:'',qty:1,rate:0});
 
@@ -338,7 +338,7 @@ export default function FormDetail({ form: initial }) {
   const validateForSubmit = (f) => {
     const e = [];
     const vatEntity = isVatEntity(f.entity);
-    const isIndia  = !vatEntity && (!f.country || f.country === 'India');
+    const clientIsIndia = f.country === 'India';   // India client → GSTIN/PAN, regardless of entity
     const isGlobal = f.sales_team === 'Global';
     const isGaaS   = (f.services_fees||[]).some(s => isSkuService(s.name));
 
@@ -348,9 +348,8 @@ export default function FormDetail({ form: initial }) {
     if (!f.billing_address)       e.push('Customer billing address is required');
     if (!vatEntity && !f.country) e.push('Country is required');
 
-    if (vatEntity && !f.tax_number)              e.push('Tax / VAT Number is required for this entity');
-    if (isIndia && !f.pan)                       e.push('Customer PAN is required');
-    if (!vatEntity && !isIndia && !f.tax_number) e.push('Tax / VAT Number is required for international OFs');
+    if (clientIsIndia && !f.pan)         e.push('Customer PAN is required');
+    if (!clientIsIndia && !f.tax_number) e.push('Tax / VAT Number is required');
 
     if (!f.sales_rep_email)       e.push('Sales rep is required');
     if (!f.sales_team)            e.push('Sales team is required');
@@ -413,8 +412,14 @@ export default function FormDetail({ form: initial }) {
   const isRenewalDraft = !!form.is_renewal && form.status === 'draft';
   const revopsActor    = isRevopsPrimary || (isRenewalDraft && (user?.role==='revops' || user?.isUniversal));
 
+  // The rep named on this OF. A "custom" rep (Others… not in SALES_REPS) resolves
+  // to the read-only `viewer` role, so without this they could never act on their
+  // own Order Form. Grant them exactly what a listed Sales owner gets — nothing more.
+  const isOwner    = !!user?.email && form.sales_rep_email === user.email;
+  const ownerActor = isOwner && ['sales','viewer'].includes(user?.role);
+
   const canEdit = user?.isUniversal
-    || (user?.role==='sales' && ['draft','revops_rejected'].includes(form.status) && form.sales_rep_email===user.email)
+    || (ownerActor && ['draft','revops_rejected'].includes(form.status))
     || (user?.role==='revops' && form.status==='submitted')
     || (user?.role==='revops' && form.status==='draft' && !!form.clone_of)
     || (user?.role==='revops' && isRenewalDraft)
@@ -422,7 +427,7 @@ export default function FormDetail({ form: initial }) {
 
   const canDelete = (user?.isUniversal) || (user?.role==='sales'&&form.status==='draft') || (user?.role==='revops'&&form.status==='submitted') || (user?.role==='finance'&&form.status==='revops_approved');
 
-  const canRaisePI = (user?.role==='sales'||user?.role==='revops'||user?.isUniversal) && ['revops_approved','approved','signed'].includes(form.status);
+  const canRaisePI = (user?.role==='sales'||user?.role==='revops'||user?.isUniversal||ownerActor) && ['revops_approved','approved','signed'].includes(form.status);
 
   const tabContent = {
     client:     <StepClient     form={live} set={set} ro={!edit}/>,
@@ -632,7 +637,7 @@ export default function FormDetail({ form: initial }) {
       )}
 
       {/* Sales Rep — save edits + submit draft */}
-      {user?.role==='sales' && ['draft','revops_rejected'].includes(form.status) && form.sales_rep_email===user?.email && (
+      {ownerActor && ['draft','revops_rejected'].includes(form.status) && (
         <Card className="mt-4 p-6">
           <h3 className="font-bold mb-4" style={{ color:NAVY }}>
             {form.status==='revops_rejected' ? '↩ Resubmit for RevOps review' : '📝 Submit for RevOps review'}
