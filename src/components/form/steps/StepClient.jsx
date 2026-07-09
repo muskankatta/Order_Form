@@ -144,9 +144,11 @@ export default function StepClient({ form, set, ro }) {
   const sortedReps = [...teamReps].sort((a,b) => a.name.localeCompare(b.name));
   const isGlobal = form.sales_team === 'Global';
 
-  const ent       = getEntity(form.entity);
-  const vatEntity = isVatEntity(form.entity);        // Yavi or Fynd UK → single tax_number
-  const isIndia   = !vatEntity && form.country === 'India';
+  const ent           = getEntity(form.entity);
+  const vatEntity      = isVatEntity(form.entity);      // Yavi or Fynd UK
+  const clientIsIndia  = form.country === 'India';      // India client → GSTIN/PAN, regardless of entity
+  const showGstPan     = !vatEntity || clientIsIndia;   // Fynd always; VAT entities only when India
+  const showTaxField   = !clientIsIndia;                // single VAT/Tax field hidden for India clients
 
   const leadNameLabel = LEAD_NAME_LABEL[form.lead_category] || null;
 
@@ -183,12 +185,14 @@ export default function StepClient({ form, set, ro }) {
 
   const handleEntityChange = v => {
     const cfg = getEntity(v);
+    const indiaClient = form.country === 'India';
     u('entity', v);
     if (cfg.defaultTeam && !form.sales_team) u('sales_team', cfg.defaultTeam);
     if (cfg.defaultRegion) u('region', cfg.defaultRegion);          // e.g. Fynd UK → UK (still changeable)
     if (cfg.defaultCurrency && !form.committed_currency) u('committed_currency', cfg.defaultCurrency);
-    if (cfg.taxModel === 'vat') { u('gstin', ''); u('pan', ''); }   // VAT entities: clear India tax fields
-    if (cfg.taxModel === 'india') { u('tax_number', ''); }          // India entity: clear single tax field
+    // Clear only the fields that will be hidden for the new entity + current country
+    if (indiaClient) u('tax_number', '');                           // India client → VAT/Tax field hidden
+    if (cfg.taxModel === 'vat' && !indiaClient) { u('gstin', ''); u('pan', ''); } // VAT + non-India → GSTIN/PAN hidden
   };
 
   const handleCountryChange = v => {
@@ -199,7 +203,8 @@ export default function StepClient({ form, set, ro }) {
     }
     setCustomCountry(false);
     u('country', v);
-    if (v === 'India') u('tax_number', '');
+    if (v === 'India') u('tax_number', '');                         // India client → VAT/Tax field hidden
+    else if (vatEntity) { u('gstin', ''); u('pan', ''); }           // VAT entity, non-India → GSTIN/PAN hidden
   };
 
   useEffect(() => {
@@ -278,7 +283,7 @@ export default function StepClient({ form, set, ro }) {
           }
         </div>
 
-        {!vatEntity && (
+        {showGstPan && (
           <div className="mb-4">
             <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
               Customer GSTIN <span className="text-slate-400">(optional)</span>
@@ -297,11 +302,11 @@ export default function StepClient({ form, set, ro }) {
           </div>
         )}
 
-        {!vatEntity && (
+        {showGstPan && (
           <div className="mb-4">
             <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
               Customer PAN
-              {isIndia ? <span className="text-red-400 ml-1">*</span> : <span className="text-slate-400 ml-1">(optional)</span>}
+              {clientIsIndia ? <span className="text-red-400 ml-1">*</span> : <span className="text-slate-400 ml-1">(optional)</span>}
             </label>
             <input value={form.pan||''}
               onChange={e => { const val=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,10); u('pan',val); }}
@@ -317,7 +322,7 @@ export default function StepClient({ form, set, ro }) {
           </div>
         )}
 
-        {(vatEntity || !isIndia) && (
+        {showTaxField && (
           <div className={`mb-4 ${!vatEntity ? 'col-span-2' : ''}`}>
             <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
               {vatEntity ? ent.taxLabel : 'Tax / VAT Number'} <span className="text-red-400">*</span>
