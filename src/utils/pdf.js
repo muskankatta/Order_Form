@@ -250,6 +250,7 @@ export const openPDF = function(form) {
   var entKey   = entCfg.key;
   var isYavi   = entKey === 'yavi';
   var isVat    = entCfg.taxModel === 'vat';
+  var clientIsIndia = form.country === 'India';   // India client → GSTIN/PAN even for VAT entities
   var sym      = getSym(form.committed_currency || entCfg.defaultCurrency);
   var svcs     = form.services_fees || [];
   var isBundle = svcs.length > 1;
@@ -405,7 +406,7 @@ export const openPDF = function(form) {
     '<tr><td>Client Name</td><td><strong>' + custName + '</strong></td><td>OF Number</td><td><strong>' + ofNum + '</strong></td></tr>' +
     '<tr><td>Brand / Trade Name</td><td>' + (form.brand_name||'\u2014') + '</td><td>Billing Currency</td><td>' + (form.committed_currency||'\u2014') + '</td></tr>' +
     '<tr><td>Billing Address</td><td>' + (form.billing_address||'\u2014').replace(/\n/g,'<br/>') + '</td><td>Order Form Value</td><td><strong>' + sym + numFmt(form.of_value) + '</strong></td></tr>' +
-    (isVat
+    (isVat && !clientIsIndia
       ? '<tr><td>Tax Details</td><td colspan="3">' + (form.tax_number||'\u2014') + '</td></tr>'
       : (function() {
           var parts = [];
