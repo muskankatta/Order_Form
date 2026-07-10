@@ -59,8 +59,8 @@ export function useFormWizard(initial = null) {
 
   const validate = useCallback(() => {
     const e = [];
-    const vatEntity = isVatEntity(form.entity);   // Yavi or Fynd UK → single tax_number
-    const isIndia   = !vatEntity && (!form.country || form.country === 'India');
+    const vatEntity = isVatEntity(form.entity);   // Yavi or Fynd UK
+    const clientIsIndia = form.country === 'India'; // India client → GSTIN/PAN, regardless of entity
     const isGlobal  = form.sales_team === 'Global';
     const isGaaS   = (form.services_fees||[]).some(s => isSkuService(s.name));
 
@@ -78,13 +78,10 @@ export function useFormWizard(initial = null) {
     if (!vatEntity && !form.country)
       e.push('Country is required');
 
-    // ── Tax fields — entity + country aware ──────────────────────────────────
-    if (vatEntity) {
-      if (!form.tax_number)
-        e.push('Tax / VAT Number is required for this entity');
-      else if (!/^[A-Z0-9\-]{3,30}$/.test(form.tax_number))
-        e.push('Tax / VAT Number format is invalid (alphanumeric, 3–30 chars)');
-    } else if (isIndia) {
+    // ── Tax fields — driven by CLIENT country ────────────────────────────────
+    // India client → GSTIN (optional) + PAN (required); the single VAT/Tax
+    // field is hidden. Non-India client → single VAT/Tax number (required).
+    if (clientIsIndia) {
       if (!form.pan)
         e.push('Customer PAN is required');
       else if (!/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan))
@@ -93,13 +90,9 @@ export function useFormWizard(initial = null) {
         e.push('GSTIN format is invalid (e.g. 27AADCB2230M1ZT)');
     } else {
       if (!form.tax_number)
-        e.push('Tax / VAT Number is required for international OFs');
+        e.push('Tax / VAT Number is required');
       else if (!/^[A-Z0-9\-]{3,30}$/.test(form.tax_number))
         e.push('Tax / VAT Number format is invalid (alphanumeric, 3–30 chars)');
-      if (form.pan && !/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(form.pan))
-        e.push('PAN format is invalid (e.g. AADCB2230M)');
-      if (form.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}Z[A-Z0-9]{1}$/.test(form.gstin))
-        e.push('GSTIN format is invalid (e.g. 27AADCB2230M1ZT)');
     }
 
     // ── Sales information ────────────────────────────────────────────────────
