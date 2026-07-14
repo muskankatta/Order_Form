@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { db } from '../../firebase.js';
 import { collection, getDocs, updateDoc, doc, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -178,7 +178,7 @@ function DetailPanel({ pi, canDownload, canApprove, canRecord, setSelPI, setShow
   const canAddColl = canRecord && ['approved','fully_collected'].includes(pi.status);
 
   return (
-    <Card className="mt-4 p-6">
+    <Card className="p-6 shadow-none border-slate-200">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap mb-5">
         <div>
@@ -186,7 +186,7 @@ function DetailPanel({ pi, canDownload, canApprove, canRecord, setSelPI, setShow
             <span className="font-mono font-bold text-lg" style={{color:'#1B2B4B'}}>{pi.pi_number}</span>
             <PIPill status={pi.status}/>
             <span style={{background:'#f1f5f9',color:'#475569',display:'inline-block',padding:'2px 10px',borderRadius:'9999px',fontSize:'11px',fontWeight:600}}>
-              {pi.entity==='yavi'?'Yavi':'Fynd'}
+              {getEntity(entityKeyOf(pi)).short}
             </span>
           </div>
           <p className="text-sm font-semibold text-slate-700">{pi.customer_name}</p>
@@ -382,6 +382,7 @@ export default function ProformaInvoices() {
   const [showModal,    setShowModal]    = useState(null);
   const [cmt,          setCmt]          = useState('');
   const [showCollForm, setShowCollForm] = useState(false);
+  const [q,            setQ]            = useState('');
 
   const canApprove  = user?.role==='revops' || user?.isUniversal;
   const canRecord   = user?.role==='revops' || user?.role==='finance' || user?.isUniversal;
@@ -475,12 +476,28 @@ export default function ProformaInvoices() {
   const cancelled      = pis.filter(p=>p.status==='cancelled').length;
   const fullyCollected = pis.filter(p=>p.status==='fully_collected').length;
 
+  const ql = q.trim().toLowerCase();
+  const shownPis = ql
+    ? pis.filter(p => [p.pi_number, p.customer_name, p.of_number, p.created_by_name, p.status]
+        .some(v => String(v||'').toLowerCase().includes(ql)))
+    : pis;
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 gap-4">
         <div>
           <h2 className="text-xl font-bold" style={{color:NAVY}}>Proforma Invoices</h2>
           <p className="text-sm text-slate-400 mt-0.5">All PIs raised across approved Order Forms</p>
+        </div>
+        <div className="relative shrink-0">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">🔍</span>
+          <input value={q} onChange={e=>setQ(e.target.value)}
+            placeholder="Search PI #, customer, OF #, creator, status…"
+            className="w-80 pl-9 pr-8 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-200"/>
+          {q && (
+            <button onClick={()=>setQ('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">✕</button>
+          )}
         </div>
       </div>
 
@@ -524,47 +541,59 @@ export default function ProformaInvoices() {
                 </tr>
               </thead>
               <tbody>
-                {pis.map(pi=>(
-                  <tr key={pi.id}
-                    onClick={()=>{ setSelPI(selPI?.id===pi.id?null:pi); setShowCollForm(false); }}
-                    className="border-t border-slate-100 cursor-pointer transition-colors"
-                    style={selPI?.id===pi.id?{background:'#f0fdf4'}:{}}
-                    onMouseEnter={e=>{ if(selPI?.id!==pi.id) e.currentTarget.style.background='#f8fafc'; }}
-                    onMouseLeave={e=>{ if(selPI?.id!==pi.id) e.currentTarget.style.background=''; }}>
-                    <td className="px-4 py-3.5 font-mono text-xs font-bold text-slate-700">{pi.pi_number||'—'}</td>
-                    <td className="px-4 py-3.5 text-xs text-slate-600 max-w-[160px] truncate">{pi.customer_name||'—'}</td>
-                    <td className="px-4 py-3.5 font-mono text-xs text-slate-400">{pi.of_number||'—'}</td>
-                    <td className="px-4 py-3.5 text-xs text-slate-500">{pi.created_by_name||'—'}</td>
-                    <td className="px-4 py-3.5 text-xs font-semibold">{fmtAmt(pi.grand_total,pi.currency)}</td>
-                    <td className="px-4 py-3.5 text-xs">
-                      {(pi.total_collected||0)>0
-                        ? <span className="text-green-700 font-semibold">{fmtAmt(pi.total_collected,pi.currency)}</span>
-                        : <span className="text-slate-300">—</span>}
-                    </td>
-                    <td className="px-4 py-3.5"><PIPill status={pi.status}/></td>
-                    <td className="px-4 py-3.5 text-xs text-slate-400">{pi.revops_reviewer||'—'}</td>
-                  </tr>
+                {shownPis.length===0 ? (
+                  <tr><td colSpan={8} className="p-10 text-center text-slate-400 text-sm">No PIs match "{q}".</td></tr>
+                ) : shownPis.map(pi=>(
+                  <Fragment key={pi.id}>
+                    <tr
+                      onClick={()=>{ setSelPI(selPI?.id===pi.id?null:pi); setShowCollForm(false); }}
+                      className="border-t border-slate-100 cursor-pointer transition-colors"
+                      style={selPI?.id===pi.id?{background:'#f0fdf4'}:{}}
+                      onMouseEnter={e=>{ if(selPI?.id!==pi.id) e.currentTarget.style.background='#f8fafc'; }}
+                      onMouseLeave={e=>{ if(selPI?.id!==pi.id) e.currentTarget.style.background=''; }}>
+                      <td className="px-4 py-3.5 font-mono text-xs font-bold text-slate-700">
+                        <span className="inline-block w-3 mr-1.5 text-slate-400">{selPI?.id===pi.id?'▾':'▸'}</span>
+                        {pi.pi_number||'—'}
+                      </td>
+                      <td className="px-4 py-3.5 text-xs text-slate-600 max-w-[160px] truncate">{pi.customer_name||'—'}</td>
+                      <td className="px-4 py-3.5 font-mono text-xs text-slate-400">{pi.of_number||'—'}</td>
+                      <td className="px-4 py-3.5 text-xs text-slate-500">{pi.created_by_name||'—'}</td>
+                      <td className="px-4 py-3.5 text-xs font-semibold">{fmtAmt(pi.grand_total,pi.currency)}</td>
+                      <td className="px-4 py-3.5 text-xs">
+                        {(pi.total_collected||0)>0
+                          ? <span className="text-green-700 font-semibold">{fmtAmt(pi.total_collected,pi.currency)}</span>
+                          : <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="px-4 py-3.5"><PIPill status={pi.status}/></td>
+                      <td className="px-4 py-3.5 text-xs text-slate-400">{pi.revops_reviewer||'—'}</td>
+                    </tr>
+                    {selPI?.id===pi.id && (
+                      <tr>
+                        <td colSpan={8} className="bg-slate-50 border-t border-slate-100" style={{padding:0}}>
+                          <div className="px-4 pb-4 pt-2">
+                            <DetailPanel
+                              pi={selPI}
+                              canDownload={canDownload || isPIOwner(selPI)}
+                              canApprove={canApprove}
+                              canRecord={canRecord}
+                              setSelPI={setSelPI}
+                              setShowModal={setShowModal}
+                              setCmt={setCmt}
+                              showCollForm={showCollForm}
+                              setShowCollForm={setShowCollForm}
+                              doAddCollection={doAddCollection}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
           </div>
         )}
       </Card>
-
-      {selPI && (
-        <DetailPanel
-          pi={selPI}
-          canDownload={canDownload || isPIOwner(selPI)}
-          canApprove={canApprove}
-          canRecord={canRecord}
-          setSelPI={setSelPI}
-          setShowModal={setShowModal}
-          setCmt={setCmt}
-          showCollForm={showCollForm}
-          setShowCollForm={setShowCollForm}
-          doAddCollection={doAddCollection}
-        />
-      )}
 
       {showModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
