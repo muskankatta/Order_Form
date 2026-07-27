@@ -58,6 +58,7 @@ export const SALES_REPS = [
 
 export const REVOPS_USERS = [
   { id:'2804', name:'Samiksha Mane',  slack:'U07PSSKJG48', email:'samikshamane@gofynd.com',  team:'India' },
+  { id:'1396', name:'Jay Karia',  slack:'U01T33X34UU', email:'jaykaria@gofynd.com',  team:'India' }
   { id:'1327', name:'Nayan Lathiya',  slack:'U018REY8UA2', email:'nayanlathiya@gofynd.com',  team:'Global' },
   { id:'1392', name:'Atharva Shetye', slack:'U01T138DQAF', email:'atharvashetye@gofynd.com', team:'India' },
   { id:'2914', name:'Muskan Katta',   slack:'U08AB8PBFPC', email:'muskankatta2@gofynd.com',  universal:true },
