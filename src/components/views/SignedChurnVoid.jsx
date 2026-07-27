@@ -199,15 +199,18 @@ export function SignedOFs() {
     if (!isOthers && !form) { alert('Order Form not found.'); return; }
 
     const churnAmount = r.status_requested === 'Churn' ? Number(cvAmounts[r.id] || 0) : 0;
+    const isPartial = r.status_requested === 'Churn' && r.churn_type === 'Partial';
 
     if (form) {
       await applyDealStatus(form.id, {
-        status: r.status_requested.toLowerCase(),
+        // Partial churn keeps the OF's current status; Full churn / Void change it
+        ...(isPartial ? {} : { status: r.status_requested.toLowerCase() }),
         ...(r.status_requested==='Void' ? {is_void:true, of_value:0, committed_revenue:0} : {}),
         ...(r.status_requested==='Churn' ? {
           is_churn: true,
           committed_revenue: Math.max(0, Number(form.committed_revenue || 0) - churnAmount),
           churn_amount_applied: churnAmount,
+          ...(isPartial ? { partial_churn: true, churned_services: r.churned_services || [] } : {}),
         } : {}),
         status_change_comment: r.reason,
         status_changed_by: user?.name,
@@ -602,7 +605,8 @@ export function ChurnVoidRequest() {
     agreement_type: '',      // MSA | SoW | Commercial Plan
     company_id: '',
     churn_type: 'Full',      // Full | Partial
-    ip_services: [],         // required when Partial
+    ip_services: [],         // required when Partial (no-OF)
+    churned_services: [],    // [{name, effective_date}] — per-IP dates for a Partial OF churn
     billing_region: '',      // routes the delayed-intimation Slack alert
   });
   const [validationErrors, setValidationErrors] = useState([]);
@@ -612,6 +616,17 @@ export function ChurnVoidRequest() {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
   const u = (k,v) => setReq(r=>({...r,[k]:v}));
+
+  // Per-IP churn helpers (Partial OF churn) — each churned service carries its own date
+  const toggleChurnedSvc = (name) => setReq(r => {
+    const exists = r.churned_services.some(s=>s.name===name);
+    return { ...r, churned_services: exists
+      ? r.churned_services.filter(s=>s.name!==name)
+      : [...r.churned_services, { name, effective_date:'' }] };
+  });
+  const setChurnedSvcDate = (name, date) => setReq(r => ({
+    ...r, churned_services: r.churned_services.map(s=>s.name===name?{...s,effective_date:date}:s)
+  }));
 
   useEffect(() => {
     const handler = (e) => {
@@ -692,8 +707,11 @@ export function ChurnVoidRequest() {
     if (isOthers && !req.company_id?.trim())          errs.push('Enter the Company ID');
     if (isOthers && !req.billing_region)              errs.push('Select the billing region');
     if (isOthers && req.churn_type==='Partial' && !req.ip_services.length) errs.push('Select the IP / Service(s) being churned');
+    const isOFPartial = !isOthers && req.status_requested==='Churn' && req.churn_type==='Partial';
+    if (isOFPartial && !req.churned_services.length) errs.push('Select at least one IP / Service to churn');
+    if (isOFPartial && req.churned_services.some(s=>!s.effective_date)) errs.push('Enter an effective date for each churned IP / Service');
     if (!req.reason?.trim())                          errs.push('Enter a reason / justification');
-    if (!req.effective_date)                          errs.push('Enter the effective date of Churn/Void');
+    if (!isOFPartial && !req.effective_date)          errs.push('Enter the effective date of Churn/Void');
     if (!req.finance_dris.length)                     errs.push('Select at least one Finance DRI');
     setValidationErrors(errs);
     if (errs.length) return;
@@ -729,7 +747,10 @@ export function ChurnVoidRequest() {
             ip_services: req.churn_type === 'Partial' ? req.ip_services : [],
             billing_region: req.billing_region,
             delayed_intimation: delayedIntimation,
-          } : {}),
+          } : (req.status_requested==='Churn' ? {
+            churn_type: req.churn_type,
+            churned_services: req.churn_type === 'Partial' ? req.churned_services : [],
+          } : {})),
         };
         await setDoc(doc(db, 'churn_void_requests', reqId), docData);
 
@@ -748,7 +769,7 @@ export function ChurnVoidRequest() {
       });
       show('Request submitted');
       setReq({ customer:'', customer_manual:'', of_number:'', status_requested:'Churn', churn_value:'', reason:'', finance_dris:[], effective_date:'', attachment:null,
-        agreement_type:'', company_id:'', churn_type:'Full', ip_services:[], billing_region:'' });
+        agreement_type:'', company_id:'', churn_type:'Full', ip_services:[], churned_services:[], billing_region:'' });
       setCustomerSearch('');
       setValidationErrors([]);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -940,16 +961,65 @@ export function ChurnVoidRequest() {
           </div>
         )}
 
+        {!isOthers && req.status_requested==='Churn' && selectedForm && (
+          <div className="mb-4">
+            <Lbl c="Churn type" req/>
+            <div className="flex gap-3">
+              {['Full','Partial'].map(opt=>(
+                <button key={opt} type="button" onClick={()=>u('churn_type',opt)}
+                  className="px-5 py-2 text-sm font-semibold rounded-lg border transition-all"
+                  style={req.churn_type===opt?{background:NAVY,color:'#fff',borderColor:NAVY}:{background:'#f8fafc',color:'#64748b',borderColor:'#e2e8f0'}}>
+                  {opt} Churn
+                </button>
+              ))}
+            </div>
+            <p className="text-xs mt-1 text-brand-faint">
+              {req.churn_type==='Partial'
+                ? 'Churn specific IP(s)/service(s) on this OF — the OF stays active for the rest.'
+                : 'The entire Order Form is churning.'}
+            </p>
+          </div>
+        )}
+
+        {!isOthers && req.status_requested==='Churn' && req.churn_type==='Partial' && selectedForm && (
+          <div className="mb-4">
+            <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
+              IP(s) / Service(s) to churn <span className="text-red-400">*</span>
+            </label>
+            <div className="rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+              {[...new Set((selectedForm.services_fees||[]).map(s=>s.name).filter(Boolean))].map(name=>{
+                const sel = req.churned_services.find(s=>s.name===name);
+                return (
+                  <div key={name} className="flex items-center gap-3 p-3" style={sel?{background:'#fff7ed'}:{}}>
+                    <input type="checkbox" checked={!!sel} onChange={()=>toggleChurnedSvc(name)} className="w-4 h-4 cursor-pointer"/>
+                    <span className="flex-1 text-sm text-slate-700">{name}</span>
+                    {sel && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase tracking-wider text-brand-faint">Effective</span>
+                        <input type="date" value={sel.effective_date} onChange={e=>setChurnedSvcDate(name,e.target.value)}
+                          className="field-input" style={{maxWidth:'165px'}}/>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs mt-1 text-brand-faint">Tick each IP being churned and set its own effective date. Finance still enters the total revenue impact as the churn amount.</p>
+          </div>
+        )}
+
         <TA label="Reason / justification" req value={req.reason} onChange={v=>u('reason',v)} rows={4}/>
 
-        <div className="mb-4">
-          <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
-            Effective date of {req.status_requested} <span className="text-red-400">*</span>
-          </label>
-          <input type="date" value={req.effective_date} onChange={e=>u('effective_date',e.target.value)}
-            className="field-input" style={{maxWidth:'200px'}}/>
-          <p className="text-xs mt-1 text-brand-faint">Date from which the Churn/Void takes effect</p>
-        </div>
+        {!(!isOthers && req.status_requested==='Churn' && req.churn_type==='Partial') && (
+          <div className="mb-4">
+            <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
+              Effective date of {req.status_requested} <span className="text-red-400">*</span>
+            </label>
+            <input type="date" value={req.effective_date} onChange={e=>u('effective_date',e.target.value)}
+              className="field-input" style={{maxWidth:'200px'}}/>
+            <p className="text-xs mt-1 text-brand-faint">Date from which the Churn/Void takes effect</p>
+          </div>
+        )}
 
         <div className="mb-4">
           <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
