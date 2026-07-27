@@ -10,6 +10,17 @@ import { useToast } from '../../hooks/useToast.js';
 import { db, isConfigured } from '../../firebase.js';
 import { collection, onSnapshot, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { generateSignedOFReport, generateUnsignedOFReport } from '../../utils/reports.js';
+import { SERVICES } from '../../constants/formOptions.js';
+
+// Slack alerting for back-dated (delayed-intimation) no-OF churns is built but
+// DISABLED until historical churn data is reconciled. Flip to true to enable;
+// the record already stores billing_region + delayed_intimation for routing.
+const CHURN_SLACK_ENABLED = false;
+
+// Billing-region options for no-OF churns (drives the Slack channel when enabled)
+const BILLING_REGIONS = TEAM_FILTERS.filter(t => t.id !== 'all');
+
+const toTitleCase = v => (v||'').replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 
 const NAVY = '#1B2B4B'; const T = '#00C3B5';
 
@@ -575,6 +586,7 @@ export function ChurnVoidRequest() {
   const customerDropdownRef = useRef(null);
 
   const isFinanceOrAdmin = user?.role === 'finance' || user?.isUniversal;
+  const canNoOF = user?.role === 'revops' || user?.role === 'finance' || user?.isUniversal;
 
   const [req, setReq] = useState({
     customer: '',
@@ -586,6 +598,12 @@ export function ChurnVoidRequest() {
     finance_dris: [],
     effective_date: '',
     attachment: null,
+    // no-OF churn fields
+    agreement_type: '',      // MSA | SoW | Commercial Plan
+    company_id: '',
+    churn_type: 'Full',      // Full | Partial
+    ip_services: [],         // required when Partial
+    billing_region: '',      // routes the delayed-intimation Slack alert
   });
   const [validationErrors, setValidationErrors] = useState([]);
   const [submitting, setSubmitting] = useState(false);
@@ -666,10 +684,14 @@ export function ChurnVoidRequest() {
 
   const handleSubmit = async () => {
     const errs = [];
-    const finalCustomer = isOthers ? req.customer_manual?.trim() : req.customer;
+    const finalCustomer = isOthers ? toTitleCase(req.customer_manual?.trim()) : req.customer;
     if (!req.customer)                                errs.push('Select a customer');
     if (isOthers && !req.customer_manual?.trim())     errs.push('Enter the customer name');
     if (!isOthers && !req.of_number)                  errs.push('Select an Order Form number');
+    if (isOthers && !req.agreement_type)              errs.push('Select the agreement type (MSA / SoW / Commercial Plan)');
+    if (isOthers && !req.company_id?.trim())          errs.push('Enter the Company ID');
+    if (isOthers && !req.billing_region)              errs.push('Select the billing region');
+    if (isOthers && req.churn_type==='Partial' && !req.ip_services.length) errs.push('Select the IP / Service(s) being churned');
     if (!req.reason?.trim())                          errs.push('Enter a reason / justification');
     if (!req.effective_date)                          errs.push('Enter the effective date of Churn/Void');
     if (!req.finance_dris.length)                     errs.push('Select at least one Finance DRI');
@@ -678,6 +700,12 @@ export function ChurnVoidRequest() {
     setSubmitting(true);
     try {
       const form = selectedForm;
+      // Back-dated (delayed intimation): effective date in a month earlier than the filing month
+      const eff = req.effective_date ? new Date(req.effective_date) : null;
+      const now = new Date();
+      const delayedIntimation = isOthers && !!eff &&
+        (eff.getFullYear() < now.getFullYear() ||
+         (eff.getFullYear() === now.getFullYear() && eff.getMonth() < now.getMonth()));
       if (isConfigured && db) {
         const reqId = uid();
         const docData = {
@@ -694,8 +722,23 @@ export function ChurnVoidRequest() {
           actioned: false,
           ...(isFinanceOrAdmin && req.churn_value ? { churn_value: req.churn_value } : {}),
           ...(req.attachment ? { attachment: req.attachment } : {}),
+          ...(isOthers ? {
+            agreement_type: req.agreement_type,
+            company_id: req.company_id.trim(),
+            churn_type: req.churn_type,
+            ip_services: req.churn_type === 'Partial' ? req.ip_services : [],
+            billing_region: req.billing_region,
+            delayed_intimation: delayedIntimation,
+          } : {}),
         };
         await setDoc(doc(db, 'churn_void_requests', reqId), docData);
+
+        // ── Delayed-intimation Slack alert — DISABLED (see CHURN_SLACK_ENABLED) ──
+        // When enabled, a back-dated no-OF churn posts to the billing_region's
+        // channel so the customer can be billed correctly for the delay.
+        if (CHURN_SLACK_ENABLED && delayedIntimation) {
+          // wiring intentionally deferred until historical data is reconciled
+        }
       }
       await submitChurnVoidRequest({
         form: form || { customer_name: finalCustomer, of_number: req.of_number },
@@ -704,7 +747,8 @@ export function ChurnVoidRequest() {
         reason: req.reason,
       });
       show('Request submitted');
-      setReq({ customer:'', customer_manual:'', of_number:'', status_requested:'Churn', churn_value:'', reason:'', finance_dris:[], effective_date:'', attachment:null });
+      setReq({ customer:'', customer_manual:'', of_number:'', status_requested:'Churn', churn_value:'', reason:'', finance_dris:[], effective_date:'', attachment:null,
+        agreement_type:'', company_id:'', churn_type:'Full', ip_services:[], billing_region:'' });
       setCustomerSearch('');
       setValidationErrors([]);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -754,11 +798,13 @@ export function ChurnVoidRequest() {
                           {name}
                         </button>
                       ))}
-                      <button type="button" onMouseDown={() => handleCustomerSelect('Others')}
-                        className="w-full text-left px-4 py-2.5 text-sm border-t border-slate-100 hover:bg-slate-50 transition-colors"
-                        style={req.customer === 'Others' ? {background:'#e0f7f5', color:'#00897b', fontWeight:600} : {color:'#64748b'}}>
-                        — Others (no Order Form) —
-                      </button>
+                      {canNoOF && (
+                        <button type="button" onMouseDown={() => handleCustomerSelect('Others')}
+                          className="w-full text-left px-4 py-2.5 text-sm border-t border-slate-100 hover:bg-slate-50 transition-colors"
+                          style={req.customer === 'Others' ? {background:'#e0f7f5', color:'#00897b', fontWeight:600} : {color:'#64748b'}}>
+                          — Others (no Order Form) —
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
@@ -775,6 +821,7 @@ export function ChurnVoidRequest() {
                 Customer name <span className="text-red-400">*</span>
               </label>
               <input type="text" value={req.customer_manual} onChange={e=>u('customer_manual',e.target.value)}
+                onBlur={e=>u('customer_manual',toTitleCase(e.target.value))}
                 placeholder="Enter full customer name…" className="field-input"/>
             </div>
           ) : (
@@ -819,6 +866,52 @@ export function ChurnVoidRequest() {
           </div>
         )}
 
+        {isOthers && (
+          <>
+            <div className="grid grid-cols-2 gap-x-4">
+              <div className="mb-4">
+                <Lbl c="Agreement type" req/>
+                <select value={req.agreement_type} onChange={e=>u('agreement_type',e.target.value)} className="field-input cursor-pointer">
+                  <option value="">Select…</option>
+                  {['MSA','SoW','Commercial Plan'].map(o=><option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <Inp label="Company ID" req value={req.company_id} onChange={v=>u('company_id',v)} placeholder="Customer company ID"/>
+            </div>
+
+            <div className="mb-4">
+              <Lbl c="Churn type" req/>
+              <div className="flex gap-3">
+                {['Full','Partial'].map(opt=>(
+                  <button key={opt} type="button" onClick={()=>u('churn_type',opt)}
+                    className="px-5 py-2 text-sm font-semibold rounded-lg border transition-all"
+                    style={req.churn_type===opt?{background:NAVY,color:'#fff',borderColor:NAVY}:{background:'#f8fafc',color:'#64748b',borderColor:'#e2e8f0'}}>
+                    {opt} Churn
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs mt-1 text-brand-faint">
+                {req.churn_type==='Partial' ? 'Select the specific IP / Service(s) being churned.' : 'The entire engagement is being churned.'}
+              </p>
+            </div>
+
+            {req.churn_type==='Partial' && (
+              <MultiSelect label="IP / Service(s) being churned" req
+                options={SERVICES.map(s=>({value:s,label:s}))}
+                value={req.ip_services} onChange={v=>u('ip_services',v)}/>
+            )}
+
+            <div className="mb-4">
+              <Lbl c="Billing region" req/>
+              <select value={req.billing_region} onChange={e=>u('billing_region',e.target.value)} className="field-input cursor-pointer" style={{maxWidth:'260px'}}>
+                <option value="">Select…</option>
+                {BILLING_REGIONS.map(r=><option key={r.id} value={r.id}>{r.lbl}</option>)}
+              </select>
+              <p className="text-xs mt-1 text-brand-faint">Determines the Slack channel for billing intimation (used for delayed / back-dated churns).</p>
+            </div>
+          </>
+        )}
+
         <div className="mb-4">
           <Lbl c="Status requested" req/>
           <div className="flex gap-3">
@@ -832,11 +925,11 @@ export function ChurnVoidRequest() {
           </div>
         </div>
 
-        {req.status_requested==='Churn' && isFinanceOrAdmin && (
+        {!isOthers && req.status_requested==='Churn' && isFinanceOrAdmin && (
           <Inp label="Churn amount" value={req.churn_value} onChange={v=>u('churn_value',v)}
             placeholder="e.g. 150000" mono hint="This amount will be deducted from the OF's committed revenue"/>
         )}
-        {req.status_requested==='Churn' && !isFinanceOrAdmin && (
+        {!isOthers && req.status_requested==='Churn' && !isFinanceOrAdmin && (
           <div className="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-sm">
             ℹ️ The churn amount will be determined and entered by Finance upon reviewing this request.
           </div>
