@@ -588,7 +588,7 @@ export default function Repository() {
                         {show('rep')       && <td className="px-4 py-3.5 text-xs text-brand-muted">{f.sales_rep_name}</td>}
                         {show('sale_type') && <td className="px-4 py-3.5 text-xs text-brand-muted">{f.sale_type||'—'}</td>}
                         {show('segment')   && <td className="px-4 py-3.5 text-xs text-brand-muted">{formBusinessUnits(f).join(', ')||'—'}</td>}
-                        {show('status')    && <td className="px-4 py-3.5"><StatusPill status={f.status}/></td>}
+                        {show('status')    && <td className="px-4 py-3.5"><StatusPill status={f.status}/>{f.partial_churn && <span className="ml-1.5 text-[10px] px-2 py-0.5 rounded-full font-bold bg-orange-100 text-orange-700 whitespace-nowrap">Partial churn</span>}</td>}
                         {user?.isUniversal && (
                           <td className="px-4 py-3.5" onClick={e=>e.stopPropagation()}>
                             <button onClick={()=>setStatusModal(f)}
@@ -638,7 +638,7 @@ export default function Repository() {
                       </td>
                       <td className="px-4 py-3.5 text-xs text-brand-muted whitespace-nowrap">{fmtShort(f.start_date)} → {fmtShort(f.end_date)}</td>
                       <td className="px-4 py-3.5 text-xs text-brand-muted">{f.sales_rep_name}</td>
-                      <td className="px-4 py-3.5"><StatusPill status={f.status}/></td>
+                      <td className="px-4 py-3.5"><StatusPill status={f.status}/>{f.partial_churn && <span className="ml-1.5 text-[10px] px-2 py-0.5 rounded-full font-bold bg-orange-100 text-orange-700 whitespace-nowrap">Partial churn</span>}</td>
                     </tr>
                   ))}
                 </tbody>
