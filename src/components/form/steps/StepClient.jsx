@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Inp, Sel, TA, SHdr } from '../../ui/index.jsx';
 import { SALES_TEAMS, LEAD_TYPES, LEAD_CATS, SALE_TYPES,
          COUNTRIES, SOW_REQUIRED_TYPES, SOW_REFERENCE_TYPES } from '../../../constants/formOptions.js';
-import { SALES_REPS, REGIONS } from '../../../constants/users.js';
+import { SALES_REPS, REGIONS, REVENUE_ARCHITECTS } from '../../../constants/users.js';
 import { ENTITY_OPTIONS, getEntity, isVatEntity } from '../../../constants/entities.js';
 import { useAuth } from '../../../context/AuthContext.jsx';
 
@@ -139,6 +139,8 @@ export default function StepClient({ form, set, ro }) {
 
   // ── Custom sales rep ──────────────────────────────────────────────────────
   const [customRep, setCustomRep] = useState(form.is_custom_rep === true);
+  const [customRA, setCustomRA]   = useState(form.is_custom_ra === true);
+  const sortedRAs = [...REVENUE_ARCHITECTS].sort((a,b) => a.name.localeCompare(b.name));
 
   const teamReps = form.sales_team ? SALES_REPS.filter(r => r.team === form.sales_team) : SALES_REPS;
   const sortedReps = [...teamReps].sort((a,b) => a.name.localeCompare(b.name));
@@ -170,6 +172,28 @@ export default function StepClient({ form, set, ro }) {
     u('slack_id', rep.slack);
     if (rep.team) u('sales_team', rep.team);
     if (rep.region) u('region', rep.region);
+  };
+
+  const handleRASelect = v => {
+    if (v === '__custom__') {
+      setCustomRA(true);
+      u('is_custom_ra', true);
+      u('ra_name', '');
+      u('ra_email', '');
+      u('ra_slack_id', '');
+      return;
+    }
+    setCustomRA(false);
+    u('is_custom_ra', false);
+    if (v === 'NA') {
+      u('ra_name', 'NA'); u('ra_email', 'NA'); u('ra_slack_id', '');
+      return;
+    }
+    const ra = REVENUE_ARCHITECTS.find(r => r.email === v);
+    if (!ra) { u('ra_name',''); u('ra_email',''); u('ra_slack_id',''); return; }
+    u('ra_name', ra.name);
+    u('ra_email', ra.email);
+    u('ra_slack_id', ra.slack);
   };
 
   const handleTeamChange = v => {
@@ -390,6 +414,41 @@ export default function StepClient({ form, set, ro }) {
         </div>
 
         <Inp label="Slack ID (auto)" value={form.slack_id} disabled mono/>
+
+        {/* ── Revenue Architect (RA) — attribution only, not on the PDF ── */}
+        <div className="mb-4">
+          <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5 text-brand-faint">
+            Revenue Architect (RA) <span className="text-red-400">*</span>
+          </label>
+          {ro ? (
+            <input value={form.ra_name || (form.ra_email==='NA'?'NA':'') || ''} readOnly className="field-input" style={{background:'#f8fafc',color:'#64748b'}}/>
+          ) : (
+            <>
+              <select
+                value={customRA ? '__custom__' : (form.ra_email || '')}
+                onChange={e => handleRASelect(e.target.value)}
+                className="field-input cursor-pointer">
+                <option value="">Select RA…</option>
+                {sortedRAs.map(r => <option key={r.email} value={r.email}>{r.name}</option>)}
+                <option value="NA">NA</option>
+                <option value="__custom__">Others (not in list)…</option>
+              </select>
+              {customRA && (
+                <div className="mt-2 p-3 rounded-xl border border-indigo-200 bg-indigo-50 space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 mb-1">Custom Revenue Architect</p>
+                  <input value={form.ra_name||''} onChange={e=>u('ra_name',e.target.value)}
+                    placeholder="Full name *" className="field-input text-xs" style={{borderColor:'#c7d2fe'}}/>
+                  <input type="email" value={form.ra_email||''} onChange={e=>u('ra_email',e.target.value)}
+                    placeholder="Email address *" className="field-input text-xs font-mono" style={{borderColor:'#c7d2fe'}}/>
+                  <input value={form.ra_slack_id||''} onChange={e=>u('ra_slack_id',e.target.value)}
+                    placeholder="Slack Member ID (e.g. U01ABCD23EF) *" className="field-input text-xs font-mono" style={{borderColor:'#c7d2fe'}}/>
+                  <p className="text-[10px] text-indigo-600">All three are required. Slack ID is used to tag the RA in notifications. Find it in Slack → Profile → ⋯ → Copy member ID.</p>
+                </div>
+              )}
+              <p className="text-xs mt-1 text-brand-faint">Not shown on the Order Form PDF. Choose an RA, NA, or add one via Others.</p>
+            </>
+          )}
+        </div>
 
         {isGlobal && (
           <div className="mb-4">
