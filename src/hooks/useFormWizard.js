@@ -100,6 +100,15 @@ export function useFormWizard(initial = null) {
       e.push('Sales team is required');
     if (!form.sales_rep_email)
       e.push('Sales rep is required');
+    // Revenue Architect — required (satisfiable by NA); Others needs all three fields
+    if (!form.ra_email)
+      e.push('Revenue Architect is required (choose one, NA, or Others)');
+    if (form.is_custom_ra) {
+      if (!form.ra_name?.trim())     e.push('Revenue Architect name is required');
+      if (!form.ra_email?.trim())    e.push('Revenue Architect email is required');
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.ra_email)) e.push('Revenue Architect email is invalid');
+      if (!form.ra_slack_id?.trim()) e.push('Revenue Architect Slack ID is required');
+    }
     if (isGlobal && !form.region)
       e.push('Region is required for Global team');
 
