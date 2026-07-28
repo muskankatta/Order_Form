@@ -352,6 +352,12 @@ export default function FormDetail({ form: initial }) {
     if (!clientIsIndia && !f.tax_number) e.push('Tax / VAT Number is required');
 
     if (!f.sales_rep_email)       e.push('Sales rep is required');
+    if (!f.ra_email)              e.push('Revenue Architect is required (choose one, NA, or Others)');
+    if (f.is_custom_ra) {
+      if (!f.ra_name?.trim())     e.push('Revenue Architect name is required');
+      if (!f.ra_email?.trim())    e.push('Revenue Architect email is required');
+      if (!f.ra_slack_id?.trim()) e.push('Revenue Architect Slack ID is required');
+    }
     if (!f.sales_team)            e.push('Sales team is required');
     if (!f.sale_type)             e.push('Sale type is required');
     if (!f.lead_type)             e.push('Sales channel is required');
@@ -510,7 +516,7 @@ export default function FormDetail({ form: initial }) {
                 <span className="font-mono text-sm font-bold px-2.5 py-1 rounded-lg bg-green-50 text-green-800">{form.of_number}</span>
               )}
             </div>
-            <p className="text-sm mt-0.5 text-brand-faint">{form.brand_name} · {form.sales_rep_name} · {fmtShort(form.submitted_at)}</p>
+            <p className="text-sm mt-0.5 text-brand-faint">{form.brand_name} · {form.sales_rep_name}{form.ra_name && form.ra_email!=='NA' ? ' · RA: '+form.ra_name : ''} · {fmtShort(form.submitted_at)}</p>
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
