@@ -102,6 +102,9 @@ function buildMessage(event, form, extra = {}) {
   const cust  = form.customer_name || '—';
   const url   = `https://muskankatta.github.io/Order_Form/#/form/${form.id}`;
   const repMention = slackMention(form.sales_rep_email) || (form.slack_id ? `<@${form.slack_id}>` : null) || form.sales_rep_name || '—';
+  const raMention = (form.ra_email && form.ra_email !== 'NA')
+    ? (form.ra_slack_id ? `<@${form.ra_slack_id}>` : (form.ra_name || null))
+    : null;
 
   const icons  = { submitted:'📋', revops_approved:'✅', revops_rejected:'❌', approved:'🎉', finance_rejected:'❌', signed:'✍️' };
   const labels = {
@@ -116,6 +119,7 @@ function buildMessage(event, form, extra = {}) {
   let text = `${icons[event]||'🔔'} *${labels[event]||event}*\n`;
   text += `• OF: <${url}|${ofRef}> — ${cust}\n`;
   text += `• Sales Rep: ${repMention}\n`;
+  if (raMention) text += `• Revenue Architect: ${raMention}\n`;
 
   if (event === 'submitted' && form.revops_approvers?.length) {
     const tags = form.revops_approvers.map(e => slackMention(e) || e).join(', ');
