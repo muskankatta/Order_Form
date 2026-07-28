@@ -80,6 +80,22 @@ export const FINANCE_USERS = [
 export const UNIVERSAL_EMAIL = 'muskankatta2@gofynd.com';
 export const ALLOWED_DOMAINS = ['gofynd.com', 'fynd.team'];
 
+// ── Revenue Architects (RA) — attributed on the OF alongside the Sales Rep.
+// Not shown on the PDF. Selectable list + "NA" + "Others" (manual entry).
+export const REVENUE_ARCHITECTS = [
+  { id:'1036', name:'Jagadesh',        slack:'U0FJT7S01',   email:'jagadeshsahadevan@gofynd.com' },
+  { id:'1392', name:'Atharva Shetye',  slack:'U01T138DQAF', email:'atharvashetye@gofynd.com' },
+  { id:'1515', name:'Md. Farhan Khan', slack:'U02HGRSP6AH', email:'farhankhan@gofynd.com' },
+  { id:'1650', name:'Kedar Kulkarni',  slack:'U0332TP5GTY', email:'kedarkulkarni@gofynd.com' },
+  { id:'1396', name:'Jay Karia',       slack:'U01T33X34UU', email:'jaykaria@gofynd.com' },
+  { id:'1327', name:'Nayan Lathiya',   slack:'U018REY8UA2', email:'nayanlathiya@gofynd.com' },
+];
+
+/** Slack member ID for a roster RA email (custom RAs carry their own ra_slack_id) */
+export function raSlackByEmail(email) {
+  return REVENUE_ARCHITECTS.find(r => r.email === email)?.slack || null;
+}
+
 // ── Region / team taxonomy (Global is bifurcated by region) ───────────────────
 export const REGIONS = ['MEA', 'SEA', 'RoW', 'UK'];
 
