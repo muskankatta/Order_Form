@@ -344,6 +344,7 @@ const COMM_GROUPS = [
   { label: 'Service',           cols: 2,  band: '#CECBF6', title: '#F0EFFB', text: '#26215C' },
   { label: 'Fee line',          cols: 10, band: '#D3D1C7', title: '#F4F3EE', text: '#2C2C2A' },
   { label: 'Client / Billing',  cols: 8,  band: '#F4D9B0', title: '#FBEFDA', text: '#4A2C02' },
+  { label: 'Revenue Architect', cols: 2,  band: '#E3D5F5', title: '#F3ECFB', text: '#3B2A5C' },
 ];
 
 const COMM_HEADERS = [
@@ -362,6 +363,8 @@ const COMM_HEADERS = [
   // Client / Billing (40–47)
   'Billing Address', 'Billing Email', 'GSTIN', 'PAN', 'Tax / VAT Number',
   'Client Rep Name', 'Client Rep Email', 'Client Rep Mobile',
+  // Revenue Architect (48–49) — attribution only, not on the PDF
+  'Revenue Architect', 'RA Email',
 ];
 
 const COL = {
@@ -411,6 +414,7 @@ function buildCommercials(forms) {
         fee ? slabDetailOf(fee) : '', fee ? stepUpDetailOf(fee, f.committed_currency) : '',
         fmt(f.special_terms),
         ...clientBilling,
+        fmt(f.ra_email==='NA' ? 'NA' : f.ra_name), fmt(f.ra_email),
       ]);
     };
     if (!services.length) {
