@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, Fragment } from 'react';
 import { db } from '../../firebase.js';
-import { collection, getDocs, updateDoc, doc, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, addDoc, doc, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Card, Btn, Toast } from '../ui/index.jsx';
 import { useToast } from '../../hooks/useToast.js';
 import { fmtDate } from '../../utils/dates.js';
 import { SERVICES } from '../../constants/formOptions.js';
-import { REVOPS_USERS } from '../../constants/users.js';
+import { REVOPS_USERS, FINANCE_USERS } from '../../constants/users.js';
 import { CHANNELS as CH } from '../../utils/slack.js';
-import { entityKeyOf, getEntity } from '../../constants/entities.js';
+import { entityKeyOf, getEntity, ENTITY_OPTIONS } from '../../constants/entities.js';
 
 const NAVY = '#1B2B4B';
 const FEE_TYPES     = ['Setup Fee','One Time Fee','Subscription Fee'];
@@ -39,8 +39,11 @@ async function notifyPI(pi,event){
     const ch=CH[pi.sales_team]||CH['India'];
     const salesTag  = pi.sales_rep_slack_id   ? `<@${pi.sales_rep_slack_id}>` : null;
     const revopsTag = pi.revops_reviewer_slack_id ? `<@${pi.revops_reviewer_slack_id}>` : pi.revops_reviewer;
+    const approverLabel = pi.is_standalone ? 'Finance' : 'RevOps';
+    const financeTags = (pi.finance_approvers_slack_ids||[]).filter(Boolean).map(id=>`<@${id}>`).join(' ');
+    const ofLine = pi.of_number ? `  |  *OF:* ${pi.of_number}` : '  |  _No OF (direct PI)_';
     const msgs={
-      submitted:`🧾 *Proforma Invoice Raised* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*By:* ${pi.created_by_name}  |  *Amount:* ${fmtAmt(pi.grand_total,pi.currency)}\n⏳ Awaiting RevOps Approval`,
+      submitted:`🧾 *Proforma Invoice Raised* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}${ofLine}\n*By:* ${pi.created_by_name}  |  *Amount:* ${fmtAmt(pi.grand_total,pi.currency)}\n⏳ Awaiting ${approverLabel} Approval${pi.is_standalone&&financeTags?`\n*Finance:* ${financeTags}`:''}`,
       cancelled:`🚫 *Proforma Invoice Cancelled* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*Cancelled by:* ${revopsTag}${salesTag?`  |  *Sales Rep:* ${salesTag}`:''}\n*Reason:* ${pi.revops_comment||'Not specified'}`,
       approved: `✅ *Proforma Invoice Approved* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *Amount:* ${fmtAmt(pi.grand_total,pi.currency)}\n*Approved by:* ${revopsTag}${salesTag?`  |  *Sales Rep:* ${salesTag}`:''}\n📥 Download the PDF from the OF Platform`,
       rejected: `❌ *Proforma Invoice Rejected* — *${pi.pi_number}*\n*Customer:* ${pi.customer_name}  |  *OF:* ${pi.of_number}\n*Rejected by:* ${revopsTag}${salesTag?`  |  *Sales Rep:* ${salesTag}`:''}\n*Reason:* ${pi.revops_comment||'Not specified'}`,
@@ -372,6 +375,245 @@ function DetailPanel({ pi, canDownload, canApprove, canRecord, setSelPI, setShow
 // ═════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═════════════════════════════════════════════════════════════════
+function CreatePIModal({ user, onClose, onCreated }) {
+  const blankLine = () => ({ service:'', service_custom:'', fee_type:'', description:'', qty:1, rate:0 });
+  const [np, setNp] = useState({
+    entity:'fynd', country:'', customer_name:'', billing_address:'',
+    gstin:'', pan:'', tax_number:'', currency:'INR',
+    tax_type:'', tax_rate:0,
+    line_items:[ blankLine() ],
+    finance_approvers:[],
+  });
+  const [saving, setSaving] = useState(false);
+  const [errs, setErrs] = useState([]);
+
+  const u = (k,v) => setNp(p=>({...p,[k]:v}));
+  const setLine = (i,k,v) => setNp(p=>({...p,line_items:p.line_items.map((li,idx)=>idx===i?{...li,[k]:(k==='qty'||k==='rate')?(parseFloat(v)||0):v}:li)}));
+  const addLine = () => setNp(p=>({...p,line_items:[...p.line_items,blankLine()]}));
+  const rmLine  = i => setNp(p=>({...p,line_items:p.line_items.filter((_,idx)=>idx!==i)}));
+
+  const handleEntity = v => { const cfg=getEntity(v); setNp(p=>({...p,entity:v,currency:cfg.defaultCurrency||p.currency})); };
+
+  const isIndia   = np.country.trim().toLowerCase()==='india';
+  const fixedGST  = np.entity==='fynd' && isIndia;      // Fynd + India → auto 18% GST
+  const taxRate   = fixedGST ? 18 : (Number(np.tax_rate)||0);
+  const subtotal  = np.line_items.reduce((s,li)=>s + (parseFloat(li.qty)||0)*(parseFloat(li.rate)||0), 0);
+  const taxAmount = subtotal * taxRate/100;
+  const grand     = subtotal + taxAmount;
+  const svcName   = li => li.service==='__other__' ? (li.service_custom||'').trim() : li.service;
+
+  const submit = async () => {
+    const e = [];
+    if (!np.entity)                 e.push('Entity is required');
+    if (!np.country.trim())         e.push('Country is required');
+    if (!np.customer_name.trim())   e.push('Customer legal name is required');
+    if (!np.billing_address.trim()) e.push('Address is required');
+    if (isIndia) { if (!np.pan.trim()) e.push('PAN is required for India'); }
+    else         { if (!np.tax_number.trim()) e.push('Tax / VAT number is required'); }
+    const goodLines = np.line_items.filter(li => svcName(li) && li.fee_type && (parseFloat(li.rate)||0)>0);
+    if (!goodLines.length) e.push('Add at least one complete line (Service + Fee Type + Rate)');
+    if (!np.finance_approvers.length) e.push('Select at least one Finance approver');
+    setErrs(e);
+    if (e.length) return;
+
+    setSaving(true);
+    try {
+      const piNum = await genPINumber(np.entity);
+      const line_items = goodLines.map(li => ({
+        service: svcName(li), fee_type: li.fee_type, description: li.description||'',
+        sac_code: SAC_MAP[li.fee_type]||'998314',
+        qty: parseFloat(li.qty)||1, rate: parseFloat(li.rate)||0,
+        total: (parseFloat(li.qty)||1)*(parseFloat(li.rate)||0),
+      }));
+      const sub = line_items.reduce((s,li)=>s+li.total,0);
+      const tr  = taxRate, ta = sub*tr/100;
+      const docData = {
+        pi_number:piNum, entity:np.entity, is_standalone:true,
+        of_id:'', of_number:'',
+        status:'submitted',
+        customer_name:np.customer_name.trim(), billing_address:np.billing_address.trim(),
+        gstin:np.gstin.trim(), pan:np.pan.trim(), tax_number:np.tax_number.trim(),
+        country:np.country.trim(), sales_team:'',
+        currency:np.currency, line_items,
+        subtotal:sub, tax_type: fixedGST?'GST':(np.tax_type||''), tax_rate:tr, tax_amount:ta, grand_total:sub+ta,
+        created_by_name:user?.name||'', created_by_email:user?.email||'',
+        sales_rep_email:'', sales_rep_name:'', sales_rep_slack_id:'',
+        finance_approvers: np.finance_approvers,
+        finance_approvers_names: np.finance_approvers.map(em=>(FINANCE_USERS.find(u=>u.email===em)||{}).name||em),
+        finance_approvers_slack_ids: np.finance_approvers.map(em=>(FINANCE_USERS.find(u=>u.email===em)||{}).slack||''),
+        revops_reviewer:'', revops_comment:'', revops_reviewed_at:null,
+        created_at: serverTimestamp(), slack_thread_ts:null,
+      };
+      const ref = await addDoc(collection(db,'proforma_invoices'), docData);
+      const ts  = await notifyPI({...docData, id:ref.id}, 'submitted');
+      if (ts) await updateDoc(doc(db,'proforma_invoices',ref.id), { slack_thread_ts: ts });
+      onCreated();
+      onClose();
+    } catch(err) { console.error('create PI', err); setErrs(['Failed to create PI — '+(err?.message||'unknown error')]); }
+    finally { setSaving(false); }
+  };
+
+  const fld = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300';
+  const lbl = 'block text-[11px] font-bold uppercase tracking-widest mb-1 text-slate-400';
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 overflow-y-auto">
+      <Card className="shadow-2xl w-full max-w-3xl p-6 my-8">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h3 className="text-lg font-bold" style={{color:NAVY}}>New Proforma Invoice</h3>
+            <p className="text-xs text-slate-400 mt-0.5">For a customer without an Order Form. Routes to Finance for approval.</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">✕</button>
+        </div>
+
+        {errs.length>0 && (
+          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+            {errs.map((x,i)=><div key={i}>• {x}</div>)}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className={lbl}>Issuing Entity <span className="text-red-400">*</span></label>
+            <select value={np.entity} onChange={e=>handleEntity(e.target.value)} className={fld+' cursor-pointer'}>
+              {ENTITY_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={lbl}>Country <span className="text-red-400">*</span></label>
+            <input value={np.country} onChange={e=>u('country',e.target.value)} placeholder="e.g. India, UAE, United Kingdom" className={fld}/>
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <label className={lbl}>Customer Legal Name <span className="text-red-400">*</span></label>
+          <input value={np.customer_name} onChange={e=>u('customer_name',e.target.value)} placeholder="Full registered legal name" className={fld}/>
+        </div>
+
+        <div className="mb-4">
+          <label className={lbl}>Billing Address <span className="text-red-400">*</span></label>
+          <textarea value={np.billing_address} onChange={e=>u('billing_address',e.target.value)} rows={2} placeholder="Registered billing address" className={fld+' resize-none'}/>
+        </div>
+
+        {/* Tax — country-driven */}
+        <div className="grid grid-cols-2 gap-4 mb-5">
+          {isIndia ? (
+            <>
+              <div>
+                <label className={lbl}>GSTIN <span className="text-slate-300">(optional)</span></label>
+                <input value={np.gstin} onChange={e=>u('gstin',e.target.value)} placeholder="27AADCB2230M1ZT" className={fld+' font-mono'}/>
+              </div>
+              <div>
+                <label className={lbl}>PAN <span className="text-red-400">*</span></label>
+                <input value={np.pan} onChange={e=>u('pan',e.target.value)} placeholder="AADCB2230M" className={fld+' font-mono'}/>
+              </div>
+            </>
+          ) : (
+            <div className="col-span-2">
+              <label className={lbl}>Tax / VAT Number <span className="text-red-400">*</span></label>
+              <input value={np.tax_number} onChange={e=>u('tax_number',e.target.value)} placeholder="Local tax / VAT registration number" className={fld+' font-mono'}/>
+            </div>
+          )}
+        </div>
+
+        {/* Line items */}
+        <div className="mb-2 flex items-center justify-between">
+          <label className={lbl+' mb-0'}>Line Items</label>
+          <span className="text-xs text-slate-400">Currency: <strong>{np.currency}</strong></span>
+        </div>
+        <div className="border border-slate-200 rounded-xl overflow-hidden mb-4">
+          <table className="w-full text-xs">
+            <thead className="bg-slate-50 text-slate-500">
+              <tr>
+                <th className="px-2 py-2 text-left font-semibold">Service</th>
+                <th className="px-2 py-2 text-left font-semibold">Fee Type</th>
+                <th className="px-2 py-2 text-center font-semibold" style={{width:70}}>SAC</th>
+                <th className="px-2 py-2 text-right font-semibold" style={{width:55}}>Qty</th>
+                <th className="px-2 py-2 text-right font-semibold" style={{width:100}}>Rate</th>
+                <th className="px-2 py-2 text-left font-semibold">Description</th>
+                <th style={{width:32}}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {np.line_items.map((li,i)=>(
+                <tr key={i} className="border-t border-slate-100 align-top">
+                  <td className="px-2 py-2">
+                    <select value={li.service} onChange={e=>setLine(i,'service',e.target.value)} className={fld+' cursor-pointer'}>
+                      <option value="">Service…</option>
+                      {SERVICES.map(s=><option key={s} value={s}>{s}</option>)}
+                      <option value="__other__">Others (custom)…</option>
+                    </select>
+                    {li.service==='__other__' && (
+                      <input value={li.service_custom} onChange={e=>setLine(i,'service_custom',e.target.value)} placeholder="Custom service name *" className={fld+' mt-1'}/>
+                    )}
+                  </td>
+                  <td className="px-2 py-2">
+                    <select value={li.fee_type} onChange={e=>setLine(i,'fee_type',e.target.value)} className={fld+' cursor-pointer'}>
+                      <option value="">Fee Type…</option>
+                      {FEE_TYPES.map(f=><option key={f} value={f}>{f}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-2 py-2 text-center font-mono text-slate-500">{li.fee_type?(SAC_MAP[li.fee_type]||'—'):'—'}</td>
+                  <td className="px-2 py-2"><input type="number" min="0" value={li.qty} onChange={e=>setLine(i,'qty',e.target.value)} className={fld+' text-right'}/></td>
+                  <td className="px-2 py-2"><input type="number" min="0" value={li.rate} onChange={e=>setLine(i,'rate',e.target.value)} className={fld+' text-right'}/></td>
+                  <td className="px-2 py-2"><input value={li.description} onChange={e=>setLine(i,'description',e.target.value)} placeholder="Optional" className={fld}/></td>
+                  <td className="px-2 py-2 text-center">
+                    {np.line_items.length>1 && <button onClick={()=>rmLine(i)} className="text-slate-300 hover:text-red-500">✕</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <button onClick={addLine} className="text-xs font-semibold text-teal-600 hover:text-teal-700 mb-5">+ Add line item</button>
+
+        {/* Tax + totals */}
+        <div className="flex justify-end mb-5">
+          <div className="w-64 text-sm">
+            <div className="flex justify-between py-1"><span className="text-slate-500">Subtotal</span><span className="font-mono">{fmtAmt(subtotal,np.currency)}</span></div>
+            {fixedGST ? (
+              <div className="flex justify-between py-1"><span className="text-slate-500">GST (18%)</span><span className="font-mono">{fmtAmt(taxAmount,np.currency)}</span></div>
+            ) : (
+              <div className="flex items-center justify-between py-1 gap-2">
+                <input value={np.tax_type} onChange={e=>u('tax_type',e.target.value)} placeholder="Tax label" className="border border-slate-200 rounded px-2 py-1 text-xs w-24"/>
+                <div className="flex items-center gap-1">
+                  <input type="number" min="0" value={np.tax_rate} onChange={e=>u('tax_rate',e.target.value)} className="border border-slate-200 rounded px-2 py-1 text-xs w-14 text-right"/>
+                  <span className="text-slate-400 text-xs">%</span>
+                </div>
+              </div>
+            )}
+            <div className="flex justify-between py-2 border-t border-slate-200 mt-1 font-bold" style={{color:NAVY}}><span>Grand Total</span><span className="font-mono">{fmtAmt(grand,np.currency)}</span></div>
+          </div>
+        </div>
+
+        {/* Finance approvers */}
+        <div className="mb-5">
+          <label className={lbl}>Finance Approver(s) <span className="text-red-400">*</span></label>
+          <div className="flex flex-wrap gap-2">
+            {FINANCE_USERS.map(fu=>{
+              const on = np.finance_approvers.includes(fu.email);
+              return (
+                <button key={fu.email} type="button"
+                  onClick={()=>u('finance_approvers', on?np.finance_approvers.filter(x=>x!==fu.email):[...np.finance_approvers,fu.email])}
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-all"
+                  style={on?{background:NAVY,color:'#fff',borderColor:NAVY}:{background:'#f8fafc',color:'#64748b',borderColor:'#e2e8f0'}}>
+                  {fu.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex gap-3 justify-end">
+          <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+          <Btn variant="success" onClick={submit} disabled={saving}>{saving?'Creating…':'Create PI'}</Btn>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 export default function ProformaInvoices() {
   const { user } = useAuth();
   const { toast, show, hide } = useToast();
@@ -383,6 +625,9 @@ export default function ProformaInvoices() {
   const [cmt,          setCmt]          = useState('');
   const [showCollForm, setShowCollForm] = useState(false);
   const [q,            setQ]            = useState('');
+  const [showCreate,   setShowCreate]   = useState(false);
+
+  const canCreatePI = user?.role==='revops' || user?.role==='finance' || user?.isUniversal;
 
   const canApprove  = user?.role==='revops' || user?.isUniversal;
   const canRecord   = user?.role==='revops' || user?.role==='finance' || user?.isUniversal;
@@ -487,16 +732,21 @@ export default function ProformaInvoices() {
       <div className="flex items-center justify-between mb-6 gap-4">
         <div>
           <h2 className="text-xl font-bold" style={{color:NAVY}}>Proforma Invoices</h2>
-          <p className="text-sm text-slate-400 mt-0.5">All PIs raised across approved Order Forms</p>
+          <p className="text-sm text-slate-400 mt-0.5">All Proforma Invoices — OF-linked and direct (no-OF)</p>
         </div>
-        <div className="relative shrink-0">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">🔍</span>
-          <input value={q} onChange={e=>setQ(e.target.value)}
-            placeholder="Search PI #, customer, OF #, creator, status…"
-            className="w-80 pl-9 pr-8 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-200"/>
-          {q && (
-            <button onClick={()=>setQ('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">✕</button>
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">🔍</span>
+            <input value={q} onChange={e=>setQ(e.target.value)}
+              placeholder="Search PI #, customer, OF #, creator, status…"
+              className="w-72 pl-9 pr-8 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-200"/>
+            {q && (
+              <button onClick={()=>setQ('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">✕</button>
+            )}
+          </div>
+          {canCreatePI && (
+            <Btn variant="primary" onClick={()=>setShowCreate(true)}>+ New PI</Btn>
           )}
         </div>
       </div>
@@ -574,7 +824,7 @@ export default function ProformaInvoices() {
                             <DetailPanel
                               pi={selPI}
                               canDownload={canDownload || isPIOwner(selPI)}
-                              canApprove={canApprove}
+                              canApprove={selPI?.is_standalone ? (user?.role==='finance'||user?.isUniversal) : canApprove}
                               canRecord={canRecord}
                               setSelPI={setSelPI}
                               setShowModal={setShowModal}
@@ -594,6 +844,14 @@ export default function ProformaInvoices() {
           </div>
         )}
       </Card>
+
+      {showCreate && (
+        <CreatePIModal
+          user={user}
+          onClose={()=>setShowCreate(false)}
+          onCreated={()=>{ loadPIs(); show('Proforma Invoice created ✓ — routed to Finance for approval.'); }}
+        />
+      )}
 
       {showModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
