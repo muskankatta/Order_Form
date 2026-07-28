@@ -54,6 +54,7 @@ const ALL_COLUMNS = [
   { id:'quarter',    label:'Quarter',            default:true  },
   { id:'active',     label:'Active',             default:true  },
   { id:'rep',        label:'Sales Rep',          default:true  },
+  { id:'ra',         label:'Revenue Architect',  default:false },
   { id:'team',       label:'Team',               default:false },
   { id:'status',     label:'Status',             default:true  },
   { id:'signed_date',label:'Signing Date',       default:true  },
@@ -184,7 +185,7 @@ export default function Repository() {
   )].sort((a,b) => b-a);
 
   const filtered = forms.filter(f => {
-    if (isSales && f.sales_rep_email !== user.email) return false;
+    if (isSales && f.sales_rep_email !== user.email && f.ra_email !== user.email) return false;
     const m   = !q || [f.customer_name, f.of_number, f.sales_rep_name, f.brand_name].some(v => v?.toLowerCase().includes(q.toLowerCase()));
     const s   = st==='all'           || f.status===st;
     const t   = teamFilter==='all'   || f.sales_team===teamFilter;
@@ -472,6 +473,7 @@ export default function Repository() {
                     {show('active')     && <th className={thCls}>Active</th>}
                     {show('team')       && <th className={thCls}>Team</th>}
                     {show('rep')        && <th className={thCls}>Sales Rep</th>}
+                    {show('ra')         && <th className={thCls}>Revenue Architect</th>}
                     {show('sale_type')  && <th className={thCls}>Sale Type</th>}
                     {show('segment')    && <th className={thCls}>Business Unit(s)</th>}
                     {show('status')     && <th className={thCls}>Status</th>}
@@ -586,6 +588,7 @@ export default function Repository() {
                         )}
                         {show('team')      && <td className="px-4 py-3.5 text-xs text-brand-muted">{f.sales_team||'—'}</td>}
                         {show('rep')       && <td className="px-4 py-3.5 text-xs text-brand-muted">{f.sales_rep_name}</td>}
+                        {show('ra')        && <td className="px-4 py-3.5 text-xs text-brand-muted">{f.ra_email==='NA'?'NA':(f.ra_name||'—')}</td>}
                         {show('sale_type') && <td className="px-4 py-3.5 text-xs text-brand-muted">{f.sale_type||'—'}</td>}
                         {show('segment')   && <td className="px-4 py-3.5 text-xs text-brand-muted">{formBusinessUnits(f).join(', ')||'—'}</td>}
                         {show('status')    && <td className="px-4 py-3.5"><StatusPill status={f.status}/>{f.partial_churn && <span className="ml-1.5 text-[10px] px-2 py-0.5 rounded-full font-bold bg-orange-100 text-orange-700 whitespace-nowrap">Partial churn</span>}</td>}
