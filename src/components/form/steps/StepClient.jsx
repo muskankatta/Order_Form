@@ -5,7 +5,7 @@ import { SALES_TEAMS, LEAD_TYPES, LEAD_CATS, SALE_TYPES,
 import { SALES_REPS, REGIONS, REVENUE_ARCHITECTS } from '../../../constants/users.js';
 import { ENTITY_OPTIONS, getEntity, isVatEntity } from '../../../constants/entities.js';
 import { useAuth } from '../../../context/AuthContext.jsx';
-
+ 
 const REGION_LABELS = {
   MEA: 'Middle East & Africa',
   SEA: 'South East Asia',
