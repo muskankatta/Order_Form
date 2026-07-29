@@ -329,7 +329,7 @@ export const openPDF = function(form) {
       '<strong>6. Validity</strong> \u2014 This Order Form shall remain valid for a period of seven (7) working days (as observed in England and Wales) from the date of issuance. If not signed and returned within this period, the Order Form shall be deemed null and void unless extended in writing by the Company.';
   } else {
     tcHtml =
-      '<strong>1. Entire Agreement</strong> \u2014 This Order Form, along with its accompanying schedules, annexures, Standard Operating Procedures (SOPs), Terms of Service (TOS), and Privacy Policy, if any, collectively constitute the entire agreement between the Parties (hereinafter \u201cAgreement\u201d). It supersedes and replaces all prior negotiations, discussions, understandings, writings, and agreements related to the subject matter herein. <a href="https://console.fynd.com/terms-and-conditions" style="color:#00897b">T&amp;C</a> \u00b7 <a href="https://console.fynd.com/privacy-policy" style="color:#00897b">Privacy Policy</a><br/>' +
+      '<strong>1. Entire Agreement</strong> \u2014 This Order Form, along with its accompanying schedules, annexures, Standard Operating Procedures (SOPs), Terms of Service (TOS), and Privacy Policy, if any, collectively constitute the entire agreement between the Parties (hereinafter \u201cAgreement\u201d). It supersedes and replaces all prior negotiations, discussions, understandings, writings, and agreements related to the subject matter herein.<br/>' +
       '<strong>2. Term</strong> \u2014 The term of this Order Form (hereinafter referred to as the \u201cOrder Form Term\u201d) includes the initial Service Period and all subsequent Renewal Terms (if applicable). The Order Form becomes effective on the commencement date of the Service Period and shall continue until the end of the Order Form Term. Renewal shall be subject to the then-current list price prevailing at the time of renewal.<br/>' +
       '<strong>3. Extension Fees</strong> \u2014 If the Client avails any of the Extension Service(s), they shall be charged an Extension Fee for that Service(s) over and above the Fees mentioned above in the Order Form. <a href="https://drive.google.com/file/d/1vIHalH7yX1kUFtCxI8xMlSrIRO0wI7SX/view?usp=sharing" style="color:#00897b">Extension Rate Card</a><br/>' +
       '<strong>4. Fees and Payment Terms</strong> \u2014 <br/>' +
@@ -430,6 +430,11 @@ export const openPDF = function(form) {
     '<div style="font-size:11px;font-weight:700;margin-top:18px;margin-bottom:6px">Important Notes:</div>' +
     '<div style="font-size:10px;line-height:1.8;color:#333">' +
     tcHtml +
+    (entKey === 'fynd'
+      ? '<div style="margin-top:10px;font-size:9.5px;color:#555">Applicable policies: '
+        + '<a href="https://console.fynd.com/terms-and-conditions" style="color:#00897b">Terms of Service</a> \u00b7 '
+        + '<a href="https://console.fynd.com/privacy-policy" style="color:#00897b">Privacy Policy</a></div>'
+      : '') +
     '</div>' +
     '<div style="margin-top:18px;font-size:11px;font-weight:700;margin-bottom:6px">Authorization:</div>' +
     '<div class="sign-grid">' +
