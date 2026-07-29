@@ -636,7 +636,7 @@ export function autoSyncCommercials(forms) {
 // pending ones; cross-references the OF for applied per-IP amounts. Voids excluded.
 // ═══════════════════════════════════════════════════════════════════════════
 const CHURN_TAB = 'Churn Customers';
-const CHURN_HEADERS = [
+export const CHURN_HEADERS = [
   'Company ID', 'Customer', 'Entity', 'OF Number', 'Churn Type', 'Churned IP / Service',
   'Effective Date', 'Churn Amount', 'Currency', 'Billing Region', 'Agreement Type',
   'Reason', 'Actioned / Requested By', 'Date',
@@ -651,7 +651,7 @@ function churnEntityLabel(of) {
   return 'Fynd';
 }
 
-function buildChurnRows(forms, requests) {
+export function buildChurnRows(forms, requests) {
   const rows = [];
   const churnReqs = (requests || []).filter(r => r.status_requested === 'Churn'); // exclude Void
   churnReqs.forEach(r => {
