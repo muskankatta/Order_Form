@@ -8,9 +8,9 @@ import { getRepRegion, formRegion, matchesTeamFilter, TEAM_FILTERS } from '../..
 import { fmtDate, uid } from '../../utils/dates.js';
 import { useToast } from '../../hooks/useToast.js';
 import { db, isConfigured } from '../../firebase.js';
-import { collection, onSnapshot, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { generateSignedOFReport, generateUnsignedOFReport } from '../../utils/reports.js';
-import { autoSyncChurnCustomers } from '../../utils/sheets.js';
+import { autoSyncChurnCustomers, buildChurnRows, CHURN_HEADERS } from '../../utils/sheets.js';
 import { SERVICES } from '../../constants/formOptions.js';
 
 // Slack alerting for back-dated (delayed-intimation) no-OF churns is built but
@@ -42,6 +42,92 @@ function getSigningPeriod(dateStr) {
 }
 
 // ── SignedOFs (main tab view) ─────────────────────────────────────────────────
+function EditReqModal({ req, onClose, onSave }) {
+  const others = !!req.is_others;
+  const [f, setF] = useState({
+    company_id: req.company_id || '',
+    reason: req.reason || '',
+    effective_date: req.effective_date || '',
+    customer_name: req.customer_name || '',
+    agreement_type: req.agreement_type || '',
+    billing_region: req.billing_region || '',
+  });
+  const u = (k,v) => setF(p=>({...p,[k]:v}));
+  const isOFPartial = !others && req.churn_type === 'Partial';
+  const save = () => {
+    const patch = { company_id: f.company_id.trim(), reason: f.reason };
+    if (!isOFPartial) patch.effective_date = f.effective_date;   // OF-partial uses per-IP dates, not editable here
+    if (others) {
+      patch.customer_name = f.customer_name.trim();
+      patch.agreement_type = f.agreement_type;
+      patch.billing_region = f.billing_region;
+    }
+    onSave(patch);
+  };
+  const fld = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300';
+  const lbl = 'block text-[11px] font-bold uppercase tracking-widest mb-1 text-slate-400';
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 overflow-y-auto">
+      <Card className="shadow-2xl w-full max-w-lg p-6 my-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-bold" style={{color:NAVY}}>Edit {req.status_requested} Request</h3>
+            <p className="text-xs text-slate-400 mt-0.5">{req.customer_name}{req.of_number?` · ${req.of_number}`:' · No OF'}</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">✕</button>
+        </div>
+        {others && (
+          <div className="mb-4">
+            <label className={lbl}>Customer Name</label>
+            <input value={f.customer_name} onChange={e=>u('customer_name',e.target.value)} className={fld}/>
+          </div>
+        )}
+        <div className="mb-4">
+          <label className={lbl}>Company ID</label>
+          <input value={f.company_id} onChange={e=>u('company_id',e.target.value)} className={fld+' font-mono'}/>
+        </div>
+        {others && (
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className={lbl}>Agreement Type</label>
+              <select value={f.agreement_type} onChange={e=>u('agreement_type',e.target.value)} className={fld+' cursor-pointer'}>
+                <option value="">Select…</option>
+                {['MSA','SoW','Commercial Plan'].map(o=><option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Billing Region</label>
+              <select value={f.billing_region} onChange={e=>u('billing_region',e.target.value)} className={fld+' cursor-pointer'}>
+                <option value="">Select…</option>
+                {BILLING_REGIONS.map(r=><option key={r.id} value={r.id}>{r.lbl}</option>)}
+              </select>
+            </div>
+          </div>
+        )}
+        {!isOFPartial && (
+          <div className="mb-4">
+            <label className={lbl}>Effective Date</label>
+            <input type="date" value={f.effective_date} onChange={e=>u('effective_date',e.target.value)} className={fld} style={{maxWidth:'200px'}}/>
+          </div>
+        )}
+        {isOFPartial && (
+          <div className="mb-4 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-500">
+            This is a partial churn with per-IP effective dates. To change the churned IPs or their dates/amounts, delete and re-file the request.
+          </div>
+        )}
+        <div className="mb-4">
+          <label className={lbl}>Reason</label>
+          <textarea value={f.reason} onChange={e=>u('reason',e.target.value)} rows={3} className={fld+' resize-none'}/>
+        </div>
+        <div className="flex gap-3 justify-end">
+          <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+          <Btn variant="primary" onClick={save}>Save changes</Btn>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 export function SignedOFs() {
   const { forms, markSigned, applyDealStatus } = useForms();
   const { user }   = useAuth();
@@ -51,6 +137,8 @@ export function SignedOFs() {
   const [cvTab,        setCvTab]       = useState(searchParams.get('tab') || 'unsigned');
   const [signingData,  setSigningData] = useState({});
   const [cvRequests,   setCvRequests]  = useState([]);
+  const [allChurn,     setAllChurn]    = useState([]);   // all requests (applied + pending) for the Churned Customers tab
+  const [editReq,      setEditReq]     = useState(null); // Universal edit modal
   const [q,            setQ]           = useState('');
   const [regionFilter, setRegionFilter]= useState('all');
   const [overdueOnly,  setOverdueOnly] = useState(false);
@@ -71,9 +159,10 @@ export function SignedOFs() {
   useEffect(() => {
     if (!isConfigured || !db) return;
     const unsub = onSnapshot(collection(db, 'churn_void_requests'), snap => {
-      const docs = snap.docs.map(d => d.data())
-        .filter(r => !r.actioned)
+      const all = snap.docs.map(d => d.data())
         .sort((a,b) => (b.requested_at||'').localeCompare(a.requested_at||''));
+      setAllChurn(all);
+      const docs = all.filter(r => !r.actioned);
       setCvRequests(docs);
       const init = {};
       docs.forEach(r => { if (r.churn_value) init[r.id] = r.churn_value; });
@@ -186,6 +275,13 @@ export function SignedOFs() {
   const approvedSummary = calcSummary(allApproved);
   const signedSummary   = calcSummary(signed);
 
+  // Churned Customers list — identical row logic to the Google Sheet tab
+  const churnRows = useMemo(() => buildChurnRows(forms, allChurn), [forms, allChurn]);
+  const churnRowsFiltered = useMemo(() => {
+    const ql = q.trim().toLowerCase();
+    return ql ? churnRows.filter(row => row.some(c => String(c).toLowerCase().includes(ql))) : churnRows;
+  }, [churnRows, q]);
+
   const updateField = (id, field, val) => setSigningData(d => ({...d, [id]:{...(d[id]||{}),[field]:val}}));
 
   const handleMarkSigned = async (f) => {
@@ -248,10 +344,32 @@ export function SignedOFs() {
     show('Request dismissed');
   };
 
+  // ── Universal-only: hard delete + edit a churn/void request ──
+  const handleDeleteReq = async (r) => {
+    if (!user?.isUniversal) return;
+    if (!confirm(`Permanently delete this ${r.status_requested} request for "${r.customer_name}"? This cannot be undone.`)) return;
+    if (isConfigured && db) {
+      await deleteDoc(doc(db,'churn_void_requests',r.id));
+      autoSyncChurnCustomers(forms);
+    }
+    show('Request deleted');
+  };
+
+  const handleSaveEdit = async (patch) => {
+    if (!user?.isUniversal || !editReq) return;
+    if (isConfigured && db) {
+      await updateDoc(doc(db,'churn_void_requests',editReq.id), { ...patch, edited_by: user?.name, edited_at: new Date().toISOString() });
+      autoSyncChurnCustomers(forms);
+    }
+    setEditReq(null);
+    show('Request updated');
+  };
+
   const thCls = "text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-brand-faint bg-slate-50";
   const tabs = [
     { id:'unsigned', lbl:'Pending Signing'+(allApproved.length?' ('+allApproved.length+')':'') },
     { id:'requests', lbl:'Churn/Void Requests'+(cvRequests.length?' ('+cvRequests.length+')':'') },
+    { id:'churnlist',lbl:'Churned Customers' },
     { id:'signed',   lbl:'Signed ('+signed.length+')' },
   ];
   const hasPeriodFilter = periodFY!=='all'||periodQtr!=='all'||periodMonth!=='all';
@@ -365,25 +483,25 @@ export function SignedOFs() {
 
       {/* Summary bar */}
       {(() => {
-        const s = cvTab==='unsigned' ? approvedSummary : cvTab==='signed' ? signedSummary : { count:cvRequests.length, inr:0, usd:0 };
+        const s = cvTab==='unsigned' ? approvedSummary : cvTab==='signed' ? signedSummary : cvTab==='churnlist' ? { count:churnRowsFiltered.length, inr:0, usd:0 } : { count:cvRequests.length, inr:0, usd:0 };
         return (
           <div className="grid grid-cols-3 gap-3 mb-4">
             <div className="bg-white rounded-xl border px-4 py-3" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
               <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">
-                {cvTab==='unsigned'?'Pending Signing':cvTab==='signed'?'Signed OFs':'Pending Requests'}
+                {cvTab==='unsigned'?'Pending Signing':cvTab==='signed'?'Signed OFs':cvTab==='churnlist'?'Churned Customers (rows)':'Pending Requests'}
               </div>
               <div className="text-2xl font-black" style={{color:NAVY}}>{s.count}</div>
             </div>
             <div className="bg-white rounded-xl border px-4 py-3" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
               <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">Committed Revenue · India (INR)</div>
               <div className="text-xl font-black" style={{color:T}}>
-                {cvTab==='requests' ? '—' : '₹'+Math.round(s.inr).toLocaleString('en-IN')}
+                {(cvTab==='requests'||cvTab==='churnlist') ? '—' : '₹'+Math.round(s.inr).toLocaleString('en-IN')}
               </div>
             </div>
             <div className="bg-white rounded-xl border px-4 py-3" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
               <div className="text-[10px] font-bold uppercase tracking-wider text-brand-faint mb-1">Committed Revenue · Global (USD)</div>
               <div className="text-xl font-black" style={{color:'#7c3aed'}}>
-                {cvTab==='requests' ? '—' : '$'+Math.round(s.usd).toLocaleString('en-US')}
+                {(cvTab==='requests'||cvTab==='churnlist') ? '—' : '$'+Math.round(s.usd).toLocaleString('en-US')}
               </div>
             </div>
           </div>
@@ -461,7 +579,7 @@ export function SignedOFs() {
             <div className="overflow-x-auto">
               <table style={{minWidth:'1100px',width:'100%'}} className="text-sm">
                 <thead><tr>
-                  {['OF#','Customer','Request',
+                  {['OF#','Customer','Company ID','Request',
                     isFinanceOrAdmin ? 'Churn Amount (Finance)' : 'Churn Amount',
                     'Reason','Effective Date','Attachment','Filed By','Date','Action'].map(h=>(
                     <th key={h} className={thCls}>{h}</th>
@@ -476,6 +594,7 @@ export function SignedOFs() {
                         {r.customer_name}
                         {r.is_others && <span className="ml-1 text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">No OF</span>}
                       </td>
+                      <td className="px-4 py-3 text-xs font-mono text-brand-muted">{r.company_id || <span className="text-slate-300">—</span>}</td>
                       <td className="px-4 py-3">
                         <span className={'text-xs px-2 py-1 rounded-full font-bold '+(r.status_requested==='Void'?'bg-red-100 text-red-700':'bg-orange-100 text-orange-700')}>
                           {r.status_requested}
@@ -548,6 +667,18 @@ export function SignedOFs() {
                             className="text-xs font-medium px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors">
                             Dismiss
                           </button>
+                          {user?.isUniversal && (
+                            <>
+                              <button onClick={()=>setEditReq(r)}
+                                className="text-xs font-medium px-2 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
+                                Edit
+                              </button>
+                              <button onClick={()=>handleDeleteReq(r)}
+                                className="text-xs font-medium px-2 py-1 rounded-lg bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-colors">
+                                Delete
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -557,6 +688,45 @@ export function SignedOFs() {
             </div>
           </Card>
         </div>
+      )}
+
+      {/* ── Churned Customers (all churns, per-IP; mirrors the Google Sheet tab) ── */}
+      {cvTab==='churnlist' && (
+        <Card className="overflow-hidden">
+          <div className="px-5 py-3 text-xs text-brand-muted border-b border-slate-100">
+            Every churn — applied and pending, one row per IP for partial churns. Mirrors the “Churn Customers” Google Sheet tab. Voids excluded.
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr>
+                {CHURN_HEADERS.map(h=><th key={h} className={thCls+' whitespace-nowrap'}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {churnRowsFiltered.length===0 ? (
+                  <tr><td colSpan={CHURN_HEADERS.length} className="px-4 py-10 text-center text-sm text-slate-400">No churned customers yet.</td></tr>
+                ) : churnRowsFiltered.map((row,i)=>(
+                  <tr key={i} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
+                    {row.map((cell,ci)=>{
+                      const isType = ci===4, isAmt = ci===7;
+                      return (
+                        <td key={ci} className={'px-4 py-3 text-xs whitespace-nowrap '+(ci===1?'font-medium':'text-brand-muted')}
+                          style={ci===1?{color:NAVY}:{}}>
+                          {isType ? (
+                            <span className={'px-2 py-0.5 rounded-full font-bold text-[10px] '+(cell==='Partial'?'bg-orange-100 text-orange-700':'bg-red-100 text-red-700')}>{cell}</span>
+                          ) : isAmt ? (
+                            cell==='Pending' ? <span className="text-amber-600 font-medium">Pending</span>
+                              : cell!=='' ? <span className="font-mono font-semibold">{Number(cell).toLocaleString('en-IN')}</span>
+                              : <span className="text-slate-300">—</span>
+                          ) : (cell===''||cell==null) ? <span className="text-slate-300">—</span> : String(cell)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
 
       {/* ── Signed ── */}
@@ -605,6 +775,7 @@ export function SignedOFs() {
         </Card>
       )}
 
+      {editReq && <EditReqModal req={editReq} onClose={()=>setEditReq(null)} onSave={handleSaveEdit}/>}
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={hide}/>}
     </div>
   );
