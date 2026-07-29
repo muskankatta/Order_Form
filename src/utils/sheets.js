@@ -15,6 +15,8 @@ import { STATUS } from '../constants/status.js';
 import { getSym, cyclesInDateRange } from './formatting.js';
 import { getRepRegion } from '../constants/users.js';
 import { formBusinessUnits } from '../constants/formOptions.js';
+import { db } from '../firebase.js';
+import { collection, getDocs } from 'firebase/firestore';
 
 // ── HELPERS ──────────────────────────────────────────────────────────────────
 const fmt = v => (v === null || v === undefined) ? '' : String(v);
@@ -625,5 +627,117 @@ export function autoSyncCommercials(forms) {
       console.warn('[Commercials] auto-sync skipped:', e?.message || e));
   } catch (e) {
     console.warn('[Commercials] auto-sync error:', e?.message || e);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Churn Customers tab — one row per churned IP (partial) or per full churn.
+// Sources every request in `churn_void_requests` (OF-linked + no-OF), including
+// pending ones; cross-references the OF for applied per-IP amounts. Voids excluded.
+// ═══════════════════════════════════════════════════════════════════════════
+const CHURN_TAB = 'Churn Customers';
+const CHURN_HEADERS = [
+  'Company ID', 'Customer', 'Entity', 'OF Number', 'Churn Type', 'Churned IP / Service',
+  'Effective Date', 'Churn Amount', 'Currency', 'Billing Region', 'Agreement Type',
+  'Reason', 'Actioned / Requested By', 'Date',
+];
+
+function churnEntityLabel(of) {
+  if (!of) return '';
+  const k = of.entity || '';
+  const n = of.of_number || '';
+  if (k === 'yavi'   || n.startsWith('OFYT') || n.startsWith('OF-YT-')) return 'Yavi';
+  if (k === 'fynduk' || n.startsWith('OF-UK-')) return 'Fynd UK';
+  return 'Fynd';
+}
+
+function buildChurnRows(forms, requests) {
+  const rows = [];
+  const churnReqs = (requests || []).filter(r => r.status_requested === 'Churn'); // exclude Void
+  churnReqs.forEach(r => {
+    const of = !r.is_others ? (forms || []).find(f => f.id === r.form_id || f.of_number === r.of_number) : null;
+    const applied  = !!r.actioned && !r.rejected;
+    const pending  = !r.is_others && !applied;
+    const currency = of ? (of.committed_currency || 'INR') : (r.currency || '');
+    const entLabel = r.is_others ? '' : churnEntityLabel(of);
+    const by   = r.actioned_by || r.requested_by || '';
+    const date = (r.actioned_at || r.requested_at || '').split('T')[0] || '';
+    const base = {
+      company: r.company_id || '', customer: r.customer_name || '', ent: entLabel,
+      of: r.of_number || '', currency, region: r.billing_region || '',
+      agreement: r.agreement_type || '', reason: r.reason || '', by, date,
+    };
+    const amtCell = v => (v != null && v !== '') ? v : (pending ? 'Pending' : '');
+
+    if (r.churn_type === 'Partial') {
+      const ips = r.is_others
+        ? (r.ip_services || []).map(n => ({ name: n, effective_date: r.effective_date, amount: null }))
+        : (r.churned_services || []).map(s => ({ name: s.name, effective_date: s.effective_date, amount: s.amount }));
+      if (!ips.length) ips.push({ name: '(no IP selected)', effective_date: r.effective_date, amount: null });
+      ips.forEach(ip => rows.push([
+        base.company, base.customer, base.ent, base.of, 'Partial', ip.name,
+        ip.effective_date || '', r.is_others ? '' : amtCell(ip.amount), base.currency,
+        base.region, base.agreement, base.reason, base.by, base.date,
+      ]));
+    } else {
+      rows.push([
+        base.company, base.customer, base.ent, base.of, 'Full', 'All (full churn)',
+        r.effective_date || '', r.is_others ? '' : amtCell(r.churn_amount_applied),
+        base.currency, base.region, base.agreement, base.reason, base.by, base.date,
+      ]);
+    }
+  });
+  return rows;
+}
+
+/** Full regenerate of the Churn Customers tab. */
+export async function syncChurnCustomers(forms, tokenIn) {
+  const sheetsId = getSheetId();
+  if (!sheetsId) throw new Error('No Google Sheet ID configured.');
+  const token = tokenIn || await getAccessToken();
+
+  let requests = [];
+  try {
+    const snap = await getDocs(collection(db, 'churn_void_requests'));
+    snap.forEach(d => requests.push({ id: d.id, ...d.data() }));
+  } catch (e) { console.warn('[Churn] request fetch failed:', e?.message || e); }
+
+  let meta = await getMeta(sheetsId, token);
+  let sheet = meta.sheets.find(s => s.properties.title === CHURN_TAB);
+  if (!sheet) {
+    const r = await batchUpdate(sheetsId,
+      [{ addSheet: { properties: { title: CHURN_TAB, gridProperties: { frozenRowCount: 1 } } } }], token);
+    sheet = { properties: r.replies[0].addSheet.properties };
+  }
+  const sheetId = sheet.properties.sheetId;
+
+  const rows = buildChurnRows(forms, requests);
+  const values = [CHURN_HEADERS, ...rows];
+
+  await clearTab(sheetsId, CHURN_TAB, token);
+  await writeTab(sheetsId, CHURN_TAB, values, token);
+
+  // Header styling: navy background, white bold
+  await batchUpdate(sheetsId, [{
+    repeatCell: {
+      range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+      cell: { userEnteredFormat: {
+        backgroundColor: { red: 0.106, green: 0.169, blue: 0.294 },
+        textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
+      } },
+      fields: 'userEnteredFormat(backgroundColor,textFormat)',
+    },
+  }], token);
+
+  return { rows: rows.length };
+}
+
+/** Fire-and-forget churn-tab refresh (mirrors autoSyncCommercials). */
+export function autoSyncChurnCustomers(forms) {
+  try {
+    if (!getSheetId()) return;
+    syncChurnCustomers(forms).catch(e => console.warn('[Churn] auto-sync skipped:', e?.message || e));
+  } catch (e) {
+    console.warn('[Churn] auto-sync error:', e?.message || e);
   }
 }
