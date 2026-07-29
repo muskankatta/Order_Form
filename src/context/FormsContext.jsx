@@ -7,7 +7,7 @@ import { storage } from '../utils/storage.js';
 import { uid } from '../utils/dates.js';
 import { sendEmail, svcNames, threadSubject } from '../utils/email.js';
 import { notifySlack } from '../utils/slack.js';
-import { autoSyncCommercials } from '../utils/sheets.js';
+import { autoSyncCommercials, autoSyncChurnCustomers } from '../utils/sheets.js';
 import { canonicalService } from '../constants/formOptions.js';
 import { entityFromOfNumber } from '../constants/entities.js';
 import { useAuth } from './AuthContext.jsx';
@@ -390,6 +390,7 @@ export function FormsProvider({ children }) {
     const next = { ...base, ...patch };
     await persistOne(next);
     autoSyncCommercials(withForm(forms, next));  // real-time: live date / deal status update
+    if (next.is_churn || next.is_void || next.partial_churn) autoSyncChurnCustomers(withForm(forms, next));
   }, [forms, persistOne]);
 
   const submitChurnVoidRequest = useCallback(async (payload) => {
