@@ -668,19 +668,21 @@ export function buildChurnRows(forms, requests) {
       agreement: r.agreement_type || '', reason: r.reason || '', by, date,
     };
     const amtCell = v => (v != null && v !== '') ? v : (pending ? 'Pending' : '');
+    let first = true;
+    const push = cells => { rows.push({ cells, req: r, firstOfGroup: first, applied }); first = false; };
 
     if (r.churn_type === 'Partial') {
       const ips = r.is_others
         ? (r.ip_services || []).map(n => ({ name: n, effective_date: r.effective_date, amount: null }))
         : (r.churned_services || []).map(s => ({ name: s.name, effective_date: s.effective_date, amount: s.amount }));
       if (!ips.length) ips.push({ name: '(no IP selected)', effective_date: r.effective_date, amount: null });
-      ips.forEach(ip => rows.push([
+      ips.forEach(ip => push([
         base.company, base.customer, base.ent, base.of, 'Partial', ip.name,
         ip.effective_date || '', r.is_others ? '' : amtCell(ip.amount), base.currency,
         base.region, base.agreement, base.reason, base.by, base.date,
       ]));
     } else {
-      rows.push([
+      push([
         base.company, base.customer, base.ent, base.of, 'Full', 'All (full churn)',
         r.effective_date || '', r.is_others ? '' : amtCell(r.churn_amount_applied),
         base.currency, base.region, base.agreement, base.reason, base.by, base.date,
@@ -712,7 +714,7 @@ export async function syncChurnCustomers(forms, tokenIn) {
   const sheetId = sheet.properties.sheetId;
 
   const rows = buildChurnRows(forms, requests);
-  const values = [CHURN_HEADERS, ...rows];
+  const values = [CHURN_HEADERS, ...rows.map(r => r.cells)];
 
   await clearTab(sheetsId, CHURN_TAB, token);
   await writeTab(sheetsId, CHURN_TAB, values, token);
