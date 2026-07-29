@@ -12,7 +12,7 @@ import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from 'fireb
 import { generateSignedOFReport, generateUnsignedOFReport } from '../../utils/reports.js';
 import { autoSyncChurnCustomers, buildChurnRows, CHURN_HEADERS } from '../../utils/sheets.js';
 import { SERVICES } from '../../constants/formOptions.js';
- 
+
 // Slack alerting for back-dated (delayed-intimation) no-OF churns is built but
 // DISABLED until historical churn data is reconciled. Flip to true to enable;
 // the record already stores billing_region + delayed_intimation for routing.
@@ -279,7 +279,7 @@ export function SignedOFs() {
   const churnRows = useMemo(() => buildChurnRows(forms, allChurn), [forms, allChurn]);
   const churnRowsFiltered = useMemo(() => {
     const ql = q.trim().toLowerCase();
-    return ql ? churnRows.filter(row => row.some(c => String(c).toLowerCase().includes(ql))) : churnRows;
+    return ql ? churnRows.filter(row => row.cells.some(c => String(c).toLowerCase().includes(ql))) : churnRows;
   }, [churnRows, q]);
 
   const updateField = (id, field, val) => setSigningData(d => ({...d, [id]:{...(d[id]||{}),[field]:val}}));
@@ -347,12 +347,34 @@ export function SignedOFs() {
   // ── Universal-only: hard delete + edit a churn/void request ──
   const handleDeleteReq = async (r) => {
     if (!user?.isUniversal) return;
-    if (!confirm(`Permanently delete this ${r.status_requested} request for "${r.customer_name}"? This cannot be undone.`)) return;
+    // Applied, OF-linked churn → reversing restores the OF's committed revenue and clears churn flags
+    const of = (r.actioned && !r.rejected && !r.is_others && r.status_requested==='Churn')
+      ? forms.find(f => f.id===r.form_id || f.of_number===r.of_number) : null;
+    const restoreAmt = of ? Number(r.churn_amount_applied || 0) : 0;
+    const msg = of
+      ? `Delete this ${r.churn_type||'Full'} churn for "${r.customer_name}" and REVERSE it on ${r.of_number}?\n\nThis restores ${restoreAmt.toLocaleString('en-IN')} ${of.committed_currency||'INR'} to committed revenue and removes the churn. This cannot be undone.`
+      : `Permanently delete this ${r.status_requested} request for "${r.customer_name}"? This cannot be undone.`;
+    if (!confirm(msg)) return;
+
+    if (of) {
+      const wasPartial = r.churn_type === 'Partial';
+      await applyDealStatus(of.id, {
+        committed_revenue: Number(of.committed_revenue || 0) + restoreAmt,
+        is_churn: false,
+        churn_amount_applied: 0,
+        ...(wasPartial
+          ? { partial_churn: false, churned_services: [] }
+          : { status: of.signed_date ? 'signed' : 'approved' }),
+        status_change_comment: 'Churn reversed & deleted by ' + (user?.name || 'Universal'),
+        status_changed_by: user?.name,
+        status_changed_at: new Date().toISOString(),
+      });
+    }
     if (isConfigured && db) {
       await deleteDoc(doc(db,'churn_void_requests',r.id));
       autoSyncChurnCustomers(forms);
     }
-    show('Request deleted');
+    show(of ? 'Churn reversed & deleted' : 'Request deleted');
   };
 
   const handleSaveEdit = async (patch) => {
@@ -700,13 +722,14 @@ export function SignedOFs() {
             <table className="w-full">
               <thead><tr>
                 {CHURN_HEADERS.map(h=><th key={h} className={thCls+' whitespace-nowrap'}>{h}</th>)}
+                {user?.isUniversal && <th className={thCls+' whitespace-nowrap'}>Actions</th>}
               </tr></thead>
               <tbody>
                 {churnRowsFiltered.length===0 ? (
-                  <tr><td colSpan={CHURN_HEADERS.length} className="px-4 py-10 text-center text-sm text-slate-400">No churned customers yet.</td></tr>
+                  <tr><td colSpan={CHURN_HEADERS.length + (user?.isUniversal?1:0)} className="px-4 py-10 text-center text-sm text-slate-400">No churned customers yet.</td></tr>
                 ) : churnRowsFiltered.map((row,i)=>(
                   <tr key={i} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
-                    {row.map((cell,ci)=>{
+                    {row.cells.map((cell,ci)=>{
                       const isType = ci===4, isAmt = ci===7;
                       return (
                         <td key={ci} className={'px-4 py-3 text-xs whitespace-nowrap '+(ci===1?'font-medium':'text-brand-muted')}
@@ -721,6 +744,22 @@ export function SignedOFs() {
                         </td>
                       );
                     })}
+                    {user?.isUniversal && (
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {row.firstOfGroup ? (
+                          <div className="flex gap-2">
+                            <button onClick={()=>setEditReq(row.req)}
+                              className="text-xs font-medium px-2 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
+                              Edit
+                            </button>
+                            <button onClick={()=>handleDeleteReq(row.req)}
+                              className="text-xs font-medium px-2 py-1 rounded-lg bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-colors">
+                              Delete
+                            </button>
+                          </div>
+                        ) : <span className="text-slate-200 text-xs">↳</span>}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
