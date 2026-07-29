@@ -10,6 +10,7 @@ import { useToast } from '../../hooks/useToast.js';
 import { db, isConfigured } from '../../firebase.js';
 import { collection, onSnapshot, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { generateSignedOFReport, generateUnsignedOFReport } from '../../utils/reports.js';
+import { autoSyncChurnCustomers } from '../../utils/sheets.js';
 import { SERVICES } from '../../constants/formOptions.js';
 
 // Slack alerting for back-dated (delayed-intimation) no-OF churns is built but
@@ -54,6 +55,7 @@ export function SignedOFs() {
   const [regionFilter, setRegionFilter]= useState('all');
   const [overdueOnly,  setOverdueOnly] = useState(false);
   const [cvAmounts,    setCvAmounts]   = useState({});
+  const [cvIpAmounts,  setCvIpAmounts] = useState({});   // {[reqId]: {[ipName]: amount}} — per-IP partial churn
 
   const [periodFY,    setPeriodFY]    = useState('all');
   const [periodQtr,   setPeriodQtr]   = useState('all');
@@ -198,8 +200,15 @@ export function SignedOFs() {
     const form = !isOthers ? forms.find(f => f.id===r.form_id || f.of_number===r.of_number) : null;
     if (!isOthers && !form) { alert('Order Form not found.'); return; }
 
-    const churnAmount = r.status_requested === 'Churn' ? Number(cvAmounts[r.id] || 0) : 0;
     const isPartial = r.status_requested === 'Churn' && r.churn_type === 'Partial';
+    // Per-IP amounts for a partial churn (Finance enters one per IP → total is the sum)
+    const ipAmts = cvIpAmounts[r.id] || {};
+    const churnedWithAmts = isPartial
+      ? (r.churned_services || []).map(s => ({ ...s, amount: Number(ipAmts[s.name] || 0) }))
+      : [];
+    const churnAmount = r.status_requested === 'Churn'
+      ? (isPartial ? churnedWithAmts.reduce((a,s)=>a+Number(s.amount||0),0) : Number(cvAmounts[r.id] || 0))
+      : 0;
 
     if (form) {
       await applyDealStatus(form.id, {
@@ -210,7 +219,7 @@ export function SignedOFs() {
           is_churn: true,
           committed_revenue: Math.max(0, Number(form.committed_revenue || 0) - churnAmount),
           churn_amount_applied: churnAmount,
-          ...(isPartial ? { partial_churn: true, churned_services: r.churned_services || [] } : {}),
+          ...(isPartial ? { partial_churn: true, churned_services: churnedWithAmts } : {}),
         } : {}),
         status_change_comment: r.reason,
         status_changed_by: user?.name,
@@ -222,9 +231,11 @@ export function SignedOFs() {
       await updateDoc(doc(db,'churn_void_requests',r.id), {
         actioned: true, actioned_by: user?.name, actioned_at: new Date().toISOString(),
         ...(churnAmount ? { churn_amount_applied: churnAmount } : {}),
+        ...(isPartial ? { churned_services: churnedWithAmts } : {}),
       });
     }
     show('Status applied: ' + r.status_requested);
+    autoSyncChurnCustomers(forms);   // refresh Churn Customers tab (incl. per-IP amounts)
   };
 
   const handleDismiss = async (r) => {
@@ -473,14 +484,33 @@ export function SignedOFs() {
                       <td className="px-4 py-3">
                         {r.status_requested === 'Churn' ? (
                           isFinanceOrAdmin ? (
-                            <input
-                              type="number"
-                              value={cvAmounts[r.id] || ''}
-                              onChange={e => setCvAmounts(prev => ({...prev, [r.id]: e.target.value}))}
-                              placeholder="Enter amount"
-                              className="text-xs border rounded-lg px-2 py-1.5 focus:outline-none border-slate-200 w-32 font-mono"
-                              style={{borderColor: cvAmounts[r.id] ? T : '#e2e8f0'}}
-                            />
+                            (r.churn_type==='Partial' && (r.churned_services||[]).length) ? (
+                              <div className="space-y-1.5 min-w-[190px]">
+                                {(r.churned_services||[]).map(s=>(
+                                  <div key={s.name} className="flex items-center gap-2">
+                                    <span className="text-[10px] text-brand-muted flex-1 truncate" title={s.name}>{s.name}</span>
+                                    <input type="number"
+                                      value={(cvIpAmounts[r.id]||{})[s.name] || ''}
+                                      onChange={e=>setCvIpAmounts(prev=>({...prev,[r.id]:{...(prev[r.id]||{}),[s.name]:e.target.value}}))}
+                                      placeholder="amount"
+                                      className="text-xs border rounded-lg px-2 py-1 focus:outline-none border-slate-200 w-24 font-mono"
+                                      style={{borderColor:(cvIpAmounts[r.id]||{})[s.name] ? T : '#e2e8f0'}}/>
+                                  </div>
+                                ))}
+                                <div className="text-[10px] text-right pt-0.5 font-semibold" style={{color:NAVY}}>
+                                  Total: {Object.values(cvIpAmounts[r.id]||{}).reduce((a,v)=>a+Number(v||0),0).toLocaleString('en-IN')}
+                                </div>
+                              </div>
+                            ) : (
+                              <input
+                                type="number"
+                                value={cvAmounts[r.id] || ''}
+                                onChange={e => setCvAmounts(prev => ({...prev, [r.id]: e.target.value}))}
+                                placeholder="Enter amount"
+                                className="text-xs border rounded-lg px-2 py-1.5 focus:outline-none border-slate-200 w-32 font-mono"
+                                style={{borderColor: cvAmounts[r.id] ? T : '#e2e8f0'}}
+                              />
+                            )
                           ) : (
                             <span className="text-xs text-brand-muted">{r.churn_value || <span className="text-slate-300">TBD by Finance</span>}</span>
                           )
@@ -753,6 +783,7 @@ export function ChurnVoidRequest() {
           } : {})),
         };
         await setDoc(doc(db, 'churn_void_requests', reqId), docData);
+        if (req.status_requested === 'Churn') autoSyncChurnCustomers(forms);   // show pending churn immediately
 
         // ── Delayed-intimation Slack alert — DISABLED (see CHURN_SLACK_ENABLED) ──
         // When enabled, a back-dated no-OF churn posts to the billing_region's
