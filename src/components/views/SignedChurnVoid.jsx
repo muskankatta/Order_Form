@@ -734,7 +734,7 @@ export function ChurnVoidRequest() {
     if (isOthers && !req.customer_manual?.trim())     errs.push('Enter the customer name');
     if (!isOthers && !req.of_number)                  errs.push('Select an Order Form number');
     if (isOthers && !req.agreement_type)              errs.push('Select the agreement type (MSA / SoW / Commercial Plan)');
-    if (isOthers && !req.company_id?.trim())          errs.push('Enter the Company ID');
+    if (!req.company_id?.trim())                      errs.push('Enter the Company ID');
     if (isOthers && !req.billing_region)              errs.push('Select the billing region');
     if (isOthers && req.churn_type==='Partial' && !req.ip_services.length) errs.push('Select the IP / Service(s) being churned');
     const isOFPartial = !isOthers && req.status_requested==='Churn' && req.churn_type==='Partial';
@@ -761,6 +761,7 @@ export function ChurnVoidRequest() {
           form_id: form?.id || '',
           of_number: req.of_number || '',
           customer_name: finalCustomer,
+          company_id: req.company_id.trim(),
           is_others: isOthers,
           status_requested: req.status_requested,
           reason: req.reason || '',
@@ -772,7 +773,6 @@ export function ChurnVoidRequest() {
           ...(req.attachment ? { attachment: req.attachment } : {}),
           ...(isOthers ? {
             agreement_type: req.agreement_type,
-            company_id: req.company_id.trim(),
             churn_type: req.churn_type,
             ip_services: req.churn_type === 'Partial' ? req.ip_services : [],
             billing_region: req.billing_region,
@@ -912,6 +912,12 @@ export function ChurnVoidRequest() {
           </div>
         )}
 
+        {/* Company ID — captured for every Churn/Void request (OF-linked or not) */}
+        {(req.customer || isOthers) && (
+          <Inp label="Company ID" req value={req.company_id} onChange={v=>u('company_id',v)}
+            placeholder="Customer company ID"/>
+        )}
+
         {isOthers && (
           <div className="mb-4 p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-sm">
             ℹ️ No Order Form will be updated. This request is for a customer without an OF in the system.
@@ -920,15 +926,12 @@ export function ChurnVoidRequest() {
 
         {isOthers && (
           <>
-            <div className="grid grid-cols-2 gap-x-4">
-              <div className="mb-4">
-                <Lbl c="Agreement type" req/>
-                <select value={req.agreement_type} onChange={e=>u('agreement_type',e.target.value)} className="field-input cursor-pointer">
-                  <option value="">Select…</option>
-                  {['MSA','SoW','Commercial Plan'].map(o=><option key={o} value={o}>{o}</option>)}
-                </select>
-              </div>
-              <Inp label="Company ID" req value={req.company_id} onChange={v=>u('company_id',v)} placeholder="Customer company ID"/>
+            <div className="mb-4">
+              <Lbl c="Agreement type" req/>
+              <select value={req.agreement_type} onChange={e=>u('agreement_type',e.target.value)} className="field-input cursor-pointer" style={{maxWidth:'320px'}}>
+                <option value="">Select…</option>
+                {['MSA','SoW','Commercial Plan'].map(o=><option key={o} value={o}>{o}</option>)}
+              </select>
             </div>
 
             <div className="mb-4">
