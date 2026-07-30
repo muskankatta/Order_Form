@@ -395,10 +395,10 @@ function buildCommercials(forms) {
       fmt(f.of_value), fmt(f.of_term || (f.of_term_months ? f.of_term_months + ' Months' : '')),
       fmt(f.start_date), fmt(f.end_date), fmt(f.auto_renewal), fmt(f.renewal_term), fmt(f.payment_terms),
     ];
-    const statusSign = [
+    const statusSignFor = (liveDate) => [
       fmt(STATUS[f.status]?.label || f.status), fmt(f.approved_at?.split('T')[0]),
       fmt(f.signed_date), fmt(getQtr(f.signed_date)), fmt(getFY(f.signed_date)),
-      signedLink, fmt(f.live_date),
+      signedLink, fmt(liveDate),
     ];
     // Client / Billing — OF-level, repeated on each fee line (far-right group)
     const clientBilling = [
@@ -407,9 +407,9 @@ function buildCommercials(forms) {
     ];
     const blockStart = DATA_START_ROW + rows.length;
     const services = (f.services_fees || []).filter(Boolean);
-    const pushFee = (svcName, fee) => {
+    const pushFee = (svc, fee) => {
       rows.push([
-        ...ofHead, ...statusSign, bundle, fmt(svcName),
+        ...ofHead, ...statusSignFor(svc?.live_date || ''), bundle, fmt(svc?.name || ''),
         fmt(fee?.feeType), fmt(fee?.billingCycle), fee ? pricingModelOf(fee) : '',
         fee ? feeBasisOf(fee) : '', fee ? numericValueOf(fee) : '',
         fee ? chargedOnOf(fee) : '', inclusionsText(fee?.inclusions),
@@ -420,12 +420,12 @@ function buildCommercials(forms) {
       ]);
     };
     if (!services.length) {
-      pushFee('', null);
+      pushFee(null, null);
     } else {
       services.forEach(svc => {
         const fees = (svc.fees || []).filter(Boolean);
-        if (!fees.length) pushFee(svc.name, null);
-        else fees.forEach(fee => pushFee(svc.name, fee));
+        if (!fees.length) pushFee(svc, null);
+        else fees.forEach(fee => pushFee(svc, fee));
       });
     }
     const blockEnd = DATA_START_ROW + rows.length;
