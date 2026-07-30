@@ -421,13 +421,19 @@ export default function StepClient({ form, set, ro }) {
             Revenue Architect (RA) <span className="text-red-400">*</span>
           </label>
           {ro ? (
-            <input value={form.ra_name || (form.ra_email==='NA'?'NA':'') || ''} readOnly className="field-input" style={{background:'#f8fafc',color:'#64748b'}}/>
+            (form.ra_name || form.ra_email==='NA') ? (
+              <input value={form.ra_name || 'NA'} readOnly className="field-input" style={{background:'#f8fafc',color:'#64748b'}}/>
+            ) : (
+              <input value="⚠ Required — no RA set (must be added before approving)" readOnly className="field-input"
+                style={{background:'#fef2f2',borderColor:'#fca5a5',color:'#b91c1c',fontWeight:600}}/>
+            )
           ) : (
             <>
               <select
                 value={customRA ? '__custom__' : (form.ra_email || '')}
                 onChange={e => handleRASelect(e.target.value)}
-                className="field-input cursor-pointer">
+                className="field-input cursor-pointer"
+                style={(!customRA && !form.ra_email) ? {borderColor:'#f87171', background:'#fef2f2'} : {}}>
                 <option value="">Select RA…</option>
                 {sortedRAs.map(r => <option key={r.email} value={r.email}>{r.name}</option>)}
                 <option value="NA">NA</option>
@@ -445,7 +451,9 @@ export default function StepClient({ form, set, ro }) {
                   <p className="text-[10px] text-indigo-600">All three are required. Slack ID is used to tag the RA in notifications. Find it in Slack → Profile → ⋯ → Copy member ID.</p>
                 </div>
               )}
-              <p className="text-xs mt-1 text-brand-faint">Not shown on the Order Form PDF. Choose an RA, NA, or add one via Others.</p>
+              {(!customRA && !form.ra_email)
+                ? <p className="text-xs mt-1 text-red-500 font-medium">Revenue Architect is required — select an RA, NA, or add one via Others.</p>
+                : <p className="text-xs mt-1 text-brand-faint">Not shown on the Order Form PDF. Choose an RA, NA, or add one via Others.</p>}
             </>
           )}
         </div>
