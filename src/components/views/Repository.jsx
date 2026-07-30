@@ -246,8 +246,14 @@ export default function Repository() {
     setStatusModal(null);
   };
 
-  const handleLiveDateChange = async (formId, date) => {
-    await applyDealStatus(formId, { live_date: date || null });
+  const handleSvcLiveDate = async (form, svcIdx, date) => {
+    const svcs = (form.services_fees||[]).map((s,i)=> i===svcIdx ? {...s, live_date: date||null} : s);
+    await applyDealStatus(form.id, { services_fees: svcs });
+  };
+  const applyLegacyLiveDateToAll = async (form) => {
+    if (!form.live_date) return;
+    const svcs = (form.services_fees||[]).map(s => ({...s, live_date: s.live_date || form.live_date}));
+    await applyDealStatus(form.id, { services_fees: svcs });
   };
 
   const TO_USD = { USD:v=>v, INR:v=>v/91, AED:v=>v/3.6725, MYR:v=>v/4.30, IDR:v=>v/16950, GBP:v=>v/0.80, EUR:v=>v/0.90, SGD:v=>v/1.35, SAR:v=>v/3.75, AUD:v=>v/1.55 };
@@ -559,18 +565,35 @@ export default function Repository() {
                           </td>
                         )}
                         {show('live_date') && (
-                          <td className="px-4 py-3.5" onClick={e=>e.stopPropagation()}>
-                            <input
-                              type="date"
-                              value={f.live_date || ''}
-                              onChange={e => handleLiveDateChange(f.id, e.target.value)}
-                              className="text-xs border rounded-lg px-2 py-1 bg-white border-slate-200 focus:outline-none focus:border-teal-400"
-                              style={{ width:'130px' }}
-                              title="Date when customer went live on Fynd"
-                            />
-                            {f.live_date && (
-                              <div className="text-[10px] text-green-600 font-medium mt-0.5">🚀 {fmtShort(f.live_date)}</div>
-                            )}
+                          <td className="px-4 py-3.5 align-top" onClick={e=>e.stopPropagation()}>
+                            {(() => {
+                              const svcs = (f.services_fees||[]).filter(s=>s.name);
+                              if (!svcs.length) return <span className="text-slate-300 text-xs">—</span>;
+                              const legacyUnset = f.live_date && svcs.some(s=>!s.live_date);
+                              return (
+                                <div className="space-y-1 min-w-[180px]">
+                                  {svcs.map((svc,i)=>{
+                                    const realIdx = (f.services_fees||[]).indexOf(svc);
+                                    return (
+                                      <div key={svc.id||i} className="flex items-center gap-1.5">
+                                        <span className="text-[10px] text-brand-muted truncate" style={{maxWidth:78}} title={svc.name}>{svc.name}</span>
+                                        <input type="date" value={svc.live_date || ''}
+                                          onChange={e => handleSvcLiveDate(f, realIdx, e.target.value)}
+                                          className="text-[10px] border rounded px-1.5 py-0.5 bg-white border-slate-200 focus:outline-none focus:border-teal-400"
+                                          style={{ width:'112px' }} title={`Go-live date for ${svc.name}`}/>
+                                        {svc.live_date && <span className="text-[9px] text-green-600">🚀</span>}
+                                      </div>
+                                    );
+                                  })}
+                                  {legacyUnset && (
+                                    <button onClick={()=>applyLegacyLiveDateToAll(f)}
+                                      className="text-[9px] text-teal-600 hover:text-teal-700 font-medium mt-0.5">
+                                      ↓ apply legacy date ({fmtShort(f.live_date)}) to all
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </td>
                         )}
                         {show('active')    && (
