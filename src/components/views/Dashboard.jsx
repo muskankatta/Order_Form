@@ -5,7 +5,7 @@ import { Card, StatusPill, Btn } from '../ui/index.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { SALES_REPS, getRepRegion, formRegion, matchesTeamFilter, TEAM_FILTERS, isUsdTeamFilter } from '../../constants/users.js';
-import { fmtShort, daysUntil } from '../../utils/dates.js';
+import { fmtShort } from '../../utils/dates.js';
 import { generateDashboardReport } from '../../utils/reports.js';
 
 const NAVY='#1B2B4B'; const T='#00C3B5';
@@ -181,7 +181,6 @@ export default function Dashboard() {
     ? uniq.filter(f=>f.status==='revops_approved')
     : uniq.filter(f=>['submitted','draft','revops_rejected'].includes(f.status));
 
-  const renewing = uniq.filter(f => { const d=daysUntil(f.end_date); return d!==null&&d<=30&&d>0; });
 
   const goRepo    = s => navigate(`/repository${s?'?status='+s:''}`);
   const goPending = s => navigate(`/pending${s?'?section='+s:''}`);
@@ -410,27 +409,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Renewing soon */}
-      {renewing.length > 0 && (
-        <div className="mb-6 rounded-2xl border overflow-hidden" style={{borderColor:'#e8edf3',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-          <div className="px-6 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between cursor-pointer hover:bg-amber-100 transition-all"
-            onClick={()=>goRepo()}>
-            <h3 className="font-bold text-sm text-amber-800">🔔 Renewing / expiring within 30 days ({renewing.length})</h3>
-            <span className="text-xs text-amber-600 font-medium">View all in Repository →</span>
-          </div>
-          {renewing.map(f=>(
-            <div key={f.id}
-              onClick={()=>navigate('/form/'+f.id)}
-              className="flex items-center justify-between px-6 py-3 cursor-pointer hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors">
-              <span className="text-sm font-medium" style={{color:NAVY}}>{f.customer_name}</span>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-amber-600 font-bold">{daysUntil(f.end_date)}d remaining · {f.end_date}</span>
-                <span className="text-slate-300">›</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Renewing soon → moved to its own "Renewals" tab */}
 
       {/* Queue */}
       <Card>
