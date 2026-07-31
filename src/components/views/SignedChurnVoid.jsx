@@ -3,8 +3,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, Btn, Lbl, Sel, TA, Inp, MultiSelect, Toast } from '../ui/index.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { FINANCE_USERS } from '../../constants/users.js';
+import { FINANCE_USERS, REVOPS_USERS } from '../../constants/users.js';
 import { getRepRegion, formRegion, matchesTeamFilter, TEAM_FILTERS } from '../../constants/users.js';
+import { CHANNELS as SLACK_CHANNELS, slackMention } from '../../utils/slack.js';
 import { fmtDate, uid } from '../../utils/dates.js';
 import { useToast } from '../../hooks/useToast.js';
 import { db, isConfigured } from '../../firebase.js';
@@ -13,10 +14,53 @@ import { generateSignedOFReport, generateUnsignedOFReport } from '../../utils/re
 import { autoSyncChurnCustomers, buildChurnRows, CHURN_HEADERS } from '../../utils/sheets.js';
 import { SERVICES } from '../../constants/formOptions.js';
 
-// Slack alerting for back-dated (delayed-intimation) no-OF churns is built but
-// DISABLED until historical churn data is reconciled. Flip to true to enable;
-// the record already stores billing_region + delayed_intimation for routing.
-const CHURN_SLACK_ENABLED = false;
+// Two-stage churn/void approval Slack notifications (team channel by sales_team).
+const CHURN_SLACK_ENABLED = true;
+const BOLTIC_URL = import.meta.env.VITE_BOLTIC_SLACK_URL || '';
+
+function churnTeam(req) {
+  if (req.sales_team) return req.sales_team;
+  const r = (req.billing_region || '').toLowerCase();
+  if (r === 'rjw') return 'RJW';
+  if (r.startsWith('global')) return 'Global';
+  return 'India';
+}
+function churnChannel(req) { return SLACK_CHANNELS[churnTeam(req)] || SLACK_CHANNELS['India']; }
+function tagUser(email, fallback) { return (email && slackMention(email)) || fallback || email || '—'; }
+
+async function postChurnSlack(channel, text) {
+  if (!CHURN_SLACK_ENABLED || !BOLTIC_URL || !channel) return;
+  try {
+    await fetch(BOLTIC_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ channel, text }) });
+  } catch (e) { console.warn('[Churn Slack]', e?.message || e); }
+}
+
+async function notifyChurn(event, req, extra = {}) {
+  const ch   = churnChannel(req);
+  const cust = req.customer_name || '—';
+  const ofRef = req.of_number ? '*' + req.of_number + '*' : '_No OF_';
+  const kind = req.status_requested || 'Churn';
+  const filerTag = tagUser(req.requested_by_email, req.requested_by);
+  let text = '';
+  if (event === 'filed') {
+    text = '🧾 *' + kind + ' request filed* — ' + cust + ' · ' + ofRef +
+      '\n• By: ' + (req.requested_by || '—') +
+      '\n• ⏳ Awaiting *RevOps* approval: ' + tagUser(req.revops_approver);
+  } else if (event === 'revops_approved') {
+    const fin = (req.finance_dris || []).map(e => tagUser(e)).join(', ') || '—';
+    text = '✅ *' + kind + ' — RevOps approved* — ' + cust + ' · ' + ofRef +
+      '\n• By: ' + (extra.by || '—') +
+      '\n• ⏳ Awaiting *Finance* approval: ' + fin;
+  } else if (event === 'applied') {
+    text = '🎉 *' + kind + ' approved & applied* — ' + cust + ' · ' + ofRef +
+      (extra.amount ? '\n• Amount: ' + extra.amount : '') +
+      '\n• By: ' + (extra.by || '—') + '\n• cc ' + filerTag;
+  } else if (event === 'rejected') {
+    text = '❌ *' + kind + ' rejected* at ' + (extra.stage || '') + ' — ' + cust + ' · ' + ofRef +
+      '\n• Reason: _' + (extra.reason || '—') + '_\n• By: ' + (extra.by || '—') + '\n• cc ' + filerTag;
+  }
+  await postChurnSlack(ch, text);
+}
 
 // Billing-region options for no-OF churns (drives the Slack channel when enabled)
 const BILLING_REGIONS = TEAM_FILTERS.filter(t => t.id !== 'all');
@@ -150,6 +194,8 @@ export function SignedOFs() {
   const [periodMonth, setPeriodMonth] = useState('all');
 
   const isFinanceOrAdmin = user?.role === 'finance' || user?.isUniversal;
+  const isRevopsOrAdmin  = user?.role === 'revops'  || user?.isUniversal;
+  const stageOf = r => r.stage || 'pending_revops';   // legacy requests → RevOps stage
 
   useEffect(() => {
     const t = searchParams.get('tab');
@@ -325,23 +371,39 @@ export function SignedOFs() {
     }
     if (isConfigured && db) {
       await updateDoc(doc(db,'churn_void_requests',r.id), {
-        actioned: true, actioned_by: user?.name, actioned_at: new Date().toISOString(),
+        actioned: true, stage: 'applied', actioned_by: user?.name, actioned_at: new Date().toISOString(),
         ...(churnAmount ? { churn_amount_applied: churnAmount } : {}),
         ...(isPartial ? { churned_services: churnedWithAmts } : {}),
       });
     }
     show('Status applied: ' + r.status_requested);
     autoSyncChurnCustomers(forms);   // refresh Churn Customers tab (incl. per-IP amounts)
+    notifyChurn('applied', r, { by: user?.name, amount: churnAmount ? churnAmount.toLocaleString('en-IN') : '' });
   };
 
-  const handleDismiss = async (r) => {
-    if (!confirm('Dismiss this request without applying?')) return;
+  // RevOps approves stage 1 → moves to Finance
+  const handleRevopsApprove = async (r) => {
     if (isConfigured && db) {
       await updateDoc(doc(db,'churn_void_requests',r.id), {
-        actioned: true, actioned_by: user?.name, actioned_at: new Date().toISOString(), rejected: true,
+        stage: 'pending_finance', revops_approved_by: user?.name, revops_approved_at: new Date().toISOString(),
       });
     }
-    show('Request dismissed');
+    show('RevOps approved → sent to Finance');
+    notifyChurn('revops_approved', r, { by: user?.name });
+  };
+
+  // Reject at either stage (closes the request)
+  const handleReject = async (r, stage) => {
+    const reason = window.prompt('Reason for rejecting this ' + r.status_requested + ' request?');
+    if (reason === null) return;
+    if (isConfigured && db) {
+      await updateDoc(doc(db,'churn_void_requests',r.id), {
+        actioned: true, rejected: true, rejected_stage: stage,
+        reject_reason: reason, rejected_by: user?.name, rejected_at: new Date().toISOString(),
+      });
+    }
+    show('Request rejected');
+    notifyChurn('rejected', r, { by: user?.name, reason, stage: stage==='revops' ? 'RevOps' : 'Finance' });
   };
 
   // ── Universal-only: hard delete + edit a churn/void request ──
@@ -601,14 +663,14 @@ export function SignedOFs() {
             <div className="overflow-x-auto">
               <table style={{minWidth:'1100px',width:'100%'}} className="text-sm">
                 <thead><tr>
-                  {['OF#','Customer','Company ID','Request',
+                  {['OF#','Customer','Company ID','Request','Stage',
                     isFinanceOrAdmin ? 'Churn Amount (Finance)' : 'Churn Amount',
                     'Reason','Effective Date','Attachment','Filed By','Date','Action'].map(h=>(
                     <th key={h} className={thCls}>{h}</th>
                   ))}
                 </tr></thead>
                 <tbody>
-                  {cvRequests.length===0&&<tr><td colSpan={10} className="text-center py-12 text-slate-300">No pending Churn/Void requests</td></tr>}
+                  {cvRequests.length===0&&<tr><td colSpan={12} className="text-center py-12 text-slate-300">No pending Churn/Void requests</td></tr>}
                   {cvRequests.map(r=>(
                     <tr key={r.id} className="border-b border-slate-50 last:border-0">
                       <td className="px-4 py-3 font-mono font-bold text-sm" style={{color:NAVY}}>{r.of_number||'—'}</td>
@@ -623,8 +685,13 @@ export function SignedOFs() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
+                        {stageOf(r)==='pending_finance'
+                          ? <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-teal-100 text-teal-700 whitespace-nowrap">Pending Finance</span>
+                          : <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-violet-100 text-violet-700 whitespace-nowrap">Pending RevOps</span>}
+                      </td>
+                      <td className="px-4 py-3">
                         {r.status_requested === 'Churn' ? (
-                          isFinanceOrAdmin ? (
+                          (isFinanceOrAdmin && stageOf(r)==='pending_finance') ? (
                             (r.churn_type==='Partial' && (r.churned_services||[]).length) ? (
                               <div className="space-y-1.5 min-w-[190px]">
                                 {(r.churned_services||[]).map(s=>(
@@ -678,17 +745,37 @@ export function SignedOFs() {
                       <td className="px-4 py-3 text-xs text-brand-muted">{r.requested_by}</td>
                       <td className="px-4 py-3 text-xs text-brand-muted">{r.requested_at?.split('T')[0]}</td>
                       <td className="px-4 py-3">
-                        <div className="flex gap-2">
-                          {isFinanceOrAdmin && (
-                            <button onClick={()=>handleApply(r)}
-                              className="text-xs font-medium px-2 py-1 rounded-lg bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 transition-colors">
-                              Apply
-                            </button>
+                        <div className="flex gap-2 flex-wrap">
+                          {stageOf(r)==='pending_revops' && isRevopsOrAdmin && (
+                            <>
+                              <button onClick={()=>handleRevopsApprove(r)}
+                                className="text-xs font-medium px-2 py-1 rounded-lg bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 transition-colors">
+                                Approve (RevOps)
+                              </button>
+                              <button onClick={()=>handleReject(r,'revops')}
+                                className="text-xs font-medium px-2 py-1 rounded-lg bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-colors">
+                                Reject
+                              </button>
+                            </>
                           )}
-                          <button onClick={()=>handleDismiss(r)}
-                            className="text-xs font-medium px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors">
-                            Dismiss
-                          </button>
+                          {stageOf(r)==='pending_finance' && isFinanceOrAdmin && (
+                            <>
+                              <button onClick={()=>handleApply(r)}
+                                className="text-xs font-medium px-2 py-1 rounded-lg bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 transition-colors">
+                                Approve &amp; Apply Amount
+                              </button>
+                              <button onClick={()=>handleReject(r,'finance')}
+                                className="text-xs font-medium px-2 py-1 rounded-lg bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-colors">
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          {stageOf(r)==='pending_revops' && !isRevopsOrAdmin && (
+                            <span className="text-[10px] text-slate-400 italic">awaiting RevOps</span>
+                          )}
+                          {stageOf(r)==='pending_finance' && !isFinanceOrAdmin && (
+                            <span className="text-[10px] text-slate-400 italic">awaiting Finance</span>
+                          )}
                           {user?.isUniversal && (
                             <>
                               <button onClick={()=>setEditReq(r)}
@@ -829,7 +916,7 @@ export function ChurnVoidRequest() {
   const customerDropdownRef = useRef(null);
 
   const isFinanceOrAdmin = user?.role === 'finance' || user?.isUniversal;
-  const canNoOF = user?.role === 'revops' || user?.role === 'finance' || user?.isUniversal;
+  const canNoOF = !!user;   // anyone signed in can file, incl. no-OF requests
 
   const [req, setReq] = useState({
     customer: '',
@@ -839,6 +926,7 @@ export function ChurnVoidRequest() {
     churn_value: '',
     reason: '',
     finance_dris: [],
+    revops_approver: '',
     effective_date: '',
     attachment: null,
     // no-OF churn fields
@@ -952,6 +1040,7 @@ export function ChurnVoidRequest() {
     if (isOFPartial && req.churned_services.some(s=>!s.effective_date)) errs.push('Enter an effective date for each churned IP / Service');
     if (!req.reason?.trim())                          errs.push('Enter a reason / justification');
     if (!isOFPartial && !req.effective_date)          errs.push('Enter the effective date of Churn/Void');
+    if (!req.revops_approver)                         errs.push('Select a RevOps approver');
     if (!req.finance_dris.length)                     errs.push('Select at least one Finance DRI');
     setValidationErrors(errs);
     if (errs.length) return;
@@ -977,8 +1066,13 @@ export function ChurnVoidRequest() {
           reason: req.reason || '',
           effective_date: req.effective_date || '',
           requested_by: user?.name || '',
+          requested_by_email: user?.email || '',
           requested_at: new Date().toISOString(),
           actioned: false,
+          stage: 'pending_revops',
+          revops_approver: req.revops_approver,
+          finance_dris: req.finance_dris,
+          sales_team: form?.sales_team || '',
           ...(isFinanceOrAdmin && req.churn_value ? { churn_value: req.churn_value } : {}),
           ...(req.attachment ? { attachment: req.attachment } : {}),
           ...(isOthers ? {
@@ -995,10 +1089,9 @@ export function ChurnVoidRequest() {
         await setDoc(doc(db, 'churn_void_requests', reqId), docData);
         if (req.status_requested === 'Churn') autoSyncChurnCustomers(forms);   // show pending churn immediately
 
-        // ── Delayed-intimation Slack alert — DISABLED (see CHURN_SLACK_ENABLED) ──
-        // When enabled, a back-dated no-OF churn posts to the billing_region's
-        // channel so the customer can be billed correctly for the delay.
-        if (CHURN_SLACK_ENABLED && delayedIntimation) {
+        // Notify the selected RevOps approver in the team channel (Filed → Pending RevOps)
+        notifyChurn('filed', docData);
+        if (false && CHURN_SLACK_ENABLED && delayedIntimation) {
           // wiring intentionally deferred until historical data is reconciled
         }
       }
@@ -1009,7 +1102,7 @@ export function ChurnVoidRequest() {
         reason: req.reason,
       });
       show('Request submitted');
-      setReq({ customer:'', customer_manual:'', of_number:'', status_requested:'Churn', churn_value:'', reason:'', finance_dris:[], effective_date:'', attachment:null,
+      setReq({ customer:'', customer_manual:'', of_number:'', status_requested:'Churn', churn_value:'', reason:'', finance_dris:[], revops_approver:'', effective_date:'', attachment:null,
         agreement_type:'', company_id:'', churn_type:'Full', ip_services:[], churned_services:[], billing_region:'' });
       setCustomerSearch('');
       setValidationErrors([]);
@@ -1289,6 +1382,16 @@ export function ChurnVoidRequest() {
               <p className="text-[10px] mt-1 text-brand-faint">PDF, Word, Excel or Image · Max 500KB · Viewable by Sales, RevOps and Finance</p>
             </div>
           )}
+        </div>
+
+        <div className="mb-4">
+          <Lbl c="RevOps approver" req/>
+          <select value={req.revops_approver} onChange={e=>u('revops_approver',e.target.value)}
+            className="field-input cursor-pointer" style={{maxWidth:'340px'}}>
+            <option value="">Select RevOps approver…</option>
+            {REVOPS_USERS.map(ru=><option key={ru.email} value={ru.email}>{ru.name}</option>)}
+          </select>
+          <p className="text-[10px] mt-1 text-brand-faint">Reviews first. On approval it routes to Finance for the amount &amp; final apply.</p>
         </div>
 
         <MultiSelect label="Notify Finance DRI(s)" req
