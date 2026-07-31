@@ -83,6 +83,24 @@ export default function Dashboard() {
     return base.filter(f => matchesFilter(f, teamFilter));
   }, [forms, isSales, teamFilter, user]);
 
+  // De-duplicate by OF number so every tile counts DISTINCT Order Forms (not raw
+  // Firestore documents) — matching the Repository / Signed OFs lists. For each OF
+  // number keep the furthest-along document (terminal > completed > signed > …) so
+  // an OF that's been churned/voided/dropped counts by its current status.
+  const uniq = useMemo(() => {
+    const rank = s => ({ churn:9, void:9, dropped:9, completed:6, signed:5, approved:4, revops_approved:3, submitted:2, draft:1, revops_rejected:1 }[s] || 0);
+    const seen = new Map(); const noNum = [];
+    visible.forEach(f => {
+      if (!f.of_number) { noNum.push(f); return; }
+      const ex = seen.get(f.of_number);
+      if (!ex) { seen.set(f.of_number, f); return; }
+      const better = rank(f.status) > rank(ex.status) ||
+        (rank(f.status) === rank(ex.status) && (f.created_at||'') > (ex.created_at||''));
+      if (better) seen.set(f.of_number, f);
+    });
+    return [...seen.values(), ...noNum];
+  }, [visible]);
+
   const today = new Date(); today.setHours(0,0,0,0);
   const isActive = f => {
     const s = f.start_date?new Date(f.start_date):null;
@@ -91,25 +109,25 @@ export default function Dashboard() {
   };
 
   const n = {
-    total:    visible.length,
-    revops:   visible.filter(f=>f.status==='submitted').length,
-    finance:  visible.filter(f=>f.status==='revops_approved').length,
-    approved: visible.filter(f=>f.status==='approved').length,
-    unsigned: visible.filter(f=>f.status==='approved'&&!f.signed_date).length,
-    draft:    visible.filter(f=>f.status==='draft'&&!f.is_renewal).length,
-    active:   visible.filter(isActive).length,
-    completed:visible.filter(f=>f.status==='completed').length,
-    renewals: visible.filter(f=>f.is_renewal&&f.status==='draft').length,
+    total:    uniq.length,
+    revops:   uniq.filter(f=>f.status==='submitted').length,
+    finance:  uniq.filter(f=>f.status==='revops_approved').length,
+    approved: uniq.filter(f=>f.status==='approved').length,
+    unsigned: uniq.filter(f=>f.status==='approved'&&!f.signed_date).length,
+    draft:    uniq.filter(f=>f.status==='draft'&&!f.is_renewal).length,
+    active:   uniq.filter(isActive).length,
+    completed:uniq.filter(f=>f.status==='completed').length,
+    renewals: uniq.filter(f=>f.is_renewal&&f.status==='draft').length,
   };
 
-  const signedForms = visible.filter(f=>f.status==='signed');
+  const signedForms = uniq.filter(f=>f.status==='signed');
 
   const revenueINR = useMemo(() =>
-    visible.filter(f=>f.status==='signed'&&(f.sales_team==='India'||f.sales_team==='RJW')).reduce((s,f)=>s+Number(f.committed_revenue||0),0),
-  [visible]);
+    uniq.filter(f=>f.status==='signed'&&(f.sales_team==='India'||f.sales_team==='RJW')).reduce((s,f)=>s+Number(f.committed_revenue||0),0),
+  [uniq]);
   const revenueUSD = useMemo(() =>
-    visible.filter(f=>f.status==='signed'&&f.sales_team!=='India'&&f.sales_team!=='RJW').reduce((s,f)=>s+toUSD(Number(f.committed_revenue||0),f.committed_currency||'INR'),0),
-  [visible]);
+    uniq.filter(f=>f.status==='signed'&&f.sales_team!=='India'&&f.sales_team!=='RJW').reduce((s,f)=>s+toUSD(Number(f.committed_revenue||0),f.committed_currency||'INR'),0),
+  [uniq]);
 
   const availableFYs = useMemo(() => {
     const fys = new Set();
@@ -137,9 +155,9 @@ export default function Dashboard() {
 
   const pieData = useMemo(() => {
     const map = {};
-    visible.forEach(f => { const s=f.status||'unknown'; map[s]=(map[s]||0)+1; });
+    uniq.forEach(f => { const s=f.status||'unknown'; map[s]=(map[s]||0)+1; });
     return Object.entries(map).filter(([,v])=>v>0).map(([name,value])=>({name,value,label:name.replace(/_/g,' ')})).sort((a,b)=>b.value-a.value);
-  }, [visible]);
+  }, [uniq]);
 
   const leaderboard = useMemo(() => {
     const repsToShow = SALES_REPS.filter(r => {
@@ -158,12 +176,12 @@ export default function Dashboard() {
   }, [signedForms, teamFilter]);
 
   const queue = user?.role==='revops'
-    ? visible.filter(f=>f.status==='submitted')
+    ? uniq.filter(f=>f.status==='submitted')
     : user?.role==='finance'
-    ? visible.filter(f=>f.status==='revops_approved')
-    : visible.filter(f=>['submitted','draft','revops_rejected'].includes(f.status));
+    ? uniq.filter(f=>f.status==='revops_approved')
+    : uniq.filter(f=>['submitted','draft','revops_rejected'].includes(f.status));
 
-  const renewing = visible.filter(f => { const d=daysUntil(f.end_date); return d!==null&&d<=30&&d>0; });
+  const renewing = uniq.filter(f => { const d=daysUntil(f.end_date); return d!==null&&d<=30&&d>0; });
 
   const goRepo    = s => navigate(`/repository${s?'?status='+s:''}`);
   const goPending = s => navigate(`/pending${s?'?section='+s:''}`);
@@ -189,7 +207,7 @@ export default function Dashboard() {
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-xl font-bold" style={{color:NAVY}}>Dashboard</h2>
         <div className="flex items-center gap-2">
-          <button onClick={() => generateDashboardReport(visible, leaderboard, teamFilter)}
+          <button onClick={() => generateDashboardReport(uniq, leaderboard, teamFilter)}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all"
             style={{color:NAVY}}>
             📊 Export Report
@@ -292,7 +310,7 @@ export default function Dashboard() {
             <div className="font-bold text-sm" style={{color:NAVY}}>OFs by Status</div>
             <button onClick={()=>navigate('/repository')} className="text-[11px] font-semibold hover:underline" style={{color:T}}>View all →</button>
           </div>
-          <div className="text-xs text-brand-faint mb-2">All {visible.length} OFs · click any segment to filter</div>
+          <div className="text-xs text-brand-faint mb-2">All {uniq.length} OFs · click any segment to filter</div>
           {pieData.length === 0
             ? <div className="h-48 flex items-center justify-center text-slate-300 text-sm">No data</div>
             : <>
@@ -373,7 +391,7 @@ export default function Dashboard() {
             <h3 className="font-bold text-sm text-purple-800">🔄 Renewal drafts ready for review ({n.renewals})</h3>
             <span className="text-xs text-purple-600 font-medium">View all in Pending →</span>
           </div>
-          {visible.filter(f=>f.is_renewal&&f.status==='draft').map(f=>(
+          {uniq.filter(f=>f.is_renewal&&f.status==='draft').map(f=>(
             <div key={f.id}
               onClick={()=>navigate('/form/'+f.id)}
               className="flex items-center justify-between px-6 py-3 cursor-pointer hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors">
