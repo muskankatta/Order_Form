@@ -34,6 +34,7 @@ export default function AppShell({ children }) {
     { to:'/dashboard',  lbl:'Dashboard' },
     { to:'/pending',    lbl:'Pending Requests', badge:myPendingCount>0?myPendingCount:null, badgeColor:'#ef4444' },
     { to:'/repository', lbl:'Repository' },
+    { to:'/renewals',   lbl:'Renewals' },
     { to:'/targets',    lbl:'Sales Targets' },
     ...(user?.role==='finance'||user?.role==='cbo'||user?.isUniversal ? [{
       to:'/signed', lbl:'Signed OFs',
