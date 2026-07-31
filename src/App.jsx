@@ -14,6 +14,7 @@ import PendingRequests from './components/views/PendingRequests.jsx';
 import SalesTargets from './components/views/SalesTargets.jsx';
 import ProformaInvoices from './components/views/ProformaInvoices.jsx';
 import AuditLog from './components/views/AuditLog.jsx';
+import Renewals from './components/views/Renewals.jsx';
 import { useForms } from './context/FormsContext.jsx';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getFY } from './utils/dates.js';
@@ -56,6 +57,7 @@ function ProtectedApp() {
           <Route path="/dashboard"   element={<Dashboard/>}/>
           <Route path="/pending"     element={<PendingRequests/>}/>
           <Route path="/repository"  element={<Repository/>}/>
+          <Route path="/renewals"    element={<Renewals/>}/>
           <Route path="/targets"     element={<SalesTargets/>}/>
           <Route path="/audit-log"   element={<AuditLog/>}/>
           <Route path="/audit-log"   element={<AuditLog/>}/>
