@@ -40,7 +40,8 @@ export default function AppShell({ children }) {
       to:'/signed', lbl:'Signed OFs',
       badge:overdueCount>0?overdueCount:null, badgeColor:'#ef4444'
     }] : []),
-    ...(user?.role==='sales'||user?.role==='revops'||user?.role==='finance'||user?.role==='cbo'||user?.isUniversal ? [{ to:'/churn-void', lbl:'Churn / Void' }] : []),
+    // Churn / Void — anyone can file a request
+    { to:'/churn-void', lbl:'Churn / Void' },
     // Proforma Invoices — visible to all roles
     { to:'/proforma-invoices', lbl:'Proforma Invoices' },
     ...(user?.isUniversal ? [
