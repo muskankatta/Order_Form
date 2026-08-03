@@ -222,6 +222,19 @@ export function getAccessToken(forceNew = false) {
   });
 }
 
+/**
+ * Return a valid cached Sheets token if one exists, else null — WITHOUT ever
+ * opening the Google consent screen. Used by the fire-and-forget auto-syncs so a
+ * routine write (live date, churn) never triggers an OAuth popup for users who
+ * haven't granted the Sheets scope. The sheet still refreshes for anyone who has
+ * a live token (e.g. after using the Settings "Sync to Google Sheets" button).
+ */
+export function getAccessTokenSilent() {
+  const now = Date.now();
+  if (_tokenCache.value && _tokenCache.exp > now + 60000) return _tokenCache.value;
+  return null;
+}
+
 /** Sync all forms to Google Sheets — Index tab + Service Index tab */
 export async function syncAllToSheets(forms, onProgress, tokenIn) {
   const sheetsId = getSheetId();
@@ -623,7 +636,9 @@ export function autoSyncCommercials(forms) {
   try {
     if (!getSheetId()) return;                       // not configured → skip silently
     if (!forms?.some(isExported)) return;            // nothing to export yet
-    syncCommercialsToSheets(forms).catch(e =>
+    const token = getAccessTokenSilent();
+    if (!token) return;                              // no Sheets grant → skip (never pops OAuth consent)
+    syncCommercialsToSheets(forms, () => {}, token).catch(e =>
       console.warn('[Commercials] auto-sync skipped:', e?.message || e));
   } catch (e) {
     console.warn('[Commercials] auto-sync error:', e?.message || e);
@@ -738,7 +753,9 @@ export async function syncChurnCustomers(forms, tokenIn) {
 export function autoSyncChurnCustomers(forms) {
   try {
     if (!getSheetId()) return;
-    syncChurnCustomers(forms).catch(e => console.warn('[Churn] auto-sync skipped:', e?.message || e));
+    const token = getAccessTokenSilent();
+    if (!token) return;                              // no Sheets grant → skip (never pops OAuth consent)
+    syncChurnCustomers(forms, token).catch(e => console.warn('[Churn] auto-sync skipped:', e?.message || e));
   } catch (e) {
     console.warn('[Churn] auto-sync error:', e?.message || e);
   }
