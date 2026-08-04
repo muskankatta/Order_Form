@@ -36,7 +36,7 @@ export default function AppShell({ children }) {
     { to:'/repository', lbl:'Repository' },
     { to:'/renewals',   lbl:'Renewals' },
     { to:'/targets',    lbl:'Sales Targets' },
-    ...(user?.role==='finance'||user?.role==='cbo'||user?.isUniversal ? [{
+    ...(user?.role==='revops'||user?.role==='finance'||user?.role==='cbo'||user?.isUniversal ? [{
       to:'/signed', lbl:'Signed OFs',
       badge:overdueCount>0?overdueCount:null, badgeColor:'#ef4444'
     }] : []),
