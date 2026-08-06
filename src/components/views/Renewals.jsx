@@ -12,12 +12,11 @@ export default function Renewals() {
   const { user }  = useAuth();
   const navigate  = useNavigate();
   const [teamFilter, setTeamFilter] = useState('all');
-  const isSales = user?.role === 'sales' && !user?.isUniversal;
 
-  const visible = useMemo(() => {
-    const base = forms.filter(f => !isSales || f.sales_rep_email === user?.email);
-    return base.filter(f => matchesTeamFilter(f, teamFilter));
-  }, [forms, isSales, teamFilter, user]);
+  // Visible to everyone — no per-user restriction; region filter only.
+  const visible = useMemo(() =>
+    forms.filter(f => matchesTeamFilter(f, teamFilter)),
+  [forms, teamFilter]);
 
   // De-duplicate by OF number (keep the furthest-along document) — same rule as the Dashboard.
   const uniq = useMemo(() => {
@@ -34,24 +33,41 @@ export default function Renewals() {
     return [...seen.values(), ...noNum];
   }, [visible]);
 
-  const renewing = useMemo(() =>
+  // Active signed contracts ending within 30 days, split by whether they auto-renew.
+  const upcoming = useMemo(() =>
     uniq
       .filter(f => {
-        // Only an active, signed contract can be "renewing/expiring".
-        // Churn / Void / Dropped / Completed / Approved / Draft are not renewal candidates.
-        if (f.status !== 'signed') return false;
+        if (f.status !== 'signed') return false;   // only active signed contracts renew/expire
         const d = daysUntil(f.end_date);
         return d !== null && d <= 30 && d > 0;
       })
       .sort((a, b) => daysUntil(a.end_date) - daysUntil(b.end_date)),
   [uniq]);
 
+  const dueForRenewal = useMemo(() => upcoming.filter(f => f.auto_renewal === 'Yes'),  [upcoming]);
+  const expiring      = useMemo(() => upcoming.filter(f => f.auto_renewal !== 'Yes'),  [upcoming]);
+
+  const renderRows = (items, accent) => items.map(f => (
+    <div key={f.id}
+      onClick={() => navigate('/form/' + f.id)}
+      className="flex items-center justify-between px-6 py-3.5 cursor-pointer hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors">
+      <div>
+        <span className="text-sm font-medium" style={{ color: NAVY }}>{f.customer_name}</span>
+        {f.of_number && <span className="ml-2 text-xs font-mono text-slate-400">{f.of_number}</span>}
+      </div>
+      <div className="flex items-center gap-3">
+        <span className="text-xs font-bold" style={{ color: accent }}>{daysUntil(f.end_date)}d remaining · {f.end_date}</span>
+        <span className="text-slate-300">›</span>
+      </div>
+    </div>
+  ));
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6 gap-4">
         <div>
           <h2 className="text-xl font-bold" style={{ color: NAVY }}>Renewals</h2>
-          <p className="text-sm text-slate-400 mt-0.5">Signed contracts renewing / expiring within the next 30 days</p>
+          <p className="text-sm text-slate-400 mt-0.5">Signed contracts due for renewal or expiring within the next 30 days</p>
         </div>
         <button onClick={() => navigate('/repository')}
           className="text-xs text-teal-600 font-medium hover:text-teal-700 whitespace-nowrap">
@@ -72,26 +88,26 @@ export default function Renewals() {
         ))}
       </div>
 
+      {/* Due for renewal (auto-renew = Yes) */}
+      <div className="rounded-2xl border overflow-hidden mb-6" style={{ borderColor: '#e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+        <div className="px-6 py-3 bg-teal-50 border-b border-teal-200 flex items-center justify-between">
+          <h3 className="font-bold text-sm text-teal-800">🔄 Due for renewal within 30 days ({dueForRenewal.length})</h3>
+          <span className="text-[11px] text-teal-600 font-medium">Auto-renew: Yes</span>
+        </div>
+        {dueForRenewal.length === 0
+          ? <div className="py-12 text-center text-sm text-slate-300">No contracts due for renewal in the next 30 days</div>
+          : renderRows(dueForRenewal, '#0d9488')}
+      </div>
+
+      {/* Expiring / completing (auto-renew = No / unset) */}
       <div className="rounded-2xl border overflow-hidden" style={{ borderColor: '#e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
         <div className="px-6 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between">
-          <h3 className="font-bold text-sm text-amber-800">🔔 Renewing / expiring within 30 days ({renewing.length})</h3>
+          <h3 className="font-bold text-sm text-amber-800">⌛ Expiring / completing within 30 days ({expiring.length})</h3>
+          <span className="text-[11px] text-amber-600 font-medium">Auto-renew: No</span>
         </div>
-        {renewing.length === 0 ? (
-          <div className="py-14 text-center text-sm text-slate-300">Nothing renewing or expiring in the next 30 days 🎉</div>
-        ) : renewing.map(f => (
-          <div key={f.id}
-            onClick={() => navigate('/form/' + f.id)}
-            className="flex items-center justify-between px-6 py-3.5 cursor-pointer hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors">
-            <div>
-              <span className="text-sm font-medium" style={{ color: NAVY }}>{f.customer_name}</span>
-              {f.of_number && <span className="ml-2 text-xs font-mono text-slate-400">{f.of_number}</span>}
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-amber-600 font-bold">{daysUntil(f.end_date)}d remaining · {f.end_date}</span>
-              <span className="text-slate-300">›</span>
-            </div>
-          </div>
-        ))}
+        {expiring.length === 0
+          ? <div className="py-12 text-center text-sm text-slate-300">Nothing expiring or completing in the next 30 days 🎉</div>
+          : renderRows(expiring, '#d97706')}
       </div>
     </div>
   );
