@@ -1,0 +1,32 @@
+name: Renewal Alerts (30-day)
+
+# Runs once a day and pings Slack ~30 days before an auto-renewing OF's end date.
+# Reuses the same repo secrets as the deploy workflow — no new secrets needed.
+on:
+  schedule:
+    - cron: '30 3 * * *'   # 03:30 UTC daily = 09:00 IST
+  workflow_dispatch: {}      # allow manual run from the Actions tab
+
+jobs:
+  renewal-alerts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase SDK
+        run: npm install firebase@10 --no-save
+
+      - name: Send renewal alerts
+        run: node scripts/renewal-alerts.mjs
+        env:
+          VITE_FIREBASE_API_KEY:            ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN:        ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID:         ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET:     ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID:             ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_BOLTIC_SLACK_URL:            ${{ secrets.VITE_BOLTIC_SLACK_URL }}
