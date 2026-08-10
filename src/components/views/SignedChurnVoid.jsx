@@ -52,7 +52,7 @@ async function notifyChurn(event, req, extra = {}) {
       '\n• By: ' + (extra.by || '—') +
       '\n• ⏳ Awaiting *Finance* approval: ' + fin;
   } else if (event === 'applied') {
-    text = '🎉 *' + kind + ' approved & applied* — ' + cust + ' · ' + ofRef +
+    text = '🔴 *' + kind + ' approved & applied* — ' + cust + ' · ' + ofRef +
       (extra.amount ? '\n• Amount: ' + extra.amount : '') +
       '\n• By: ' + (extra.by || '—') + '\n• cc ' + filerTag;
   } else if (event === 'rejected') {
