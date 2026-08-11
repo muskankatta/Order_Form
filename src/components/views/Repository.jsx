@@ -257,14 +257,26 @@ export default function Repository() {
   };
 
   const TO_USD = { USD:v=>v, INR:v=>v/91, AED:v=>v/3.6725, MYR:v=>v/4.30, IDR:v=>v/16950, GBP:v=>v/0.80, EUR:v=>v/0.90, SGD:v=>v/1.35, SAR:v=>v/3.75, AUD:v=>v/1.55 };
-  const toUSD = (amt, cur) => (TO_USD[cur] || (v=>v))(Number(amt||0));
+  // Safe numeric parse: recovers comma/symbol-formatted strings ("7,20,000" → 720000)
+  // and never returns NaN, so one malformed committed_revenue can't poison a total.
+  const numOf = v => {
+    if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+    const n = parseFloat(String(v ?? '').replace(/[^0-9.\-]/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  };
+  const toUSD = (amt, cur) => (TO_USD[cur] || (v=>v))(numOf(amt));
 
   // ── Summary stats — all derived from dedupedSorted (not raw filtered) ─────
   const fyndIndia  = dedupedSorted.filter(f => f.entity!=='yavi' && (f.sales_team==='India'||f.sales_team==='RJW'));
   const fyndGlobal = dedupedSorted.filter(f => f.entity!=='yavi' && f.sales_team!=='India' && f.sales_team!=='RJW');
   const yaviOFs    = dedupedSorted.filter(f => f.entity==='yavi');
 
-  const summaryFyndINR = fyndIndia.reduce((s,f)  => s + Number(f.committed_revenue||0), 0);
+  const summaryFyndINR = fyndIndia.reduce((s,f) => {
+    if (typeof f.committed_revenue === 'string' && /[a-zA-Z]/.test(f.committed_revenue)) {
+      console.warn('[Repository] Non-numeric committed_revenue on', f.of_number, '→', JSON.stringify(f.committed_revenue));
+    }
+    return s + numOf(f.committed_revenue);
+  }, 0);
   const summaryFyndUSD = fyndGlobal.reduce((s,f) => s + toUSD(f.committed_revenue, f.committed_currency||'USD'), 0);
   const summaryYaviUSD = yaviOFs.reduce((s,f)    => s + toUSD(f.committed_revenue, f.committed_currency||'USD'), 0);
 
@@ -529,7 +541,7 @@ export default function Repository() {
                         {show('revenue')   && (
                           <td className="px-4 py-3.5">
                             <div className="text-xs font-semibold" style={{ color:NAVY }}>
-                              {f.committed_currency||'INR'} {Number(f.committed_revenue||0).toLocaleString('en-IN')||'—'}
+                              {f.committed_currency||'INR'} {numOf(f.committed_revenue).toLocaleString('en-IN')||'—'}
                             </div>
                             {f.arr_text && (
                               <div className="text-[10px] text-brand-faint mt-0.5 leading-tight"
