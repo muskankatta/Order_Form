@@ -29,6 +29,7 @@ export const SALES_REPS = [
   { id:'2935', name:'Saritha Ravi',      slack:'U08N41SD8F4', email:'saritharavi@gofynd.com',       team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
   { id:'3128', name:'Shresth Gupta',     slack:'U09R6079V9N', email:'shresthgupta@gofynd.com',      team:'India',  role:'BDR',             target:null,      targetCurrency:'INR' },
   { id:'1396', name:'Jay Karia',         slack:'U01T33X34UU', email:'jaykaria@gofynd.com',          team:'India',  role:'Product',         target:null,      targetCurrency:'INR' },
+  { id:'NA', name:'NA',         slack:'NA', email:'NA',          team:'India',  role:'NA',         target:null,      targetCurrency:'INR' },
 
   // ── GLOBAL TEAM — MEA ──────────────────────────────────────────────────────
   { id:'S105', name:'Dharmendra Mehta',  slack:'U07KGJ8MTUK', email:'dharmendra@gofynd.com',        team:'Global', region:'MEA', role:'Sales',   target:800000,  targetCurrency:'USD' },
@@ -36,21 +37,25 @@ export const SALES_REPS = [
   { id:'S112', name:'Rushabh Mehta',     slack:'U08F74BT57E', email:'rushabhmehta1@gofynd.com',     team:'Global', region:'MEA', role:'Sales',   target:600000,  targetCurrency:'USD' },
   { id:'S111', name:'Vishesh Kumar',     slack:'UFJ0SDTLH',   email:'visheshkumar@gofynd.com',      team:'Global', region:'MEA', role:'Sales',   target:550000,  targetCurrency:'USD' },
   { id:'2271', name:'Yazdan Irani',      slack:'U048V9AHNA3', email:'yazdanirani@gofynd.com',       team:'Global', region:'MEA', role:'Sales',   target:400000,  targetCurrency:'USD' },
+ { id:'NA', name:'NA',      slack:'NA', email:'NA',       team:'Global', region:'MEA', role:'Sales',   target:null,  targetCurrency:'USD' },  
 
   // ── GLOBAL TEAM — SEA ──────────────────────────────────────────────────────
   { id:'S106', name:'Novriansyah',       slack:'U07KA2RMW0N', email:'novri@fynd.team',              team:'Global', region:'SEA', role:'Sales', target:500000,  targetCurrency:'USD' },
   { id:'2947', name:'Jatin Jindal',      slack:'U08R9EXEW7J', email:'jatinjindal@gofynd.com',       team:'Global', region:'SEA', role:'Sales', target:null,    targetCurrency:'USD' },
   { id:'3040', name:'Abhishek Mehta',    slack:'U0965195TPX', email:'abhishekmehta@gofynd.com',     team:'Global', region:'SEA', role:'Sales', target:null,    targetCurrency:'USD' },
+  { id:'NA', name:'NA',      slack:'NA', email:'NA',       team:'Global', region:'SEA', role:'Sales',   target:null,  targetCurrency:'USD' },  
 
   // ── GLOBAL TEAM — RoW ──────────────────────────────────────────────────────
   { id:'2532', name:'Evani Routray',     slack:'U05SCN10HJ4', email:'evaniroutray@gofynd.com',      team:'Global', region:'RoW', role:'Sales',    target:350000,  targetCurrency:'USD' },
   { id:'3125', name:'Harsh Kumar',       slack:'U09Q11L8E6Q', email:'harshkumar@gofynd.com',        team:'Global', region:'RoW', role:'Sales',    target:305000,  targetCurrency:'USD' },
   { id:'3010', name:'Komal Karani',      slack:'U092K3NU18S', email:'komalkarani@gofynd.com',       team:'Global', region:'RoW', role:'Designer', target:null,    targetCurrency:'USD' },
   { id:'3159', name:'Akriti Agarwal',    slack:'U0A4F8APKBJ', email:'akritiagarwal@gofynd.com',     team:'Global', region:'RoW', role:'Sales',    target:null,    targetCurrency:'USD' },
+  { id:'NA', name:'NA',      slack:'NA', email:'NA',       team:'Global', region:'RoW', role:'Sales',   target:null,  targetCurrency:'USD' },  
 
   // ── GLOBAL TEAM — UK ───────────────────────────────────────────────────────
   { id:'3059', name:'Vipul Aggarwal',    slack:'U099PMC6FNV', email:'vipulaggarwal@gofynd.com',     team:'Global', region:'UK', role:'Sales', target:350000,  targetCurrency:'USD' },
   { id:'3080', name:'Shubham Soni',      slack:'U09D0KUAG76', email:'shubhamsoni@gofynd.com',       team:'Global', region:'UK', role:'-',     target:100000,  targetCurrency:'USD' },
+  { id:'NA', name:'NA',      slack:'NA', email:'NA',       team:'Global', region:'UK', role:'Sales',   target:null,  targetCurrency:'USD' },  
 
   // ── GLOBAL TEAM — CBO (region-wide) ────────────────────────────────────────
   { id:'1028', name:'Ronak Modi',        slack:'U0BDD4119',   email:'ronakmodi@gofynd.com',         team:'Global', region:'', role:'CBO', target:650000, targetCurrency:'USD' },
