@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, Btn, Lbl, Sel, TA, Inp, MultiSelect, Toast } from '../ui/index.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { FINANCE_USERS, REVOPS_USERS } from '../../constants/users.js';
+import { FINANCE_USERS, REVENUE_ARCHITECTS } from '../../constants/users.js';
 import { getRepRegion, formRegion, matchesTeamFilter, TEAM_FILTERS } from '../../constants/users.js';
 import { CHANNELS as SLACK_CHANNELS, slackMention } from '../../utils/slack.js';
 import { fmtDate, uid } from '../../utils/dates.js';
@@ -27,6 +27,10 @@ function churnTeam(req) {
 }
 function churnChannel(req) { return SLACK_CHANNELS[churnTeam(req)] || SLACK_CHANNELS['India']; }
 function tagUser(email, fallback) { return (email && slackMention(email)) || fallback || email || '—'; }
+function raApproverTag(email) {
+  const ra = REVENUE_ARCHITECTS.find(r => r.email === email);
+  return ra?.slack ? '<@' + ra.slack + '>' : (email || '—');
+}
 
 async function postChurnSlack(channel, text) {
   if (!CHURN_SLACK_ENABLED || !BOLTIC_URL || !channel) return;
@@ -45,14 +49,14 @@ async function notifyChurn(event, req, extra = {}) {
   if (event === 'filed') {
     text = '🧾 *' + kind + ' request filed* — ' + cust + ' · ' + ofRef +
       '\n• By: ' + (req.requested_by || '—') +
-      '\n• ⏳ Awaiting *RevOps* approval: ' + tagUser(req.revops_approver);
-  } else if (event === 'revops_approved') {
+      '\n• ⏳ Awaiting *Revenue Architect* approval: ' + raApproverTag(req.ra_approver);
+  } else if (event === 'ra_approved') {
     const fin = (req.finance_dris || []).map(e => tagUser(e)).join(', ') || '—';
-    text = '✅ *' + kind + ' — RevOps approved* — ' + cust + ' · ' + ofRef +
+    text = '✅ *' + kind + ' — Revenue Architect approved* — ' + cust + ' · ' + ofRef +
       '\n• By: ' + (extra.by || '—') +
       '\n• ⏳ Awaiting *Finance* approval: ' + fin;
   } else if (event === 'applied') {
-    text = '🔴 *' + kind + ' approved & applied* — ' + cust + ' · ' + ofRef +
+    text = '🎉 *' + kind + ' approved & applied* — ' + cust + ' · ' + ofRef +
       (extra.amount ? '\n• Amount: ' + extra.amount : '') +
       '\n• By: ' + (extra.by || '—') + '\n• cc ' + filerTag;
   } else if (event === 'rejected') {
@@ -194,8 +198,8 @@ export function SignedOFs() {
   const [periodMonth, setPeriodMonth] = useState('all');
 
   const isFinanceOrAdmin = user?.role === 'finance' || user?.isUniversal;
-  const isRevopsOrAdmin  = user?.role === 'revops'  || user?.isUniversal;
-  const stageOf = r => r.stage || 'pending_revops';   // legacy requests → RevOps stage
+  const isRAOrAdmin  = REVENUE_ARCHITECTS.some(r => r.email === user?.email) || user?.isUniversal;
+  const stageOf = r => r.stage || 'pending_revops';   // legacy requests → stage 1 (RA)
 
   useEffect(() => {
     const t = searchParams.get('tab');
@@ -381,15 +385,15 @@ export function SignedOFs() {
     notifyChurn('applied', r, { by: user?.name, amount: churnAmount ? churnAmount.toLocaleString('en-IN') : '' });
   };
 
-  // RevOps approves stage 1 → moves to Finance
-  const handleRevopsApprove = async (r) => {
+  // Revenue Architect approves stage 1 → moves to Finance
+  const handleRAApprove = async (r) => {
     if (isConfigured && db) {
       await updateDoc(doc(db,'churn_void_requests',r.id), {
-        stage: 'pending_finance', revops_approved_by: user?.name, revops_approved_at: new Date().toISOString(),
+        stage: 'pending_finance', ra_approved_by: user?.name, ra_approved_at: new Date().toISOString(),
       });
     }
-    show('RevOps approved → sent to Finance');
-    notifyChurn('revops_approved', r, { by: user?.name });
+    show('Revenue Architect approved → sent to Finance');
+    notifyChurn('ra_approved', r, { by: user?.name });
   };
 
   // Reject at either stage (closes the request)
@@ -403,7 +407,7 @@ export function SignedOFs() {
       });
     }
     show('Request rejected');
-    notifyChurn('rejected', r, { by: user?.name, reason, stage: stage==='revops' ? 'RevOps' : 'Finance' });
+    notifyChurn('rejected', r, { by: user?.name, reason, stage: stage==='ra' ? 'Revenue Architect' : 'Finance' });
   };
 
   // ── Universal-only: hard delete + edit a churn/void request ──
@@ -656,7 +660,7 @@ export function SignedOFs() {
       {cvTab==='requests' && (
         <div>
           <p className="text-sm text-brand-muted mb-4">
-            Requests filed by Sales / RevOps. Review and apply or dismiss.
+            Filed by anyone → Revenue Architect approves → Finance approves & applies the amount.
             {isFinanceOrAdmin && <span className="ml-1 text-amber-700 font-medium">Enter churn amount before applying Churn requests.</span>}
           </p>
           <Card className="overflow-hidden">
@@ -687,7 +691,7 @@ export function SignedOFs() {
                       <td className="px-4 py-3">
                         {stageOf(r)==='pending_finance'
                           ? <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-teal-100 text-teal-700 whitespace-nowrap">Pending Finance</span>
-                          : <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-violet-100 text-violet-700 whitespace-nowrap">Pending RevOps</span>}
+                          : <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-violet-100 text-violet-700 whitespace-nowrap">Pending RA</span>}
                       </td>
                       <td className="px-4 py-3">
                         {r.status_requested === 'Churn' ? (
@@ -746,13 +750,13 @@ export function SignedOFs() {
                       <td className="px-4 py-3 text-xs text-brand-muted">{r.requested_at?.split('T')[0]}</td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2 flex-wrap">
-                          {stageOf(r)==='pending_revops' && isRevopsOrAdmin && (
+                          {stageOf(r)==='pending_revops' && isRAOrAdmin && (
                             <>
-                              <button onClick={()=>handleRevopsApprove(r)}
+                              <button onClick={()=>handleRAApprove(r)}
                                 className="text-xs font-medium px-2 py-1 rounded-lg bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 transition-colors">
-                                Approve (RevOps)
+                                Approve (RA)
                               </button>
-                              <button onClick={()=>handleReject(r,'revops')}
+                              <button onClick={()=>handleReject(r,'ra')}
                                 className="text-xs font-medium px-2 py-1 rounded-lg bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-colors">
                                 Reject
                               </button>
@@ -770,8 +774,8 @@ export function SignedOFs() {
                               </button>
                             </>
                           )}
-                          {stageOf(r)==='pending_revops' && !isRevopsOrAdmin && (
-                            <span className="text-[10px] text-slate-400 italic">awaiting RevOps</span>
+                          {stageOf(r)==='pending_revops' && !isRAOrAdmin && (
+                            <span className="text-[10px] text-slate-400 italic">awaiting RA</span>
                           )}
                           {stageOf(r)==='pending_finance' && !isFinanceOrAdmin && (
                             <span className="text-[10px] text-slate-400 italic">awaiting Finance</span>
@@ -926,7 +930,7 @@ export function ChurnVoidRequest() {
     churn_value: '',
     reason: '',
     finance_dris: [],
-    revops_approver: '',
+    ra_approver: '',
     effective_date: '',
     attachment: null,
     // no-OF churn fields
@@ -1040,7 +1044,7 @@ export function ChurnVoidRequest() {
     if (isOFPartial && req.churned_services.some(s=>!s.effective_date)) errs.push('Enter an effective date for each churned IP / Service');
     if (!req.reason?.trim())                          errs.push('Enter a reason / justification');
     if (!isOFPartial && !req.effective_date)          errs.push('Enter the effective date of Churn/Void');
-    if (!req.revops_approver)                         errs.push('Select a RevOps approver');
+    if (!req.ra_approver)                         errs.push('Select a Revenue Architect approver');
     if (!req.finance_dris.length)                     errs.push('Select at least one Finance DRI');
     setValidationErrors(errs);
     if (errs.length) return;
@@ -1070,7 +1074,7 @@ export function ChurnVoidRequest() {
           requested_at: new Date().toISOString(),
           actioned: false,
           stage: 'pending_revops',
-          revops_approver: req.revops_approver,
+          ra_approver: req.ra_approver,
           finance_dris: req.finance_dris,
           sales_team: form?.sales_team || '',
           ...(isFinanceOrAdmin && req.churn_value ? { churn_value: req.churn_value } : {}),
@@ -1089,7 +1093,7 @@ export function ChurnVoidRequest() {
         await setDoc(doc(db, 'churn_void_requests', reqId), docData);
         if (req.status_requested === 'Churn') autoSyncChurnCustomers(forms);   // show pending churn immediately
 
-        // Notify the selected RevOps approver in the team channel (Filed → Pending RevOps)
+        // Notify the selected Revenue Architect in the team channel (Filed → Pending RA)
         notifyChurn('filed', docData);
         if (false && CHURN_SLACK_ENABLED && delayedIntimation) {
           // wiring intentionally deferred until historical data is reconciled
@@ -1102,7 +1106,7 @@ export function ChurnVoidRequest() {
         reason: req.reason,
       });
       show('Request submitted');
-      setReq({ customer:'', customer_manual:'', of_number:'', status_requested:'Churn', churn_value:'', reason:'', finance_dris:[], revops_approver:'', effective_date:'', attachment:null,
+      setReq({ customer:'', customer_manual:'', of_number:'', status_requested:'Churn', churn_value:'', reason:'', finance_dris:[], ra_approver:'', effective_date:'', attachment:null,
         agreement_type:'', company_id:'', churn_type:'Full', ip_services:[], churned_services:[], billing_region:'' });
       setCustomerSearch('');
       setValidationErrors([]);
@@ -1385,11 +1389,11 @@ export function ChurnVoidRequest() {
         </div>
 
         <div className="mb-4">
-          <Lbl c="RevOps approver" req/>
-          <select value={req.revops_approver} onChange={e=>u('revops_approver',e.target.value)}
+          <Lbl c="Revenue Architect approver" req/>
+          <select value={req.ra_approver} onChange={e=>u('ra_approver',e.target.value)}
             className="field-input cursor-pointer" style={{maxWidth:'340px'}}>
-            <option value="">Select RevOps approver…</option>
-            {REVOPS_USERS.map(ru=><option key={ru.email} value={ru.email}>{ru.name}</option>)}
+            <option value="">Select Revenue Architect…</option>
+            {REVENUE_ARCHITECTS.map(ru=><option key={ru.email} value={ru.email}>{ru.name}</option>)}
           </select>
           <p className="text-[10px] mt-1 text-brand-faint">Reviews first. On approval it routes to Finance for the amount &amp; final apply.</p>
         </div>
