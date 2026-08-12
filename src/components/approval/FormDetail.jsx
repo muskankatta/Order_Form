@@ -821,12 +821,12 @@ export default function FormDetail({ form: initial }) {
                   <div className="flex items-center border-2 rounded-lg overflow-hidden font-mono font-bold text-base" style={{ borderColor:T }}>
                     <span className="px-3 py-2 text-slate-400 bg-slate-50 border-r border-slate-200 select-none whitespace-nowrap">{ofPrefix}</span>
                     <input value={ofNum.replace(new RegExp('^' + ofPrefix), '')}
-                      onChange={e=>{ const val=e.target.value.replace(/[^0-9]/g,''); setOfNum(val ? ofPrefix + val : ''); }}
-                      placeholder="0001" maxLength={6}
+                      onChange={e=>{ const val=e.target.value.replace(/[^A-Za-z0-9_]/g,'').toUpperCase(); setOfNum(val ? ofPrefix + val : ''); }}
+                      placeholder="00121_ABC" maxLength={24}
                       className="flex-1 px-3 py-2 focus:outline-none font-mono font-bold"
                       style={{ color:NAVY }}/>
                   </div>
-                  <p className="text-xs mt-1 text-brand-faint">Enter only the number — prefix is added automatically</p>
+                  <p className="text-xs mt-1 text-brand-faint">Enter the number, optionally with a free-form suffix (e.g. <span className="font-mono">00121_ABC</span>) — prefix is added automatically. Letters, digits and “_” only.</p>
                 </div>
               </div>
               <TA label="Finance comment (optional)" value={cmt} onChange={setCmt}/>
