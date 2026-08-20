@@ -6,7 +6,7 @@ const BOLTIC_URL = import.meta.env.VITE_BOLTIC_SLACK_URL || '';
 
 const CHANNELS = {
   India:    'C0978TZNGM8',
-  Global:   'C0978TZNGM8',
+  Global:   'C09CMHKF231',
   RJW:      'C0B18PJMKJP',
 };
 
