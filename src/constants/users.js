@@ -22,7 +22,7 @@ export const SALES_REPS = [
   { id:'1989', name:'Vaibhav Puthalath', slack:'U03RT8TJY74', email:'vaibhavp@gofynd.com',          team:'India',  role:'KAM',             target:null,      targetCurrency:'INR' },
   { id:'2635', name:'Yadvendra Singh',   slack:'U072WEB2TGS', email:'yadvendrasingh@gofynd.com',    team:'India',  role:'Sales',           target:10000000,  targetCurrency:'INR' },
   { id:'1889', name:'Yugandhar Hode',    slack:'U03LWJWJXEY', email:'yugandharhode@gofynd.com',     team:'India',  role:'KAM',             target:null,      targetCurrency:'INR' },
-  { id:'2927', name:'Ninad Mandavkar',   slack:'U0764AWNYKX', email:'ninadmandavkar@gofynd.com',    team:'India',  role:'Sales',           target:1000000,   targetCurrency:'INR' },
+  { id:'3220', name:'Shreenidhi S Kulkarni',   slack:'U0BC2RA1UMC', email:'shreenidhi@gofynd.com',    team:'India',  role:'Sales',           target:null,   targetCurrency:'INR' },
   // Moved from AI/SaaS → India
   { id:'3076', name:'Deep Jindal',       slack:'U09D0KZV2A0', email:'deepjindal@gofynd.com',        team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
   { id:'2933', name:'Faizan Ansari',     slack:'U08N41VP4JW', email:'faizanansari@gofynd.com',      team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
@@ -94,6 +94,9 @@ export const REVENUE_ARCHITECTS = [
   { id:'1650', name:'Kedar Kulkarni',  slack:'U0332TP5GTY', email:'kedarkulkarni@gofynd.com' },
   { id:'1396', name:'Jay Karia',       slack:'U01T33X34UU', email:'jaykaria@gofynd.com' },
   { id:'1327', name:'Nayan Lathiya',   slack:'U018REY8UA2', email:'nayanlathiya@gofynd.com' },
+  { id:'2925', name:'Ankit Jain',   slack:'U08MB9E34RF', email:'ankitjain@gofynd.com' },
+  { id:'2364', name:'Het Kothori',   slack:'U04F38YDZEZ', email:'hetkothari@gofynd.com' },
+  { id:'1011', name:'Debajit Sardar',   slack:'U07E3PXDZ', email:'debajitsardar@gofynd.com' }
 ];
 
 /** Slack member ID for a roster RA email (custom RAs carry their own ra_slack_id) */
