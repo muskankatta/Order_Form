@@ -19,7 +19,9 @@ const LEAD_NAME_LABEL = {
 };
 
 function isValidTaxNumber(val) {
-  return /^[A-Z0-9\-]{3,30}$/.test(val);
+  // International tax/VAT identifiers vary widely in punctuation (e.g. Indonesia's
+  // NPWP: "50.791.849.8-429.000"), so accept letters, digits, and common separators.
+  return /^[A-Za-z0-9.\-/ ]{3,40}$/.test((val || '').trim());
 }
 
 function isValidUrl(v) {
