@@ -91,7 +91,7 @@ export function useFormWizard(initial = null) {
     } else {
       if (!form.tax_number)
         e.push('Tax / VAT Number is required');
-      else if (!/^[A-Z0-9\-]{3,30}$/.test(form.tax_number))
+      else if (!/^[A-Za-z0-9.\-/ ]{3,40}$/.test(form.tax_number.trim()))
         e.push('Tax / VAT Number format is invalid (alphanumeric, 3–30 chars)');
     }
 
