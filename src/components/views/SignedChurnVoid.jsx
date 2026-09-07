@@ -90,7 +90,7 @@ function getSigningPeriod(dateStr) {
 }
 
 // ── SignedOFs (main tab view) ─────────────────────────────────────────────────
-function EditReqModal({ req, onClose, onSave }) {
+function EditReqModal({ req, onClose, onSave, isUniversal }) {
   const others = !!req.is_others;
   const [f, setF] = useState({
     company_id: req.company_id || '',
@@ -99,6 +99,10 @@ function EditReqModal({ req, onClose, onSave }) {
     customer_name: req.customer_name || '',
     agreement_type: req.agreement_type || '',
     billing_region: req.billing_region || '',
+    of_number: req.of_number || '',
+    status_requested: req.status_requested || 'Churn',
+    ra_approver: req.ra_approver || '',
+    finance_dris: req.finance_dris || [],
   });
   const u = (k,v) => setF(p=>({...p,[k]:v}));
   const isOFPartial = !others && req.churn_type === 'Partial';
@@ -109,6 +113,13 @@ function EditReqModal({ req, onClose, onSave }) {
       patch.customer_name = f.customer_name.trim();
       patch.agreement_type = f.agreement_type;
       patch.billing_region = f.billing_region;
+    }
+    if (isUniversal) {
+      patch.customer_name = f.customer_name.trim() || req.customer_name;
+      patch.of_number = f.of_number.trim();
+      patch.status_requested = f.status_requested;
+      patch.ra_approver = f.ra_approver;
+      patch.finance_dris = f.finance_dris;
     }
     onSave(patch);
   };
@@ -128,6 +139,27 @@ function EditReqModal({ req, onClose, onSave }) {
           <div className="mb-4">
             <label className={lbl}>Customer Name</label>
             <input value={f.customer_name} onChange={e=>u('customer_name',e.target.value)} className={fld}/>
+          </div>
+        )}
+        {isUniversal && !others && (
+          <div className="mb-4">
+            <label className={lbl}>Customer Name</label>
+            <input value={f.customer_name} onChange={e=>u('customer_name',e.target.value)} className={fld}/>
+          </div>
+        )}
+        {isUniversal && (
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className={lbl}>OF Number</label>
+              <input value={f.of_number} onChange={e=>u('of_number',e.target.value)} className={fld+' font-mono'} placeholder="No OF"/>
+            </div>
+            <div>
+              <label className={lbl}>Request Type</label>
+              <select value={f.status_requested} onChange={e=>u('status_requested',e.target.value)} className={fld+' cursor-pointer'}>
+                <option value="Churn">Churn</option>
+                <option value="Void">Void</option>
+              </select>
+            </div>
           </div>
         )}
         <div className="mb-4">
@@ -161,6 +193,22 @@ function EditReqModal({ req, onClose, onSave }) {
         {isOFPartial && (
           <div className="mb-4 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-500">
             This is a partial churn with per-IP effective dates. To change the churned IPs or their dates/amounts, delete and re-file the request.
+          </div>
+        )}
+        {isUniversal && (
+          <div className="mb-4">
+            <label className={lbl}>Revenue Architect approver</label>
+            <select value={f.ra_approver} onChange={e=>u('ra_approver',e.target.value)} className={fld+' cursor-pointer'}>
+              <option value="">Select…</option>
+              {REVENUE_ARCHITECTS.map(ra=><option key={ra.email} value={ra.email}>{ra.name}</option>)}
+            </select>
+          </div>
+        )}
+        {isUniversal && (
+          <div className="mb-4">
+            <MultiSelect label="Notify Finance DRI(s)"
+              options={FINANCE_USERS.map(fu=>({value:fu.email,label:fu.name}))}
+              value={f.finance_dris} onChange={v=>u('finance_dris',v)}/>
           </div>
         )}
         <div className="mb-4">
@@ -692,6 +740,11 @@ export function SignedOFs() {
                         {stageOf(r)==='pending_finance'
                           ? <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-teal-100 text-teal-700 whitespace-nowrap">Pending Finance</span>
                           : <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-violet-100 text-violet-700 whitespace-nowrap">Pending RA</span>}
+                        {r.ra_approver && (
+                          <div className="text-[10px] text-slate-400 mt-1 whitespace-nowrap">
+                            RA: {REVENUE_ARCHITECTS.find(ra=>ra.email===r.ra_approver)?.name || r.ra_approver}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {r.status_requested === 'Churn' ? (
@@ -905,7 +958,7 @@ export function SignedOFs() {
         </Card>
       )}
 
-      {editReq && <EditReqModal req={editReq} onClose={()=>setEditReq(null)} onSave={handleSaveEdit}/>}
+      {editReq && <EditReqModal req={editReq} onClose={()=>setEditReq(null)} onSave={handleSaveEdit} isUniversal={!!user?.isUniversal}/>}
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={hide}/>}
     </div>
   );
