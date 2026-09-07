@@ -697,8 +697,10 @@ export function buildChurnRows(forms, requests) {
         base.region, base.agreement, base.reason, base.by, base.date,
       ]));
     } else {
+      const fullServiceNames = of ? (of.services_fees || []).map(s => s.name).filter(Boolean) : [];
+      const fullServiceLabel = fullServiceNames.length ? fullServiceNames.join(', ') : 'All (full churn)';
       push([
-        base.company, base.customer, base.ent, base.of, 'Full', 'All (full churn)',
+        base.company, base.customer, base.ent, base.of, 'Full', fullServiceLabel,
         r.effective_date || '', r.is_others ? '' : amtCell(r.churn_amount_applied),
         base.currency, base.region, base.agreement, base.reason, base.by, base.date,
       ]);
