@@ -1091,7 +1091,7 @@ export function ChurnVoidRequest() {
     if (isOthers && !req.agreement_type)              errs.push('Select the agreement type (MSA / SoW / Commercial Plan)');
     if (!req.company_id?.trim())                      errs.push('Enter the Company ID');
     if (isOthers && !req.billing_region)              errs.push('Select the billing region');
-    if (isOthers && req.churn_type==='Partial' && !req.ip_services.length) errs.push('Select the IP / Service(s) being churned');
+    if (isOthers && req.status_requested==='Churn' && !req.ip_services.length) errs.push('Select the IP / Service(s) being churned');
     const isOFPartial = !isOthers && req.status_requested==='Churn' && req.churn_type==='Partial';
     if (isOFPartial && !req.churned_services.length) errs.push('Select at least one IP / Service to churn');
     if (isOFPartial && req.churned_services.some(s=>!s.effective_date)) errs.push('Enter an effective date for each churned IP / Service');
@@ -1135,7 +1135,7 @@ export function ChurnVoidRequest() {
           ...(isOthers ? {
             agreement_type: req.agreement_type,
             churn_type: req.churn_type,
-            ip_services: req.churn_type === 'Partial' ? req.ip_services : [],
+            ip_services: req.status_requested === 'Churn' ? req.ip_services : [],
             billing_region: req.billing_region,
             delayed_intimation: delayedIntimation,
           } : (req.status_requested==='Churn' ? {
@@ -1306,15 +1306,13 @@ export function ChurnVoidRequest() {
                 ))}
               </div>
               <p className="text-xs mt-1 text-brand-faint">
-                {req.churn_type==='Partial' ? 'Select the specific IP / Service(s) being churned.' : 'The entire engagement is being churned.'}
+                {req.churn_type==='Partial' ? 'Select the specific IP / Service(s) being churned.' : 'The entire engagement is being churned — select all IP / Service(s) covered.'}
               </p>
             </div>
 
-            {req.churn_type==='Partial' && (
-              <MultiSelect label="IP / Service(s) being churned" req
-                options={SERVICES.map(s=>({value:s,label:s}))}
-                value={req.ip_services} onChange={v=>u('ip_services',v)}/>
-            )}
+            <MultiSelect label="IP / Service(s) being churned" req
+              options={SERVICES.map(s=>({value:s,label:s}))}
+              value={req.ip_services} onChange={v=>u('ip_services',v)}/>
 
             <div className="mb-4">
               <Lbl c="Billing region" req/>
