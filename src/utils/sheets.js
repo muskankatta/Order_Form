@@ -671,7 +671,11 @@ function churnEntityLabel(of) {
 
 export function buildChurnRows(forms, requests) {
   const rows = [];
-  const churnReqs = (requests || []).filter(r => r.status_requested === 'Churn'); // exclude Void
+  const dateOf = r => (r.actioned_at || r.requested_at || '');
+  const churnReqs = (requests || [])
+    .filter(r => r.status_requested === 'Churn')   // exclude Void
+    .slice()
+    .sort((a, b) => new Date(dateOf(a)) - new Date(dateOf(b)));   // Column N (Date) — oldest first, newest at the bottom
   churnReqs.forEach(r => {
     const of = !r.is_others ? (forms || []).find(f => f.id === r.form_id || f.of_number === r.of_number) : null;
     const applied  = !!r.actioned && !r.rejected;
