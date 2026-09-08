@@ -697,7 +697,9 @@ export function buildChurnRows(forms, requests) {
         base.region, base.agreement, base.reason, base.by, base.date,
       ]));
     } else {
-      const fullServiceNames = of ? (of.services_fees || []).map(s => s.name).filter(Boolean) : [];
+      const fullServiceNames = of
+        ? (of.services_fees || []).map(s => s.name).filter(Boolean)
+        : (r.ip_services || []);
       const fullServiceLabel = fullServiceNames.length ? fullServiceNames.join(', ') : 'All (full churn)';
       push([
         base.company, base.customer, base.ent, base.of, 'Full', fullServiceLabel,
