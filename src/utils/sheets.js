@@ -354,7 +354,7 @@ const hyperlink = (url, label) =>
 // ── Column model ─────────────────────────────────────────────────────────────
 // Groups define the coloured header bands (and their column spans, in order).
 const COMM_GROUPS = [
-  { label: 'Order form',        cols: 21, band: '#B5D4F4', title: '#EAF1FA', text: '#042C53' },
+  { label: 'Order form',        cols: 22, band: '#B5D4F4', title: '#EAF1FA', text: '#042C53' },
   { label: 'Status & signing',  cols: 7,  band: '#9FE1CB', title: '#E7F5EF', text: '#04342C' },
   { label: 'Service',           cols: 2,  band: '#CECBF6', title: '#F0EFFB', text: '#26215C' },
   { label: 'Fee line',          cols: 10, band: '#D3D1C7', title: '#F4F3EE', text: '#2C2C2A' },
@@ -368,7 +368,8 @@ const COMM_HEADERS = [
   'Sales Channel', 'Lead Category', 'Lead Name', 'Business Unit(s)', 'Sales Team', 'Region',
   'Sales Rep', 'Sales Rep Email', 'Billing Currency', 'Order Form Value', 'OF Term',
   'Service Period Start', 'Service Period End', 'Auto Renewal', 'Renewal Frequency', 'Payment Terms',
-  // Status & signing (21–27)
+  'SoW Link',
+  // Status & signing (22–28)
   'Status', 'Approved At', 'Signing Date', 'Signing Quarter', 'Signing FY', 'Signed OF Link', 'Live Date',
   // Service (28–29)
   'Bundle Service', 'Service Name',
@@ -383,7 +384,7 @@ const COMM_HEADERS = [
 ];
 
 const COL = {
-  salesType: 4, leadCategory: 6, status: 21, pricingModel: 32,
+  salesType: 4, leadCategory: 6, status: 22, pricingModel: 33,
 };
 const TOTAL_COLS = COMM_HEADERS.length; // 48
 const DATA_START_ROW = 2;               // rows 0=band, 1=titles, 2+=data
@@ -407,6 +408,7 @@ function buildCommercials(forms) {
       fmt(f.sales_rep_name), fmt(f.sales_rep_email), fmt(f.committed_currency || 'INR'),
       fmt(f.of_value), fmt(f.of_term || (f.of_term_months ? f.of_term_months + ' Months' : '')),
       fmt(f.start_date), fmt(f.end_date), fmt(f.auto_renewal), fmt(f.renewal_term), fmt(f.payment_terms),
+      fmt(f.sow_link || f.sow_reference_link || ''),
     ];
     const statusSignFor = (liveDate) => [
       fmt(STATUS[f.status]?.label || f.status), fmt(f.approved_at?.split('T')[0]),
