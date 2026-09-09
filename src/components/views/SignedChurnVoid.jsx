@@ -200,6 +200,7 @@ function EditReqModal({ req, onClose, onSave, isUniversal }) {
             <label className={lbl}>Revenue Architect approver</label>
             <select value={f.ra_approver} onChange={e=>u('ra_approver',e.target.value)} className={fld+' cursor-pointer'}>
               <option value="">Select…</option>
+              <option value="NA">NA</option>
               {REVENUE_ARCHITECTS.map(ra=><option key={ra.email} value={ra.email}>{ra.name}</option>)}
             </select>
           </div>
@@ -1510,6 +1511,7 @@ export function ChurnVoidRequest() {
           <select value={req.ra_approver} onChange={e=>u('ra_approver',e.target.value)}
             className="field-input cursor-pointer" style={{maxWidth:'340px'}}>
             <option value="">Select Revenue Architect…</option>
+            <option value="NA">NA</option>
             {REVENUE_ARCHITECTS.map(ru=><option key={ru.email} value={ru.email}>{ru.name}</option>)}
           </select>
           <p className="text-[10px] mt-1 text-brand-faint">Reviews first. On approval it routes to Finance for the amount &amp; final apply.</p>
