@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useForms } from '../../context/FormsContext.jsx';
+import { REVENUE_ARCHITECTS } from '../../constants/users.js';
  
 const NAVY = '#1B2B4B';
 const T    = '#00C3B5';
@@ -36,7 +37,7 @@ export default function AppShell({ children }) {
     { to:'/repository', lbl:'Repository' },
     { to:'/renewals',   lbl:'Renewals' },
     { to:'/targets',    lbl:'Sales Targets' },
-    ...(user?.role==='revops'||user?.role==='finance'||user?.role==='cbo'||user?.isUniversal ? [{
+    ...((user?.role==='revops'||user?.role==='finance'||user?.role==='cbo'||user?.isUniversal||REVENUE_ARCHITECTS.some(ra=>ra.email===user?.email)) ? [{
       to:'/signed', lbl:'Signed OFs',
       badge:overdueCount>0?overdueCount:null, badgeColor:'#ef4444'
     }] : []),
