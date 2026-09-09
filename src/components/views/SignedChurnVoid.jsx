@@ -735,6 +735,14 @@ export function SignedOFs() {
                         <span className={'text-xs px-2 py-1 rounded-full font-bold '+(r.status_requested==='Void'?'bg-red-100 text-red-700':'bg-orange-100 text-orange-700')}>
                           {r.status_requested}
                         </span>
+                        {r.churn_type==='Full' && (r.of_full_churn || r.company_full_churn) && (
+                          <div className="text-[10px] text-slate-500 mt-1 whitespace-nowrap">
+                            {r.of_full_churn && r.company_full_churn ? 'OF + Company' : r.company_full_churn ? 'Company' : 'OF only'}
+                            {r.company_full_churn && r.related_company_ofs?.length > 0 && (
+                              <span className="block text-amber-600 font-semibold">+{r.related_company_ofs.length} other OF(s)</span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {stageOf(r)==='pending_finance'
@@ -990,6 +998,7 @@ export function ChurnVoidRequest() {
     agreement_type: '',      // MSA | SoW | Commercial Plan
     company_id: '',
     churn_type: 'Full',      // Full | Partial
+    of_full_churn: false, company_full_churn: false,   // scope of a Full churn (OF-linked only)
     ip_services: [],         // required when Partial (no-OF)
     churned_services: [],    // [{name, effective_date}] — per-IP dates for a Partial OF churn
     billing_region: '',      // routes the delayed-intimation Slack alert
@@ -1059,6 +1068,15 @@ export function ChurnVoidRequest() {
       : null,
   [approvedForms, req.customer, req.of_number, isOthers]);
 
+  // Other active (signed) OFs for the same customer — shown when "Company is Full Churn" is ticked.
+  const otherCompanyOFs = useMemo(() => {
+    if (isOthers || !req.customer || !req.of_number) return [];
+    return forms.filter(f =>
+      f.status === 'signed' &&
+      f.of_number !== req.of_number &&
+      f.customer_name?.trim().toLowerCase() === req.customer.trim().toLowerCase());
+  }, [forms, req.customer, req.of_number, isOthers]);
+
   const handleCustomerSelect = (name) => {
     u('customer', name);
     u('of_number', '');
@@ -1094,6 +1112,8 @@ export function ChurnVoidRequest() {
     if (isOthers && req.status_requested==='Churn' && !req.ip_services.length) errs.push('Select the IP / Service(s) being churned');
     const isOFPartial = !isOthers && req.status_requested==='Churn' && req.churn_type==='Partial';
     if (isOFPartial && !req.churned_services.length) errs.push('Select at least one IP / Service to churn');
+    if (!isOthers && req.status_requested==='Churn' && req.churn_type==='Full' && !req.of_full_churn && !req.company_full_churn)
+      errs.push('Select whether the Order Form, the Company, or both are Full Churn');
     if (isOFPartial && req.churned_services.some(s=>!s.effective_date)) errs.push('Enter an effective date for each churned IP / Service');
     if (!req.reason?.trim())                          errs.push('Enter a reason / justification');
     if (!isOFPartial && !req.effective_date)          errs.push('Enter the effective date of Churn/Void');
@@ -1141,6 +1161,13 @@ export function ChurnVoidRequest() {
           } : (req.status_requested==='Churn' ? {
             churn_type: req.churn_type,
             churned_services: req.churn_type === 'Partial' ? req.churned_services : [],
+            ...(req.churn_type === 'Full' ? {
+              of_full_churn: !!req.of_full_churn,
+              company_full_churn: !!req.company_full_churn,
+              related_company_ofs: req.company_full_churn
+                ? otherCompanyOFs.map(f => ({ of_number: f.of_number, customer_name: f.customer_name }))
+                : [],
+            } : {}),
           } : {})),
         };
         await setDoc(doc(db, 'churn_void_requests', reqId), docData);
@@ -1160,7 +1187,7 @@ export function ChurnVoidRequest() {
       });
       show('Request submitted');
       setReq({ customer:'', customer_manual:'', of_number:'', status_requested:'Churn', churn_value:'', reason:'', finance_dris:[], ra_approver:'', effective_date:'', attachment:null,
-        agreement_type:'', company_id:'', churn_type:'Full', ip_services:[], churned_services:[], billing_region:'' });
+        agreement_type:'', company_id:'', churn_type:'Full', of_full_churn:false, company_full_churn:false, ip_services:[], churned_services:[], billing_region:'' });
       setCustomerSearch('');
       setValidationErrors([]);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -1370,6 +1397,45 @@ export function ChurnVoidRequest() {
                 ? 'Churn specific IP(s)/service(s) on this OF — the OF stays active for the rest.'
                 : 'The entire Order Form is churning.'}
             </p>
+          </div>
+        )}
+
+        {!isOthers && req.status_requested==='Churn' && req.churn_type==='Full' && selectedForm && (
+          <div className="mb-4">
+            <Lbl c="Scope of this Full Churn" req/>
+            <div className="space-y-2">
+              <label className="flex items-start gap-3 p-3 rounded-xl border cursor-pointer"
+                style={req.of_full_churn?{borderColor:'#00897b',background:'#e0f7f5'}:{borderColor:'#e2e8f0',background:'#f8fafc'}}>
+                <input type="checkbox" checked={!!req.of_full_churn} onChange={e=>u('of_full_churn',e.target.checked)} className="w-4 h-4 mt-0.5 cursor-pointer"/>
+                <span>
+                  <span className="block text-sm font-semibold text-slate-700">Order Form is Full Churn</span>
+                  <span className="block text-xs text-brand-faint mt-0.5">This specific OF ({req.of_number}) is ending.</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-3 p-3 rounded-xl border cursor-pointer"
+                style={req.company_full_churn?{borderColor:'#00897b',background:'#e0f7f5'}:{borderColor:'#e2e8f0',background:'#f8fafc'}}>
+                <input type="checkbox" checked={!!req.company_full_churn} onChange={e=>u('company_full_churn',e.target.checked)} className="w-4 h-4 mt-0.5 cursor-pointer"/>
+                <span>
+                  <span className="block text-sm font-semibold text-slate-700">Company is Full Churn</span>
+                  <span className="block text-xs text-brand-faint mt-0.5">{req.customer} is leaving entirely — all their Order Forms are ending.</span>
+                </span>
+              </label>
+            </div>
+            {!req.of_full_churn && !req.company_full_churn && (
+              <p className="text-xs mt-1 text-red-500 font-medium">Select at least one — is it just this Order Form, the whole Company, or both?</p>
+            )}
+            {req.company_full_churn && (
+              <div className="mt-3 p-3 rounded-xl border border-amber-200 bg-amber-50">
+                <p className="text-xs font-bold text-amber-800 mb-1.5">
+                  {otherCompanyOFs.length > 0
+                    ? `⚠ ${otherCompanyOFs.length} other active OF(s) for ${req.customer} — for review:`
+                    : `No other active OFs found for ${req.customer}.`}
+                </p>
+                {otherCompanyOFs.map(f=>(
+                  <div key={f.id} className="text-xs text-amber-700 font-mono">{f.of_number} — {(f.services_fees||[]).map(s=>s.name).filter(Boolean).join(', ') || '—'}</div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
