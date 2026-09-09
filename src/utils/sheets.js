@@ -13,7 +13,7 @@
 import { getQtr, getFY } from './dates.js';
 import { STATUS } from '../constants/status.js';
 import { getSym, cyclesInDateRange } from './formatting.js';
-import { getRepRegion } from '../constants/users.js';
+import { getRepRegion, REVENUE_ARCHITECTS } from '../constants/users.js';
 import { formBusinessUnits } from '../constants/formOptions.js';
 import { db } from '../firebase.js';
 import { collection, getDocs } from 'firebase/firestore';
@@ -657,7 +657,7 @@ const CHURN_TAB = 'Churn Customers';
 export const CHURN_HEADERS = [
   'Company ID', 'Customer', 'Entity', 'OF Number', 'Churn Type', 'Churned IP / Service',
   'Effective Date', 'Churn Amount', 'Currency', 'Billing Region', 'Agreement Type',
-  'Reason', 'Actioned / Requested By', 'Date',
+  'Reason', 'Actioned / Requested By', 'Date', 'Revenue Architect',
 ];
 
 function churnEntityLabel(of) {
@@ -684,10 +684,11 @@ export function buildChurnRows(forms, requests) {
     const entLabel = r.is_others ? '' : churnEntityLabel(of);
     const by   = r.actioned_by || r.requested_by || '';
     const date = (r.actioned_at || r.requested_at || '').split('T')[0] || '';
+    const raName = REVENUE_ARCHITECTS.find(ra => ra.email === r.ra_approver)?.name || r.ra_approver || '';
     const base = {
       company: r.company_id || '', customer: r.customer_name || '', ent: entLabel,
       of: r.of_number || '', currency, region: r.billing_region || '',
-      agreement: r.agreement_type || '', reason: r.reason || '', by, date,
+      agreement: r.agreement_type || '', reason: r.reason || '', by, date, ra: raName,
     };
     const amtCell = v => (v != null && v !== '') ? v : (pending ? 'Pending' : '');
     let first = true;
@@ -701,7 +702,7 @@ export function buildChurnRows(forms, requests) {
       ips.forEach(ip => push([
         base.company, base.customer, base.ent, base.of, 'Partial', ip.name,
         ip.effective_date || '', r.is_others ? '' : amtCell(ip.amount), base.currency,
-        base.region, base.agreement, base.reason, base.by, base.date,
+        base.region, base.agreement, base.reason, base.by, base.date, base.ra,
       ]));
     } else {
       const fullServiceNames = of
@@ -711,7 +712,7 @@ export function buildChurnRows(forms, requests) {
       push([
         base.company, base.customer, base.ent, base.of, 'Full', fullServiceLabel,
         r.effective_date || '', r.is_others ? '' : amtCell(r.churn_amount_applied),
-        base.currency, base.region, base.agreement, base.reason, base.by, base.date,
+        base.currency, base.region, base.agreement, base.reason, base.by, base.date, base.ra,
       ]);
     }
   });
