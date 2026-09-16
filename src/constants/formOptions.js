@@ -100,7 +100,7 @@ export const SALES_TEAMS = ['India','Global','RJW'];
 export const LEAD_TYPES  = ['Direct','Indirect'];
 // Direct: Event, Inside Sales/Pre-Sales | Indirect: Partner only
 export const LEAD_CATS = {
-  Direct:   ['Event','Inside Sales/Pre-Sales','NA'],
+  Direct:   ['Event','Inside Sales/Pre-Sales','Inbound','NA'],
   Indirect: ['Partner'],
 };
 
@@ -108,6 +108,7 @@ export const LEAD_CATS = {
 export const LEAD_NAME_LABEL = {
   'Event':                  'Event name',
   'Inside Sales/Pre-Sales': "Person's name",
+  'Inbound':                null, // hide field — lead came in directly, no named source
   'NA':                     null, // hide field
   'Partner':                'Partner name',
 };
