@@ -87,13 +87,12 @@ function printPI(pi){
 // COLLECTION FORM — Add new collection entry
 // ─────────────────────────────────────────────────────────────────
 function CollectionForm({ pi, onSave, onCancel }) {
-  const [entry, setEntry]   = useState({ amount:'', tds_pct:'', date:'', payment_reference:'', mode:'NEFT', notes:'' });
+  const [entry, setEntry]   = useState({ amount:'', tds_pct:'', tds_amount:'', date:'', payment_reference:'', mode:'NEFT', notes:'' });
   const [saving, setSaving] = useState(false);
 
   const collected    = pi.total_collected || 0;
   const entryAmt     = parseFloat(entry.amount) || 0;
-  const tdsPct       = parseFloat(entry.tds_pct) || 0;
-  const tdsAmt       = parseFloat(((entryAmt * tdsPct) / 100).toFixed(2));
+  const tdsAmt       = parseFloat(entry.tds_amount) || 0;
   const totalEntry   = entryAmt + tdsAmt;   // Collection Amount (Money in Bank) + TDS Amount
   const afterColl    = collected + entryAmt; // only actual money received counts toward collected
   const willFull     = entryAmt > 0 && afterColl >= (pi.grand_total || 0);
@@ -104,7 +103,7 @@ function CollectionForm({ pi, onSave, onCancel }) {
     if (!entry.date) { alert('Enter the date of receipt.'); return; }
     if (!entry.payment_reference.trim()) { alert('Enter a payment reference / UTR number.'); return; }
     setSaving(true);
-    try { await onSave({ ...entry, tds_pct: tdsPct, tds_amount: tdsAmt, total: totalEntry }); }
+    try { await onSave({ ...entry, tds_pct: parseFloat(entry.tds_pct) || 0, tds_amount: tdsAmt, total: totalEntry }); }
     finally { setSaving(false); }
   };
 
@@ -137,11 +136,15 @@ function CollectionForm({ pi, onSave, onCancel }) {
           </div>
         </div>
 
-        {/* TDS Amount — read-only display */}
+        {/* TDS Amount — manual input */}
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">TDS Amount</label>
-          <div className="flex items-center border border-slate-100 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600 font-semibold h-[34px]">
-            {tdsAmt > 0 ? fmtAmt(tdsAmt, pi.currency) : <span className="text-slate-400">—</span>}
+          <label className="block text-xs font-medium text-slate-600 mb-1">TDS Amount ({pi.currency})</label>
+          <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white">
+            <span className="px-2 text-slate-400 text-xs shrink-0">{symOf(pi.currency)}</span>
+            <input type="number" min="0" step="0.01" value={entry.tds_amount}
+              onChange={e => setEntry(v => ({...v, tds_amount: e.target.value}))}
+              placeholder="0.00"
+              className="flex-1 pr-3 py-2 text-xs focus:outline-none bg-white"/>
           </div>
         </div>
 
@@ -222,7 +225,7 @@ function EditCollectionModal({ pi, collection: col, onSave, onCancel }) {
   const [entry, setEntry] = useState({
     amount:            String(col.amount || ''),
     tds_pct:           String(col.tds_pct || ''),
-    tds_amount:        col.tds_amount || 0,
+    tds_amount:        String(col.tds_amount || ''),
     date:              col.date || '',
     payment_reference: col.payment_reference || '',
     mode:              col.mode || 'NEFT',
@@ -231,8 +234,7 @@ function EditCollectionModal({ pi, collection: col, onSave, onCancel }) {
   const [saving, setSaving] = useState(false);
 
   const entryAmt   = parseFloat(entry.amount) || 0;
-  const tdsPct     = parseFloat(entry.tds_pct) || 0;
-  const tdsAmt     = parseFloat(((entryAmt * tdsPct) / 100).toFixed(2));
+  const tdsAmt     = parseFloat(entry.tds_amount) || 0;
   const totalEntry = entryAmt + tdsAmt;
 
   const handleSave = async () => {
@@ -240,7 +242,7 @@ function EditCollectionModal({ pi, collection: col, onSave, onCancel }) {
     if (!entry.date) { alert('Enter the date of receipt.'); return; }
     if (!entry.payment_reference.trim()) { alert('Enter a payment reference / UTR number.'); return; }
     setSaving(true);
-    try { await onSave({ ...entry, amount: entryAmt, tds_pct: tdsPct, tds_amount: tdsAmt, total: totalEntry }); }
+    try { await onSave({ ...entry, amount: entryAmt, tds_pct: parseFloat(entry.tds_pct) || 0, tds_amount: tdsAmt, total: totalEntry }); }
     finally { setSaving(false); }
   };
 
@@ -277,9 +279,13 @@ function EditCollectionModal({ pi, collection: col, onSave, onCancel }) {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">TDS Amount</label>
-            <div className="flex items-center border border-slate-100 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600 font-semibold h-[34px]">
-              {tdsAmt > 0 ? fmtAmt(tdsAmt, pi.currency) : <span className="text-slate-400">—</span>}
+            <label className="block text-xs font-medium text-slate-600 mb-1">TDS Amount ({pi.currency})</label>
+            <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white">
+              <span className="px-2 text-slate-400 text-xs shrink-0">{symOf(pi.currency)}</span>
+              <input type="number" min="0" step="0.01" value={entry.tds_amount}
+                onChange={e => setEntry(v => ({...v, tds_amount: e.target.value}))}
+                placeholder="0.00"
+                className="flex-1 pr-3 py-2 text-xs focus:outline-none bg-white"/>
             </div>
           </div>
 
