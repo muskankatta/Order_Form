@@ -28,7 +28,8 @@ export const SALES_REPS = [
   { id:'2933', name:'Faizan Ansari',     slack:'U08N41VP4JW', email:'faizanansari@gofynd.com',      team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
   { id:'2935', name:'Saritha Ravi',      slack:'U08N41SD8F4', email:'saritharavi@gofynd.com',       team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
   { id:'3128', name:'Shresth Gupta',     slack:'U09R6079V9N', email:'shresthgupta@gofynd.com',      team:'India',  role:'BDR',             target:null,      targetCurrency:'INR' },
-  { id:'1396', name:'Jay Karia',         slack:'U01T33X34UU', email:'jaykaria@gofynd.com',          team:'India',  role:'Product',         target:null,      targetCurrency:'INR' },
+  { id:'1396', name:'Jay Karia',         slack:'U01T33X34UU', email:'jaykaria@gofynd.com',          team:'India',  role:'Sales',         target:null,      targetCurrency:'INR' },
+  { id:'1058', name:'Megha Golecha',      slack:'U49BDA6UD', email:'meghagolecha@gofynd.com',       team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
   { id:'NA-IND', name:'NA', slack:'', email:'na_india', team:'India',  role:'NA', target:null, targetCurrency:'INR' },
 
   // ── GLOBAL TEAM — MEA ──────────────────────────────────────────────────────
