@@ -17,15 +17,14 @@ export const SALES_REPS = [
   { id:'1989', name:'Vaibhav Puthalath', slack:'U03RT8TJY74', email:'vaibhavp@gofynd.com',          team:'India',  role:'KAM',             target:null,      targetCurrency:'INR' },
   { id:'2635', name:'Yadvendra Singh',   slack:'U072WEB2TGS', email:'yadvendrasingh@gofynd.com',    team:'India',  role:'Sales',           target:10000000,  targetCurrency:'INR' },
   { id:'1889', name:'Yugandhar Hode',    slack:'U03LWJWJXEY', email:'yugandharhode@gofynd.com',     team:'India',  role:'KAM',             target:null,      targetCurrency:'INR' },
-  { id:'3220', name:'Shreenidhi S Kulkarni',   slack:'U0BC2RA1UMC', email:'shreenidhi@gofynd.com',    team:'India',  role:'Sales',           target:null,   targetCurrency:'INR' },
+  { id:'3220', name:'Shreenidhi S Kulkarni', slack:'U0BC2RA1UMC', email:'shreenidhi@gofynd.com',   team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
   // Moved from AI/SaaS → India
   { id:'3076', name:'Deep Jindal',       slack:'U09D0KZV2A0', email:'deepjindal@gofynd.com',        team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
   { id:'2933', name:'Faizan Ansari',     slack:'U08N41VP4JW', email:'faizanansari@gofynd.com',      team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
   { id:'2935', name:'Saritha Ravi',      slack:'U08N41SD8F4', email:'saritharavi@gofynd.com',       team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
   { id:'3128', name:'Shresth Gupta',     slack:'U09R6079V9N', email:'shresthgupta@gofynd.com',      team:'India',  role:'BDR',             target:null,      targetCurrency:'INR' },
-  { id:'1396', name:'Jay Karia',         slack:'U01T33X34UU', email:'jaykaria@gofynd.com',          team:'India',  role:'Sales',         target:null,      targetCurrency:'INR' },
-  { id:'1058', name:'Megha Golecha',      slack:'U49BDA6UD', email:'meghagolecha@gofynd.com',       team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
-  { id:'NA-IND', name:'NA', slack:'', email:'na_india', team:'India',  role:'NA', target:null, targetCurrency:'INR' },
+  { id:'1058', name:'Megha Golecha',     slack:'U49BDA6UD',   email:'meghagolecha@gofynd.com',      team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
+  { id:'NA-IND', name:'NA', slack:'', email:'na_india', team:'India', role:'NA', target:null, targetCurrency:'INR' },
 
   // ── GLOBAL TEAM — MEA ──────────────────────────────────────────────────────
   { id:'S105', name:'Dharmendra Mehta',  slack:'U07KGJ8MTUK', email:'dharmendra@gofynd.com',        team:'Global', region:'MEA', role:'Sales',   target:800000,  targetCurrency:'USD' },
@@ -33,7 +32,7 @@ export const SALES_REPS = [
   { id:'S112', name:'Rushabh Mehta',     slack:'U08F74BT57E', email:'rushabhmehta1@gofynd.com',     team:'Global', region:'MEA', role:'Sales',   target:600000,  targetCurrency:'USD' },
   { id:'S111', name:'Vishesh Kumar',     slack:'UFJ0SDTLH',   email:'visheshkumar@gofynd.com',      team:'Global', region:'MEA', role:'Sales',   target:550000,  targetCurrency:'USD' },
   { id:'2271', name:'Yazdan Irani',      slack:'U048V9AHNA3', email:'yazdanirani@gofynd.com',       team:'Global', region:'MEA', role:'Sales',   target:400000,  targetCurrency:'USD' },
-  { id:'3076', name:'Deep Jindal',       slack:'U09D0KZV2A0', email:'deepjindal@gofynd.com',        team:'Global', region:'MEA', role:'Sales',           target:null,      targetCurrency:'USD' },
+  { id:'3076', name:'Deep Jindal',       slack:'U09D0KZV2A0', email:'deepjindal@gofynd.com',        team:'Global', region:'MEA', role:'Sales',   target:null,    targetCurrency:'USD' },
 
   // ── GLOBAL TEAM — SEA ──────────────────────────────────────────────────────
   { id:'S106', name:'Novriansyah',       slack:'U07KA2RMW0N', email:'novri@fynd.team',              team:'Global', region:'SEA', role:'Sales', target:500000,  targetCurrency:'USD' },
@@ -52,13 +51,13 @@ export const SALES_REPS = [
 
   // ── GLOBAL TEAM — CBO (region-wide) ────────────────────────────────────────
   { id:'1028', name:'Ronak Modi',        slack:'U0BDD4119',   email:'ronakmodi@gofynd.com',         team:'Global', region:'', role:'CBO', target:650000, targetCurrency:'USD' },
+
   // ── RJW ────────────────────────────────────────────────────────────────────
   { id:'NA-RJW', name:'NA', slack:'', email:'na_rjw', team:'RJW', role:'NA', target:null, targetCurrency:'INR' },
 ];
 
 export const REVOPS_USERS = [
-  { id:'2804', name:'Samiksha Mane',  slack:'U07PSSKJG48', email:'samikshamane@gofynd.com',  team:'India' },
-  { id:'1396', name:'Jay Karia',  slack:'U01T33X34UU', email:'jaykaria@gofynd.com',  team:'India' },
+  { id:'1791', name:'Adnan Shaikh',      slack:'U03G8EQN7B2', email:'adnanshaikh@gofynd.com',      team:'India' },
   { id:'1327', name:'Nayan Lathiya',  slack:'U018REY8UA2', email:'nayanlathiya@gofynd.com',  team:'Global' },
   { id:'1392', name:'Atharva Shetye', slack:'U01T138DQAF', email:'atharvashetye@gofynd.com', team:'India' },
   { id:'2914', name:'Muskan Katta',   slack:'U08AB8PBFPC', email:'muskankatta2@gofynd.com',  universal:true }
@@ -73,8 +72,8 @@ export const FINANCE_USERS = [
   { id:'1052', name:'Viky Sangoi',      slack:'U3JUC5YNS',   email:'vikysangoi@gofynd.com' },
   { id:'1122', name:'Roshani Mohanan',  slack:'UBZ21KS66',   email:'roshanimohan@gofynd.com' },
   { id:'3009', name:'Aditi Sinha',      slack:'U092K3G6PRQ', email:'aditisinha@gofynd.com' },
-  { id:'2894', name:'Sainath Gosika',      slack:'U08GGL43Y5A', email:'sainathgosika@gofynd.com' },
-  { id:'1687', name:'Siddhesh',      slack:'U036P2FQHRU', email:'siddheshmayekar@gofynd.com' }
+  { id:'2894', name:'Sainath Gosika',   slack:'U08GGL43Y5A', email:'sainathgosika@gofynd.com' },
+  { id:'1687', name:'Siddhesh',         slack:'U036P2FQHRU', email:'siddheshmayekar@gofynd.com' }
 ];
 
 export const UNIVERSAL_EMAIL = 'muskankatta2@gofynd.com';
@@ -89,9 +88,9 @@ export const REVENUE_ARCHITECTS = [
   { id:'1650', name:'Kedar Kulkarni',  slack:'U0332TP5GTY', email:'kedarkulkarni@gofynd.com' },
   { id:'1396', name:'Jay Karia',       slack:'U01T33X34UU', email:'jaykaria@gofynd.com' },
   { id:'1327', name:'Nayan Lathiya',   slack:'U018REY8UA2', email:'nayanlathiya@gofynd.com' },
-  { id:'2925', name:'Ankit Jain',   slack:'U08MB9E34RF', email:'ankitjain@gofynd.com' },
-  { id:'2364', name:'Het Kothori',   slack:'U04F38YDZEZ', email:'hetkothari@gofynd.com' },
-  { id:'1011', name:'Debajit Sardar',   slack:'U07E3PXDZ', email:'debajitsardar@gofynd.com' }
+  { id:'2925', name:'Ankit Jain',      slack:'U08MB9E34RF', email:'ankitjain@gofynd.com' },
+  { id:'2364', name:'Het Kothori',     slack:'U04F38YDZEZ', email:'hetkothari@gofynd.com' },
+  { id:'1011', name:'Debajit Sardar',  slack:'U07E3PXDZ',   email:'debajitsardar@gofynd.com' }
 ];
 
 /** Slack member ID for a roster RA email (custom RAs carry their own ra_slack_id) */
@@ -148,11 +147,11 @@ export function resolveRole(email) {
   if (FINANCE_USERS.find(u => u.email === email)) return 'finance';
   if (REVOPS_USERS.find(u => u.email === email))  return 'revops';
   const rep = SALES_REPS.find(u => u.email === email);
-  if (rep?.role === 'CBO') return 'cbo';   // read-only leadership view (full visibility)
+  if (rep?.role === 'CBO') return 'cbo';
   if (rep)                 return 'sales';
-  // Not in any list — auto-viewer for gofynd.com only
   return domain === 'gofynd.com' ? 'viewer' : null;
 }
+
 /** Get full user object from any list by email */
 export function getUserByEmail(email) {
   return (
