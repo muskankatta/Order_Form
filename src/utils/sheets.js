@@ -557,7 +557,7 @@ export async function syncCommercialsToSheets(forms, onProgress, tokenIn) {
       range: { sheetId, startRowIndex: 1, endRowIndex: 2, startColumnIndex: start, endColumnIndex: end },
       cell: { userEnteredFormat: { backgroundColor: hexToRgb(g.title),
               textFormat: { bold: true, foregroundColor: hexToRgb(g.text) } } },
-      fields: 'userEntiredFormat(backgroundColor,textFormat)' } });
+      fields: 'userEnteredFormat(backgroundColor,textFormat)' } });
   });
   blocks.forEach((b, i) => {
     requests.push({ repeatCell: {
