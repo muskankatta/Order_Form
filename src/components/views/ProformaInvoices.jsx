@@ -9,6 +9,7 @@ import { SERVICES } from '../../constants/formOptions.js';
 import { REVOPS_USERS, FINANCE_USERS } from '../../constants/users.js';
 import { CHANNELS as CH } from '../../utils/slack.js';
 import { entityKeyOf, getEntity, ENTITY_OPTIONS } from '../../constants/entities.js';
+import { autoSyncPI } from '../../utils/sheets.js';
 
 const NAVY = '#1B2B4B';
 const FEE_TYPES     = ['Setup Fee','One Time Fee','Subscription Fee'];
@@ -662,6 +663,9 @@ function CreatePIModal({ user, onClose, onCreated }) {
       const ts  = await notifyPI({...docData, id:ref.id}, 'submitted');
       if (ts) await updateDoc(doc(db,'proforma_invoices',ref.id), { slack_thread_ts: ts });
       onCreated();
+      // fire-and-forget sheet sync — loadPIs in onCreated will refresh pis state
+      // we pass the new doc inline since pis state hasn't reloaded yet
+      autoSyncPI([{...docData, id:ref.id}]);
       onClose();
     } catch(err) { console.error('create PI', err); setErrs(['Failed to create PI — '+(err?.message||'unknown error')]); }
     finally { setSaving(false); }
@@ -870,6 +874,7 @@ export default function ProformaInvoices() {
       const pi=pis.find(p=>p.id===showModal.piId);
       if(pi){ const rSlack=REVOPS_USERS.find(u=>u.email===user.email)?.slack||null; await notifyPI({...pi,status:'approved',revops_reviewer:user.name||user.email,revops_reviewer_slack_id:rSlack,revops_comment:cmt},'approved'); }
       if(selPI?.id===showModal.piId) setSelPI(p=>({...p,status:'approved',revops_reviewer:user.name||user.email,revops_comment:cmt}));
+      autoSyncPI(pis);
       setShowModal(null); setCmt(''); show('PI Approved ✓');
     } catch(e) { show('Error: '+e.message,'error'); }
   };
@@ -882,6 +887,7 @@ export default function ProformaInvoices() {
       const pi=pis.find(p=>p.id===showModal.piId);
       if(pi){ const rSlack=REVOPS_USERS.find(u=>u.email===user.email)?.slack||null; await notifyPI({...pi,status:'rejected',revops_reviewer:user.name||user.email,revops_reviewer_slack_id:rSlack,revops_comment:cmt},'rejected'); }
       if(selPI?.id===showModal.piId) setSelPI(p=>({...p,status:'rejected',revops_reviewer:user.name||user.email,revops_comment:cmt}));
+      autoSyncPI(pis);
       setShowModal(null); setCmt(''); show('PI Rejected');
     } catch(e) { show('Error: '+e.message,'error'); }
   };
@@ -894,6 +900,7 @@ export default function ProformaInvoices() {
       const pi=pis.find(p=>p.id===showModal.piId);
       if(pi){ const rSlack=REVOPS_USERS.find(u=>u.email===user.email)?.slack||null; await notifyPI({...pi,status:'cancelled',revops_reviewer:user.name||user.email,revops_reviewer_slack_id:rSlack,revops_comment:cmt},'cancelled'); }
       if(selPI?.id===showModal.piId) setSelPI(p=>({...p,status:'cancelled',revops_reviewer:user.name||user.email,revops_comment:cmt}));
+      autoSyncPI(pis);
       setShowModal(null); setCmt(''); show('PI Cancelled');
     } catch(e) { show('Error: '+e.message,'error'); }
   };
@@ -918,15 +925,18 @@ export default function ProformaInvoices() {
     };
     const updated        = [...existing, newEntry];
     const totalCollected = updated.reduce((s,c) => s + (parseFloat(c.amount)||0), 0);
-    const isFullyPaid    = totalCollected >= (pi.grand_total || 0);
+    const totalWithTDS   = updated.reduce((s,c) => s + (parseFloat(c.total) || parseFloat(c.amount) || 0), 0);
+    const isFullyPaid    = totalWithTDS >= (pi.grand_total || 0);
     await updateDoc(doc(db,'proforma_invoices',pi.id),{
       collections:     updated,
       total_collected: totalCollected,
       ...(isFullyPaid && pi.status !== 'fully_collected' ? {status:'fully_collected'} : {}),
     });
     await loadPIs();
-    const newStatus = isFullyPaid ? 'fully_collected' : pi.status;
+    const newStatus  = isFullyPaid ? 'fully_collected' : pi.status;
+    const allUpdated = pis.map(p => p.id === pi.id ? {...p, collections:updated, total_collected:totalCollected, status:newStatus} : p);
     setSelPI({...pi, collections:updated, total_collected:totalCollected, status:newStatus});
+    autoSyncPI(allUpdated);
     show(isFullyPaid ? '🎉 Fully collected! PI marked as Fully Collected.' : '✓ Collection recorded.');
   }, [selPI, user, loadPIs, show]);
 
@@ -952,7 +962,8 @@ export default function ProformaInvoices() {
       };
     });
     const totalCollected = updated.reduce((s,c) => s + (parseFloat(c.amount)||0), 0);
-    const isFullyPaid    = totalCollected >= (pi.grand_total || 0);
+    const totalWithTDS   = updated.reduce((s,c) => s + (parseFloat(c.total) || parseFloat(c.amount) || 0), 0);
+    const isFullyPaid    = totalWithTDS >= (pi.grand_total || 0);
     const newStatus      = isFullyPaid ? 'fully_collected' : (pi.status === 'fully_collected' ? 'approved' : pi.status);
     await updateDoc(doc(db,'proforma_invoices',pi.id), {
       collections:     updated,
@@ -960,7 +971,9 @@ export default function ProformaInvoices() {
       status:          newStatus,
     });
     await loadPIs();
+    const allUpdated = pis.map(p => p.id === pi.id ? {...p, collections:updated, total_collected:totalCollected, status:newStatus} : p);
     setSelPI({...pi, collections:updated, total_collected:totalCollected, status:newStatus});
+    autoSyncPI(allUpdated);
     show('✓ Collection entry updated.');
   }, [selPI, user, loadPIs, show]);
 
@@ -970,7 +983,8 @@ export default function ProformaInvoices() {
     const pi      = selPI;
     const updated = (pi.collections || []).filter(c => c.id !== colId);
     const totalCollected = updated.reduce((s,c) => s + (parseFloat(c.amount)||0), 0);
-    const isFullyPaid    = totalCollected >= (pi.grand_total || 0);
+    const totalWithTDS   = updated.reduce((s,c) => s + (parseFloat(c.total) || parseFloat(c.amount) || 0), 0);
+    const isFullyPaid    = totalWithTDS >= (pi.grand_total || 0);
     const newStatus      = isFullyPaid ? 'fully_collected' : (pi.status === 'fully_collected' ? 'approved' : pi.status);
     await updateDoc(doc(db,'proforma_invoices',pi.id), {
       collections:     updated,
@@ -978,7 +992,9 @@ export default function ProformaInvoices() {
       status:          newStatus,
     });
     await loadPIs();
+    const allUpdated = pis.map(p => p.id === pi.id ? {...p, collections:updated, total_collected:totalCollected, status:newStatus} : p);
     setSelPI({...pi, collections:updated, total_collected:totalCollected, status:newStatus});
+    autoSyncPI(allUpdated);
     show('Collection entry deleted.');
   }, [selPI, loadPIs, show]);
 
