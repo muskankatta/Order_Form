@@ -844,7 +844,7 @@ export default function ProformaInvoices() {
   const [q,            setQ]            = useState('');
   const [showCreate,   setShowCreate]   = useState(false);
 
-  const canCreatePI = user?.role==='revops' || user?.role==='finance' || user?.isUniversal;
+  const canCreatePI = user?.role==='revops' || user?.role==='finance' || user?.isUniversal || user?.role==='sales' || user?.role==='cbo' || user?.role==='coo' || user?.role==='kam';
   const canApprove  = user?.role==='revops' || user?.isUniversal;
   const canRecord   = user?.role==='revops' || user?.role==='finance' || user?.isUniversal;
   const canDownload = user?.role==='sales'  || user?.role==='finance' || user?.isUniversal || user?.role==='revops';
