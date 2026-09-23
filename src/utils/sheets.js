@@ -31,7 +31,6 @@ const unsignedAging = f => {
   if (!f.approved_at) return '';
   return Math.floor((new Date() - new Date(f.approved_at)) / 86400000);
 };
-// Inclusions is an array of { text, metric } (or legacy string). Render like the OF.
 const inclusionsText = val => {
   if (!val) return '';
   if (Array.isArray(val)) {
@@ -59,47 +58,47 @@ const INDEX_HEADERS = [
 ];
 
 const toIndexRow = (f, i) => [
-  i + 1,                                                        // SrNo
-  fmt(f.of_number),                                             // Order_Form_No
-  fmt(getQtr(f.start_date)),                                    // QTR
-  fmt(getFY(f.start_date)),                                     // FY_for_Incentive
-  fmt(f.customer_name),                                         // Customer_Name
-  fmt(f.brand_name),                                            // Brand Name
-  (f.services_fees||[]).map(s=>s.name).filter(Boolean).join('; '), // Services
-  fmt(formBusinessUnits(f).join('; ')),                                               // Segment
-  fmt(f.sales_team),                                            // Sales Team
-  fmt(f.sales_rep_name),                                        // Sales_Representative
-  fmt(f.lead_type),                                             // Lead_type
-  fmt(f.lead_name),                                             // Lead_name
-  fmt(f.lead_category),                                         // Lead_category
-  fmt(f.start_date),                                            // Start_date
-  fmt(f.end_date),                                              // End_date
-  fmt(f.auto_renewal),                                          // Auto_Renewal
-  fmt(f.renewal_term),                                          // Renewal_Term
-  fmt(f.of_term || (f.of_term_months ? f.of_term_months + ' Months' : '')), // Order_Form_Term
-  fmt(f.approved_at?.split('T')[0]),                            // Sent for Signing
-  fmt(f.signed_date),                                           // Date_of_Signing
-  bool(['submitted','revops_approved','revops_rejected','approved','signed'].includes(f.status)), // Submitted
-  bool(f.signed_date || f.status === 'signed'),                 // Signed
-  bool(f.status === 'dropped' || f.is_dropped),                 // Dropped
-  '',                                                            // Expired (manual field)
-  fmt(unsignedAging(f)),                                        // Unsigned Aging
-  fmt(f.submitted_link),                                        // Submitted_Link
-  fmt(f.signed_of_link),                                        // Signed_Link
-  fmt((f.arr_text||'').replace(/\n/g,' | ')),                  // ARR
-  fmt(f.committed_revenue),                                     // Committed Revenue
-  fmt(f.committed_currency || 'INR'),                           // Committed Revenue Currency
-  fmt(f.comments || f.revops_comment || f.finance_comment),    // Comments
-  bool(f.is_churn || f.status === 'churn'),                    // Churn
-  fmt(days(f.submitted_at, f.approved_at)),                    // TAT (submission → approval)
-  fmt(f.country),                                               // Country
-  fmt(f.country),                                               // Region (same as Country)
-  fmt(f.valyx),                                                 // Valyx
-  fmt(f.slack_id),                                              // Slack ID
-  fmt(f.signatory_name),                                        // Authorised Signatory Name
-  fmt(f.signatory_email),                                       // Authorised Signatory Email
-  fmt(f.customer_cc),                                           // Customer CC
-  fmt(f.sales_rep_email),                                       // Sales Representative Email
+  i + 1,
+  fmt(f.of_number),
+  fmt(getQtr(f.start_date)),
+  fmt(getFY(f.start_date)),
+  fmt(f.customer_name),
+  fmt(f.brand_name),
+  (f.services_fees||[]).map(s=>s.name).filter(Boolean).join('; '),
+  fmt(formBusinessUnits(f).join('; ')),
+  fmt(f.sales_team),
+  fmt(f.sales_rep_name),
+  fmt(f.lead_type),
+  fmt(f.lead_name),
+  fmt(f.lead_category),
+  fmt(f.start_date),
+  fmt(f.end_date),
+  fmt(f.auto_renewal),
+  fmt(f.renewal_term),
+  fmt(f.of_term || (f.of_term_months ? f.of_term_months + ' Months' : '')),
+  fmt(f.approved_at?.split('T')[0]),
+  fmt(f.signed_date),
+  bool(['submitted','revops_approved','revops_rejected','approved','signed'].includes(f.status)),
+  bool(f.signed_date || f.status === 'signed'),
+  bool(f.status === 'dropped' || f.is_dropped),
+  '',
+  fmt(unsignedAging(f)),
+  fmt(f.submitted_link),
+  fmt(f.signed_of_link),
+  fmt((f.arr_text||'').replace(/\n/g,' | ')),
+  fmt(f.committed_revenue),
+  fmt(f.committed_currency || 'INR'),
+  fmt(f.comments || f.revops_comment || f.finance_comment),
+  bool(f.is_churn || f.status === 'churn'),
+  fmt(days(f.submitted_at, f.approved_at)),
+  fmt(f.country),
+  fmt(f.country),
+  fmt(f.valyx),
+  fmt(f.slack_id),
+  fmt(f.signatory_name),
+  fmt(f.signatory_email),
+  fmt(f.customer_cc),
+  fmt(f.sales_rep_email),
 ];
 
 // ── SERVICE INDEX ROW ────────────────────────────────────────────────────────
@@ -187,13 +186,8 @@ async function writeTab(sheetsId, tabName, values, token) {
 }
 
 // ── PUBLIC API ───────────────────────────────────────────────────────────────
-
-// Cache the access token in memory (valid ~1h) so repeated syncs in the same
-// session reuse it instead of triggering a second OAuth popup (which browsers
-// block outside a user gesture — COOP / popup-blocker).
 let _tokenCache = { value: null, exp: 0 };
 
-/** Get an OAuth2 access token with Sheets write scope (cached while valid) */
 export function getAccessToken(forceNew = false) {
   return new Promise((resolve, reject) => {
     const now = Date.now();
@@ -222,20 +216,12 @@ export function getAccessToken(forceNew = false) {
   });
 }
 
-/**
- * Return a valid cached Sheets token if one exists, else null — WITHOUT ever
- * opening the Google consent screen. Used by the fire-and-forget auto-syncs so a
- * routine write (live date, churn) never triggers an OAuth popup for users who
- * haven't granted the Sheets scope. The sheet still refreshes for anyone who has
- * a live token (e.g. after using the Settings "Sync to Google Sheets" button).
- */
 export function getAccessTokenSilent() {
   const now = Date.now();
   if (_tokenCache.value && _tokenCache.exp > now + 60000) return _tokenCache.value;
   return null;
 }
 
-/** Sync all forms to Google Sheets — Index tab + Service Index tab */
 export async function syncAllToSheets(forms, onProgress, tokenIn) {
   const sheetsId = getSheetId();
   if (!sheetsId) throw new Error('No Google Sheet ID configured. Go to Settings to add one.');
@@ -243,11 +229,9 @@ export async function syncAllToSheets(forms, onProgress, tokenIn) {
   onProgress?.('Requesting Google Sheets access...');
   const token = tokenIn || await getAccessToken();
 
-  // Build Index data
   onProgress?.('Building Index tab...');
   const indexValues = [INDEX_HEADERS, ...forms.map((f, i) => toIndexRow(f, i))];
 
-  // Build Service Index data
   onProgress?.('Building Service Index tab...');
   const serviceValues = [SERVICE_HEADERS];
   let svcIdx = 0;
@@ -257,7 +241,6 @@ export async function syncAllToSheets(forms, onProgress, tokenIn) {
     svcIdx += rows.length;
   });
 
-  // Write both tabs
   onProgress?.(`Writing ${indexValues.length - 1} rows to Index tab...`);
   await writeTab(sheetsId, 'OF Index', indexValues, token);
 
@@ -269,14 +252,11 @@ export async function syncAllToSheets(forms, onProgress, tokenIn) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// COMMERCIALS TAB — one row per fee line, colour coded, written in real time
-// on Finance approval, on signing, and on live-date / deal-status updates.
-// Additive only: the OF Index and Service Index tabs above are untouched.
+// COMMERCIALS TAB
 // ═══════════════════════════════════════════════════════════════════════════
 
 const COMMERCIALS_TAB = 'Commercials';
 
-// Which OFs belong in the commercials sheet (Finance-approved onward)
 const isExported = f =>
   !!f.approved_at ||
   ['approved', 'signed', 'completed', 'revised', 'churn', 'void'].includes(f.status);
@@ -286,10 +266,8 @@ const isYavi = f =>
   (f.of_number || '').startsWith('OFYT') ||
   (f.of_number || '').startsWith('OF-YT');
 
-// Region: explicit form value, else inferred from the sales rep (same as the app's views)
 const regionOf = f => f.region || getRepRegion(f.sales_rep_email) || '';
 
-// Strip the parenthetical from a unit metric: "BCA (Brand Calculated Amount)" -> "BCA"
 const shortMetric = m => (m ? String(m).split(' (')[0].trim() : '');
 
 const isStepUpFee = fee => !!(fee.stepUpPricing && (fee.stepUpValues || []).length);
@@ -311,20 +289,18 @@ const feeBasisOf = fee =>
   isPercentFee(fee) ? 'Percentage (%)' :
   isPerUnitFee(fee) ? 'Per-unit (₹)' : 'Amount (₹)';
 
-// Commercial Value = NUMBER ONLY (blank for variable/slab/step-up/rate-card)
 const numericValueOf = fee => {
   if (fee.isLogistics || fee.pricingModel === 'graduated' || isStepUpFee(fee)) return '';
   const v = parseFloat(fee.commercialValue);
   return isNaN(v) ? '' : v;
 };
 
-// Charged On = the textual basis only (no number)
 const chargedOnOf = fee => {
   if (fee.isLogistics) return 'As per rate card';
   const unit = fee.unitMetric || '';
   if (isPercentFee(fee)) return unit ? 'of ' + shortMetric(unit) : '';
   if (isPerUnitFee(fee)) return unit ? 'per ' + shortMetric(unit) : '';
-  return unit; // lump amount / slab / step-up → the metric (Store, User, …)
+  return unit;
 };
 
 const slabDetailOf = fee => {
@@ -351,8 +327,6 @@ const stepUpDetailOf = (fee, code) => {
 const hyperlink = (url, label) =>
   url ? `=HYPERLINK("${String(url).replace(/"/g, '')}","${label}")` : '';
 
-// ── Column model ─────────────────────────────────────────────────────────────
-// Groups define the coloured header bands (and their column spans, in order).
 const COMM_GROUPS = [
   { label: 'Order form',        cols: 21, band: '#B5D4F4', title: '#EAF1FA', text: '#042C53' },
   { label: 'Status & signing',  cols: 7,  band: '#9FE1CB', title: '#E7F5EF', text: '#04342C' },
@@ -363,41 +337,32 @@ const COMM_GROUPS = [
 ];
 
 const COMM_HEADERS = [
-  // Order form (0–20)
   'OF Number', 'Entity', 'Customer Name', 'Brand / Trade Name', 'Sales Type',
   'Sales Channel', 'Lead Category', 'Lead Name', 'Business Unit(s)', 'Sales Team', 'Region',
   'Sales Rep', 'Sales Rep Email', 'Billing Currency', 'Order Form Value', 'OF Term',
   'Service Period Start', 'Service Period End', 'Auto Renewal', 'Renewal Frequency', 'Payment Terms',
-  // Status & signing (21–27)
   'Status', 'Approved At', 'Signing Date', 'Signing Quarter', 'Signing FY', 'Signed OF Link', 'Live Date',
-  // Service (28–29)
   'Bundle Service', 'Service Name',
-  // Fee line (30–39)
   'Fee Type', 'Billing Cycle', 'Pricing Model', 'Fee Basis', 'Commercial Value',
   'Charged On', 'Inclusions', 'Slab Detail', 'Step-up Detail', 'Special Terms / Notes',
-  // Client / Billing (40–47)
   'Billing Address', 'Billing Email', 'GSTIN', 'PAN', 'Tax / VAT Number',
   'Client Rep Name', 'Client Rep Email', 'Client Rep Mobile',
-  // Revenue Architect (48–49) — attribution only, not on the PDF
   'Revenue Architect', 'RA Email',
-  // Scope of Work (50)
   'SoW Link',
 ];
 
 const COL = {
   salesType: 4, leadCategory: 6, status: 21, pricingModel: 32,
 };
-const TOTAL_COLS = COMM_HEADERS.length; // 48
-const DATA_START_ROW = 2;               // rows 0=band, 1=titles, 2+=data
+const TOTAL_COLS = COMM_HEADERS.length;
+const DATA_START_ROW = 2;
 
-// Sort key: approval time (fallbacks for legacy/edge rows). Ascending → newest last.
 const approvalKey = f =>
   Date.parse(f.approved_at || f.signed_at || f.signed_date || f.created_at || '') || 0;
 
-// Build the data rows (one per fee line) and the per-OF banding blocks.
 function buildCommercials(forms) {
   const rows = [];
-  const blocks = [];                // { start, end } row indices (sheet-absolute) per OF
+  const blocks = [];
   const ordered = forms.filter(isExported).slice().sort((a, b) => approvalKey(a) - approvalKey(b));
   ordered.forEach(f => {
     const entity     = isYavi(f) ? 'Yavi' : 'Fynd';
@@ -415,7 +380,6 @@ function buildCommercials(forms) {
       fmt(f.signed_date), fmt(getQtr(f.signed_date)), fmt(getFY(f.signed_date)),
       signedLink, fmt(liveDate),
     ];
-    // Client / Billing — OF-level, repeated on each fee line (far-right group)
     const clientBilling = [
       fmt(f.billing_address), fmt(f.billing_email), fmt(f.gstin), fmt(f.pan), fmt(f.tax_number),
       fmt(f.client_rep_name), fmt(f.client_rep_email), fmt(f.client_rep_mobile),
@@ -450,7 +414,6 @@ function buildCommercials(forms) {
   return { rows, blocks };
 }
 
-// ── Colour helpers ───────────────────────────────────────────────────────────
 const hexToRgb = hex => {
   const h = hex.replace('#', '');
   return {
@@ -460,7 +423,6 @@ const hexToRgb = hex => {
   };
 };
 
-// value → { bg, fg } maps for conditional formatting (status cell only, etc.)
 const STATUS_FILL = {
   'Signed ✍️': { bg: '#EAF3DE', fg: '#173404' },
   'Approved ✓': { bg: '#FAEEDA', fg: '#412402' },
@@ -513,7 +475,6 @@ function cfRules(sheetId, dataEndRow) {
   return rules;
 }
 
-// ── Sheets API plumbing for the Commercials tab ──────────────────────────────
 async function getMeta(sheetsId, token) {
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${sheetsId}?fields=sheets(properties(sheetId,title),conditionalFormats)`,
@@ -545,16 +506,11 @@ async function clearTab(sheetsId, tab, token) {
   );
 }
 
-/**
- * Real-time sync of the Commercials tab. Regenerates the whole tab from all
- * Finance-approved-onward forms (dedup-safe), then re-applies colour coding.
- */
 export async function syncCommercialsToSheets(forms, onProgress, tokenIn) {
   const sheetsId = getSheetId();
   if (!sheetsId) throw new Error('No Google Sheet ID configured. Go to Settings to add one.');
   const token = tokenIn || await getAccessToken();
 
-  // 1. Ensure the tab exists, get its sheetId + existing CF rule count
   let meta = await getMeta(sheetsId, token);
   let sheet = meta.sheets.find(s => s.properties.title === COMMERCIALS_TAB);
   if (!sheet) {
@@ -567,7 +523,6 @@ export async function syncCommercialsToSheets(forms, onProgress, tokenIn) {
   const sheetId = sheet.properties.sheetId;
   const existingCF = (sheet.conditionalFormats || []).length;
 
-  // 2. Build values: group band row, header titles row, data rows
   onProgress?.('Building commercials rows…');
   const { rows, blocks } = buildCommercials(forms);
   const bandRow = [];
@@ -575,24 +530,19 @@ export async function syncCommercialsToSheets(forms, onProgress, tokenIn) {
   const values = [bandRow, COMM_HEADERS, ...rows];
   const dataEndRow = DATA_START_ROW + rows.length;
 
-  // 3. Clear + write values
   onProgress?.(`Writing ${rows.length} fee-line rows…`);
   await clearTab(sheetsId, COMMERCIALS_TAB, token);
   await writeTab(sheetsId, COMMERCIALS_TAB, values, token);
 
-  // 4. Formatting
   onProgress?.('Applying colour coding…');
   const colEnd = i => COMM_GROUPS.slice(0, i).reduce((s, g) => s + g.cols, 0);
   const requests = [];
-  // remove old conditional rules (reverse order)
   for (let i = existingCF - 1; i >= 0; i--) requests.push({ deleteConditionalFormatRule: { sheetId, index: i } });
-  // reset any stale backgrounds across a generous data area
   requests.push({ repeatCell: {
     range: { sheetId, startRowIndex: DATA_START_ROW, endRowIndex: Math.max(dataEndRow, 5000),
              startColumnIndex: 0, endColumnIndex: TOTAL_COLS },
     cell: { userEnteredFormat: { backgroundColor: hexToRgb('#FFFFFF') } },
     fields: 'userEnteredFormat.backgroundColor' } });
-  // unmerge then merge the group band cells
   requests.push({ unmergeCells: { range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: TOTAL_COLS } } });
   COMM_GROUPS.forEach((g, gi) => {
     const start = colEnd(gi), end = start + g.cols;
@@ -607,22 +557,18 @@ export async function syncCommercialsToSheets(forms, onProgress, tokenIn) {
       range: { sheetId, startRowIndex: 1, endRowIndex: 2, startColumnIndex: start, endColumnIndex: end },
       cell: { userEnteredFormat: { backgroundColor: hexToRgb(g.title),
               textFormat: { bold: true, foregroundColor: hexToRgb(g.text) } } },
-      fields: 'userEnteredFormat(backgroundColor,textFormat)' } });
+      fields: 'userEntiredFormat(backgroundColor,textFormat)' } });
   });
-  // per-OF alternating bands
   blocks.forEach((b, i) => {
     requests.push({ repeatCell: {
       range: { sheetId, startRowIndex: b.start, endRowIndex: b.end, startColumnIndex: 0, endColumnIndex: TOTAL_COLS },
       cell: { userEnteredFormat: { backgroundColor: hexToRgb(i % 2 === 0 ? BAND_A : BAND_B) } },
       fields: 'userEnteredFormat.backgroundColor' } });
   });
-  // freeze 2 rows + basic filter on the titles row
   requests.push({ updateSheetProperties: { properties: { sheetId, gridProperties: { frozenRowCount: 2 } }, fields: 'gridProperties.frozenRowCount' } });
   requests.push({ setBasicFilter: { filter: { range: { sheetId, startRowIndex: 1, startColumnIndex: 0, endColumnIndex: TOTAL_COLS } } } });
-  // conditional colour rules (status / pricing model / sales type / lead category)
   if (rows.length) requests.push(...cfRules(sheetId, dataEndRow));
 
-  // batchUpdate can be large — chunk to be safe
   for (let i = 0; i < requests.length; i += 200) {
     await batchUpdate(sheetsId, requests.slice(i, i + 200), token);
   }
@@ -631,16 +577,12 @@ export async function syncCommercialsToSheets(forms, onProgress, tokenIn) {
   return { feeRows: rows.length };
 }
 
-/**
- * Fire-and-forget wrapper used by the approval / signing / live-date handlers.
- * Never throws — a Sheets failure must not affect the platform flow.
- */
 export function autoSyncCommercials(forms) {
   try {
-    if (!getSheetId()) return;                       // not configured → skip silently
-    if (!forms?.some(isExported)) return;            // nothing to export yet
+    if (!getSheetId()) return;
+    if (!forms?.some(isExported)) return;
     const token = getAccessTokenSilent();
-    if (!token) return;                              // no Sheets grant → skip (never pops OAuth consent)
+    if (!token) return;
     syncCommercialsToSheets(forms, () => {}, token).catch(e =>
       console.warn('[Commercials] auto-sync skipped:', e?.message || e));
   } catch (e) {
@@ -649,9 +591,7 @@ export function autoSyncCommercials(forms) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Churn Customers tab — one row per churned IP (partial) or per full churn.
-// Sources every request in `churn_void_requests` (OF-linked + no-OF), including
-// pending ones; cross-references the OF for applied per-IP amounts. Voids excluded.
+// Churn Customers tab
 // ═══════════════════════════════════════════════════════════════════════════
 const CHURN_TAB = 'Churn Customers';
 export const CHURN_HEADERS = [
@@ -673,9 +613,9 @@ export function buildChurnRows(forms, requests) {
   const rows = [];
   const dateOf = r => (r.actioned_at || r.requested_at || '');
   const churnReqs = (requests || [])
-    .filter(r => r.status_requested === 'Churn')   // exclude Void
+    .filter(r => r.status_requested === 'Churn')
     .slice()
-    .sort((a, b) => new Date(dateOf(a)) - new Date(dateOf(b)));   // Column N (Date) — oldest first, newest at the bottom
+    .sort((a, b) => new Date(dateOf(a)) - new Date(dateOf(b)));
   churnReqs.forEach(r => {
     const of = !r.is_others ? (forms || []).find(f => f.id === r.form_id || f.of_number === r.of_number) : null;
     const applied  = !!r.actioned && !r.rejected;
@@ -719,7 +659,6 @@ export function buildChurnRows(forms, requests) {
   return rows;
 }
 
-/** Full regenerate of the Churn Customers tab. */
 export async function syncChurnCustomers(forms, tokenIn) {
   const sheetsId = getSheetId();
   if (!sheetsId) throw new Error('No Google Sheet ID configured.');
@@ -746,7 +685,6 @@ export async function syncChurnCustomers(forms, tokenIn) {
   await clearTab(sheetsId, CHURN_TAB, token);
   await writeTab(sheetsId, CHURN_TAB, values, token);
 
-  // Header styling: navy background, white bold
   await batchUpdate(sheetsId, [{
     repeatCell: {
       range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
@@ -761,14 +699,293 @@ export async function syncChurnCustomers(forms, tokenIn) {
   return { rows: rows.length };
 }
 
-/** Fire-and-forget churn-tab refresh (mirrors autoSyncCommercials). */
 export function autoSyncChurnCustomers(forms) {
   try {
     if (!getSheetId()) return;
     const token = getAccessTokenSilent();
-    if (!token) return;                              // no Sheets grant → skip (never pops OAuth consent)
+    if (!token) return;
     syncChurnCustomers(forms, token).catch(e => console.warn('[Churn] auto-sync skipped:', e?.message || e));
   } catch (e) {
     console.warn('[Churn] auto-sync error:', e?.message || e);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROFORMA INVOICES TAB
+// One row per (line item, collection) pair — zipped by position.
+// If a PI has more line items than collections (or vice versa), the shorter
+// side leaves its columns blank on the extra rows.
+// PI-level fields (status, grand total, currency, entity, created by,
+// reviewed by) appear on every row for easy filtering.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const PI_TAB = 'Proforma Invoices';
+
+// Two header-band groups for colour coding
+const PI_GROUPS = [
+  { label: 'Proforma Invoice Details', cols: 13, band: '#B5D4F4', title: '#EAF1FA', text: '#042C53' },
+  { label: 'Collection Entry',         cols: 9,  band: '#9FE1CB', title: '#E7F5EF', text: '#04342C' },
+];
+
+const PI_HEADERS = [
+  // PI-level (0–12)
+  'PI Number', 'Entity', 'OF Number', 'Customer Name', 'Status',
+  'Currency', 'Service', 'Fee Type', 'Line Amount',
+  'Subtotal', 'Tax', 'Grand Total', 'Created By',
+  // Collection-level (13–21)
+  'Collection Date', 'Collection Amount (Money in Bank)',
+  'TDS %', 'TDS Amount', 'Total (Collection + TDS)',
+  'Payment Mode', 'Reference / UTR', 'Notes', 'Recorded By',
+];
+
+const PI_TOTAL_COLS = PI_HEADERS.length; // 22
+const PI_DATA_START = 2; // row 0 = band, row 1 = headers, row 2+ = data
+
+const piEntityLabel = pi => {
+  const n = pi.pi_number || '';
+  if (pi.entity === 'yavi'   || n.startsWith('PI-YT')) return 'Yavi';
+  if (pi.entity === 'fynduk' || n.startsWith('PI-UK')) return 'Fynd UK';
+  return 'Fynd';
+};
+
+const PI_STATUS_LABEL = {
+  submitted:       'Pending Approval',
+  approved:        'Approved',
+  rejected:        'Rejected',
+  cancelled:       'Cancelled',
+  fully_collected: 'Fully Collected',
+};
+
+/**
+ * Build all data rows for the Proforma Invoices tab.
+ * Sorts PIs by created_at ascending (oldest first, newest at bottom).
+ */
+function buildPIRows(pis) {
+  const rows  = [];
+  const blocks = []; // for alternating PI banding
+
+  const sorted = [...(pis || [])].sort((a, b) => {
+    const ta = a.created_at?.toMillis?.() || Date.parse(a.created_at) || 0;
+    const tb = b.created_at?.toMillis?.() || Date.parse(b.created_at) || 0;
+    return ta - tb;
+  });
+
+  sorted.forEach(pi => {
+    const lineItems   = pi.line_items   || [];
+    const collections = pi.collections  || [];
+    const rowCount    = Math.max(lineItems.length, collections.length, 1);
+    const blockStart  = PI_DATA_START + rows.length;
+
+    // PI-level fields repeated on every row
+    const piBase = [
+      fmt(pi.pi_number),
+      piEntityLabel(pi),
+      fmt(pi.of_number || ''),
+      fmt(pi.customer_name),
+      fmt(PI_STATUS_LABEL[pi.status] || pi.status),
+      fmt(pi.currency || 'INR'),
+    ];
+
+    // Subtotal / tax / grand total shown only on first row to avoid repetition
+    // but still included on all rows for filter/formula convenience
+    const piTotals = [
+      pi.subtotal    != null ? Number(pi.subtotal)    : '',
+      pi.tax_amount  != null ? Number(pi.tax_amount)  : '',
+      pi.grand_total != null ? Number(pi.grand_total) : '',
+    ];
+
+    for (let i = 0; i < rowCount; i++) {
+      const li  = lineItems[i]   || null;
+      const col = collections[i] || null;
+
+      // Sort collections by date for consistent pairing
+      const sortedCols = [...collections].sort((a, b) => new Date(a.date) - new Date(b.date));
+      const colEntry = sortedCols[i] || null;
+
+      rows.push([
+        // PI-level
+        ...piBase,
+        fmt(li?.service   || ''),
+        fmt(li?.fee_type  || ''),
+        li?.total != null ? Number(li.total) : '',
+        // Totals (on every row for filtering)
+        ...piTotals,
+        fmt(pi.created_by_name || ''),
+        // Collection-level
+        fmt(colEntry?.date               || ''),
+        colEntry?.amount  != null ? Number(colEntry.amount)     : '',
+        colEntry?.tds_pct != null && colEntry?.tds_pct !== '' ? Number(colEntry.tds_pct) : '',
+        colEntry?.tds_amount != null ? Number(colEntry.tds_amount) : '',
+        colEntry?.total   != null ? Number(colEntry.total)      :
+          (colEntry?.amount != null ? Number(colEntry.amount)   : ''),
+        fmt(colEntry?.mode               || ''),
+        fmt(colEntry?.payment_reference  || ''),
+        fmt(colEntry?.notes              || ''),
+        fmt(colEntry?.recorded_by_name   || ''),
+      ]);
+    }
+
+    const blockEnd = PI_DATA_START + rows.length;
+    if (blockEnd > blockStart) blocks.push({ start: blockStart, end: blockEnd });
+  });
+
+  return { rows, blocks };
+}
+
+/**
+ * Full regenerate of the Proforma Invoices tab.
+ * Called by syncPIToSheets (manual trigger) and autosyncPI (fire-and-forget).
+ */
+export async function syncPIToSheets(pis, onProgress, tokenIn) {
+  const sheetsId = getSheetId();
+  if (!sheetsId) throw new Error('No Google Sheet ID configured. Go to Settings to add one.');
+  const token = tokenIn || await getAccessToken();
+
+  // Ensure tab exists
+  let meta = await getMeta(sheetsId, token);
+  let sheet = meta.sheets.find(s => s.properties.title === PI_TAB);
+  if (!sheet) {
+    onProgress?.('Creating Proforma Invoices tab…');
+    const r = await batchUpdate(sheetsId,
+      [{ addSheet: { properties: { title: PI_TAB, gridProperties: { frozenRowCount: 2 } } } }], token);
+    sheet = { properties: r.replies[0].addSheet.properties, conditionalFormats: [] };
+  }
+  const sheetId    = sheet.properties.sheetId;
+  const existingCF = (sheet.conditionalFormats || []).length;
+
+  // Build values
+  onProgress?.('Building PI rows…');
+  const { rows, blocks } = buildPIRows(pis);
+
+  // Band row (group labels)
+  const bandRow = [];
+  PI_GROUPS.forEach(g => { bandRow.push(g.label); for (let i = 1; i < g.cols; i++) bandRow.push(''); });
+
+  const values     = [bandRow, PI_HEADERS, ...rows];
+  const dataEndRow = PI_DATA_START + rows.length;
+
+  // Clear + write
+  onProgress?.(`Writing ${rows.length} rows to Proforma Invoices tab…`);
+  await clearTab(sheetsId, PI_TAB, token);
+  await writeTab(sheetsId, PI_TAB, values, token);
+
+  // Formatting
+  onProgress?.('Applying formatting…');
+  const requests = [];
+
+  // Remove old CF rules
+  for (let i = existingCF - 1; i >= 0; i--)
+    requests.push({ deleteConditionalFormatRule: { sheetId, index: i } });
+
+  // Reset backgrounds
+  requests.push({ repeatCell: {
+    range: { sheetId, startRowIndex: PI_DATA_START,
+             endRowIndex: Math.max(dataEndRow, 2000),
+             startColumnIndex: 0, endColumnIndex: PI_TOTAL_COLS },
+    cell: { userEnteredFormat: { backgroundColor: hexToRgb('#FFFFFF') } },
+    fields: 'userEnteredFormat.backgroundColor',
+  }});
+
+  // Unmerge + merge + colour the group band row
+  requests.push({ unmergeCells: { range: {
+    sheetId, startRowIndex: 0, endRowIndex: 1,
+    startColumnIndex: 0, endColumnIndex: PI_TOTAL_COLS,
+  }}});
+  let colCursor = 0;
+  PI_GROUPS.forEach(g => {
+    const start = colCursor, end = colCursor + g.cols;
+    requests.push({ mergeCells: { mergeType: 'MERGE_ALL', range: {
+      sheetId, startRowIndex: 0, endRowIndex: 1,
+      startColumnIndex: start, endColumnIndex: end,
+    }}});
+    requests.push({ repeatCell: {
+      range: { sheetId, startRowIndex: 0, endRowIndex: 1,
+               startColumnIndex: start, endColumnIndex: end },
+      cell: { userEnteredFormat: {
+        backgroundColor: hexToRgb(g.band),
+        horizontalAlignment: 'LEFT',
+        textFormat: { bold: true, foregroundColor: hexToRgb(g.text) },
+      }},
+      fields: 'userEnteredFormat(backgroundColor,horizontalAlignment,textFormat)',
+    }});
+    requests.push({ repeatCell: {
+      range: { sheetId, startRowIndex: 1, endRowIndex: 2,
+               startColumnIndex: start, endColumnIndex: end },
+      cell: { userEnteredFormat: {
+        backgroundColor: hexToRgb(g.title),
+        textFormat: { bold: true, foregroundColor: hexToRgb(g.text) },
+      }},
+      fields: 'userEnteredFormat(backgroundColor,textFormat)',
+    }});
+    colCursor = end;
+  });
+
+  // Alternating PI banding
+  const PI_BAND_A = '#FBFBF9';
+  const PI_BAND_B = '#EFF6FF'; // soft blue tint for the PI rows
+  blocks.forEach((b, i) => {
+    requests.push({ repeatCell: {
+      range: { sheetId, startRowIndex: b.start, endRowIndex: b.end,
+               startColumnIndex: 0, endColumnIndex: PI_TOTAL_COLS },
+      cell: { userEnteredFormat: { backgroundColor: hexToRgb(i % 2 === 0 ? PI_BAND_A : PI_BAND_B) } },
+      fields: 'userEnteredFormat.backgroundColor',
+    }});
+  });
+
+  // Status conditional formatting (column 4 = "Status")
+  const PI_STATUS_FILL = {
+    'Pending Approval': { bg: '#fef3c7', fg: '#92400e' },
+    'Approved':         { bg: '#d1fae5', fg: '#065f46' },
+    'Rejected':         { bg: '#fee2e2', fg: '#991b1b' },
+    'Cancelled':        { bg: '#f1f5f9', fg: '#64748b' },
+    'Fully Collected':  { bg: '#dcfce7', fg: '#14532d' },
+  };
+  if (rows.length) {
+    Object.entries(PI_STATUS_FILL).forEach(([val, c]) => {
+      requests.push({ addConditionalFormatRule: { index: 0, rule: {
+        ranges: [{ sheetId, startRowIndex: PI_DATA_START, endRowIndex: dataEndRow,
+                   startColumnIndex: 4, endColumnIndex: 5 }],
+        booleanRule: {
+          condition: { type: 'TEXT_EQ', values: [{ userEnteredValue: val }] },
+          format: { backgroundColor: hexToRgb(c.bg),
+                    textFormat: { bold: true, foregroundColor: hexToRgb(c.fg) } },
+        },
+      }}});
+    });
+  }
+
+  // Freeze 2 rows + basic filter
+  requests.push({ updateSheetProperties: {
+    properties: { sheetId, gridProperties: { frozenRowCount: 2 } },
+    fields: 'gridProperties.frozenRowCount',
+  }});
+  requests.push({ setBasicFilter: { filter: { range: {
+    sheetId, startRowIndex: 1, startColumnIndex: 0, endColumnIndex: PI_TOTAL_COLS,
+  }}}}); 
+
+  // Send in chunks
+  for (let i = 0; i < requests.length; i += 200)
+    await batchUpdate(sheetsId, requests.slice(i, i + 200), token);
+
+  onProgress?.(`✓ Proforma Invoices tab synced — ${rows.length} rows across ${pis?.length || 0} PIs`);
+  return { rows: rows.length };
+}
+
+/**
+ * Fire-and-forget PI tab refresh.
+ * Called whenever a PI is created, approved, rejected, cancelled,
+ * or a collection is added / edited / deleted.
+ * Never throws — a Sheets failure must not affect the platform flow.
+ */
+export function autoSyncPI(pis) {
+  try {
+    if (!getSheetId()) return;
+    if (!pis?.length) return;
+    const token = getAccessTokenSilent();
+    if (!token) return; // no Sheets grant → skip silently
+    syncPIToSheets(pis, () => {}, token).catch(e =>
+      console.warn('[PI] auto-sync skipped:', e?.message || e));
+  } catch (e) {
+    console.warn('[PI] auto-sync error:', e?.message || e);
   }
 }
