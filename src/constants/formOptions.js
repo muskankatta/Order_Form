@@ -1,6 +1,6 @@
 // ── Business Units (segments) — per the Fynd Product Chart ─────────────────────
 export const BUSINESS_UNITS = [
-  'Agentic Retail Commerce',
+  'Commerce',
   'Physical AI',
   'Manufacturing',
   'AI/SaaS Others',
@@ -12,8 +12,9 @@ export const BUSINESS_UNITS = [
 // ── Services grouped by Business Unit (drives the dropdown + the auto-BU tag) ──
 // Order here = order in the Services dropdown.
 export const SERVICE_GROUPS = [
-  { bu:'Agentic Retail Commerce', services:[
+  { bu:'Commerce', services:[
     'Storefront (B2C)','Storefront (B2B)','Konnect (OMS)','StoreOS','TMS','TMS (Logistics)',
+    'TMS - Managed Fleet',
     'WMS (B2C)','WMS (B2B)','Engage','Kaily','Boltic','GlamAR','AI PIM','AI Studio',
     'Quick Commerce','QSR Commerce','Mall Commerce','Logistics','Partners','Extensions',
   ]},
@@ -64,7 +65,8 @@ export const SERVICE_ALIASES = {
 
 // Legacy service names that aren't renamed but need a BU mapping
 const LEGACY_SERVICE_BU = {
-  'GoFynd': 'Agentic Retail Commerce',
+  'GoFynd':                  'Commerce',
+  'Agentic Retail Commerce': 'Commerce',  // old BU name → new
 };
 
 /** Resolve a (possibly legacy) service name to its current canonical name. */
