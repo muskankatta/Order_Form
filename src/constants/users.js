@@ -18,11 +18,11 @@ export const SALES_REPS = [
   { id:'2635', name:'Yadvendra Singh',   slack:'U072WEB2TGS', email:'yadvendrasingh@gofynd.com',    team:'India',  role:'Sales',           target:10000000,  targetCurrency:'INR' },
   { id:'1889', name:'Yugandhar Hode',    slack:'U03LWJWJXEY', email:'yugandharhode@gofynd.com',     team:'India',  role:'KAM',             target:null,      targetCurrency:'INR' },
   { id:'3220', name:'Shreenidhi S Kulkarni', slack:'U0BC2RA1UMC', email:'shreenidhi@gofynd.com',   team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
+  { id:'1036', name:'Jagadesh',        slack:'U0FJT7S01',   email:'jagadeshsahadevan@gofynd.com', team:'India', role:'RA',           target:null,      targetCurrency:'INR'},
   // Moved from AI/SaaS → India
-  { id:'3076', name:'Deep Jindal',       slack:'U09D0KZV2A0', email:'deepjindal@gofynd.com',        team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
   { id:'2933', name:'Faizan Ansari',     slack:'U08N41VP4JW', email:'faizanansari@gofynd.com',      team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
   { id:'2935', name:'Saritha Ravi',      slack:'U08N41SD8F4', email:'saritharavi@gofynd.com',       team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
-  { id:'3128', name:'Shresth Gupta',     slack:'U09R6079V9N', email:'shresthgupta@gofynd.com',      team:'India',  role:'BDR',             target:null,      targetCurrency:'INR' },
+  { id:'3128', name:'Shresth Gupta',     slack:'U09R6079V9N', email:'shresthgupta@gofynd.com',      team:'India',  role:'Sales',             target:null,      targetCurrency:'INR' },
   { id:'1058', name:'Megha Golecha',     slack:'U49BDA6UD',   email:'meghagolecha@gofynd.com',      team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
   { id:'3232', name:'Abhijeet Arora',    slack:'U0BMMT2S85S', email:'abhijeetarora@gofynd.com',     team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
   { id:'NA-IND', name:'NA', slack:'', email:'na_india', team:'India', role:'NA', target:null, targetCurrency:'INR' },
