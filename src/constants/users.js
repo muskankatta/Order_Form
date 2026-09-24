@@ -18,7 +18,7 @@ export const SALES_REPS = [
   { id:'2635', name:'Yadvendra Singh',   slack:'U072WEB2TGS', email:'yadvendrasingh@gofynd.com',    team:'India',  role:'Sales',           target:10000000,  targetCurrency:'INR' },
   { id:'1889', name:'Yugandhar Hode',    slack:'U03LWJWJXEY', email:'yugandharhode@gofynd.com',     team:'India',  role:'KAM',             target:null,      targetCurrency:'INR' },
   { id:'3220', name:'Shreenidhi S Kulkarni', slack:'U0BC2RA1UMC', email:'shreenidhi@gofynd.com',   team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
-  { id:'1036', name:'Jagadesh',        slack:'U0FJT7S01',   email:'jagadeshsahadevan@gofynd.com', team:'India', role:'RA',           target:null,      targetCurrency:'INR'},
+  { id:'1036', name:'Jagadesh Sahadevan',        slack:'U0FJT7S01',   email:'jagadeshsahadevan@gofynd.com', team:'India', role:'RA',           target:null,      targetCurrency:'INR'},
   // Moved from AI/SaaS → India
   { id:'2933', name:'Faizan Ansari',     slack:'U08N41VP4JW', email:'faizanansari@gofynd.com',      team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
   { id:'2935', name:'Saritha Ravi',      slack:'U08N41SD8F4', email:'saritharavi@gofynd.com',       team:'India',  role:'Sales',           target:null,      targetCurrency:'INR' },
