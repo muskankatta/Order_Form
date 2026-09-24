@@ -14,7 +14,7 @@ export const BUSINESS_UNITS = [
 export const SERVICE_GROUPS = [
   { bu:'Commerce', services:[
     'Storefront (B2C)','Storefront (B2B)','Konnect (OMS)','StoreOS','TMS','TMS (Logistics)',
-    'TMS - Managed Fleet',
+    'TMS - Fleet',
     'WMS (B2C)','WMS (B2B)','Engage','Kaily','Boltic','GlamAR','AI PIM','AI Studio',
     'Quick Commerce','QSR Commerce','Mall Commerce','Logistics','Partners','Extensions',
   ]},
